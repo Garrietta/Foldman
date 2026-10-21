@@ -1,0 +1,52 @@
+name: Bug report
+description: Something in Foldman doesn't work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: phone
+    attributes:
+      label: Phone and Android version
+      placeholder: Galaxy Z Fold 8, Android 17
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Foldman version
+      description: Android Settings → Apps → Foldman.
+      placeholder: 0.1.1
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: Source in the deck
+      options:
+        - Local folder
+        - Apple Music (signed in, playing inside Foldman)
+        - Apple Music (driving the Apple Music app)
+        - YT Music
+        - Not about playback
+    validations:
+      required: true
+  - type: dropdown
+    id: posture
+    attributes:
+      label: Posture
+      multiple: true
+      options:
+        - Folded (cover screen)
+        - Unfolded
+        - Half-open on a table (Flex mode)
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshots, recordings or logs
+      description: For crashes, attach the output of `adb logcat -d -b crash`.

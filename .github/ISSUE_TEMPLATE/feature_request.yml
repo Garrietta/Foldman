@@ -1,0 +1,16 @@
+name: Idea or feature request
+description: Suggest something Foldman should do.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What would you like Foldman to do, and why? Real cassette players are fair game for inspiration.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: Sketches, photos of real hardware, links.

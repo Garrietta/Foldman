@@ -13,6 +13,15 @@
 Folded, it's a portable player in your hand. Unfold it and it lays down into a deck.<br>
 Play your own music files, or drive YT Music and Apple Music from real piano keys.</p>
 
+<p align="center">
+  <a href="https://github.com/deveshrai/Foldman/wiki"><b>📖 Wiki</b></a> ·
+  <a href="https://github.com/deveshrai/Foldman/wiki/Using-Foldman">Using Foldman</a> ·
+  <a href="https://github.com/deveshrai/Foldman/wiki/Troubleshooting">Troubleshooting</a> ·
+  <a href="CHANGELOG.md">Changelog</a> ·
+  <a href="PRIVACY.md">Privacy</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a>
+</p>
+
 ---
 
 <p align="center">
@@ -110,14 +119,7 @@ Never commit the `.p8`. `*.p8`, `apple-music.properties`, `signing.properties` a
 
 </details>
 
-<details>
-<summary><b>Release builds</b></summary>
-
-<br>
-
-Create a git-ignored `signing.properties` with `storeFile`, `storePassword`, `keyAlias` and `keyPassword`, then run `./gradlew :app:assembleRelease`. Without that file, release builds fall back to the debug key. Every update must be signed with the same key, or phones won't install it over the old version.
-
-</details>
+Release builds, signing and version numbers are covered in [Release process](https://github.com/deveshrai/Foldman/wiki/Release-process).
 
 ## How it's put together
 
@@ -142,6 +144,17 @@ flowchart LR
 - **[`deck/DeckViewModel.kt`](app/src/main/java/dev/foldman/deck/DeckViewModel.kt):** keys → transport state (stop vs. pause latches, winding through songs, auto-stop).
 - **[`apple/`](app/src/main/java/dev/foldman/apple):** MusicKit reached by reflection (so the app builds without Apple's SDK), the Apple Music API client, and the crash-isolated player service.
 - **[`art/icon.svg`](art/icon.svg):** the launcher icon's source. Run `python3 tools/svg_to_icon.py` to regenerate the adaptive and themed icon layers.
+
+## Known limitations
+
+- **In-app Apple Music isn't a background service yet.** It has no lock-screen controls, and Android may stop it if Foldman stays in the background for a long time. Local music doesn't have this problem.
+- **Another app taking over the audio stops Foldman.** Opening the Apple Music app, for example, can resume its own song; press PLAY in Foldman to take the audio back.
+- **The developer token in release builds expires on 19 April 2027.** In-app Apple Music stops working after that until there's a new release. Driving the Apple Music app keeps working.
+- **Streaming sources:** pick music inside YT Music or the Apple Music app (Foldman browses only your Apple Music *library* playlists). REW/FF winds within the current song: rewinding stops at its start, and fast-forwarding past its end skips to the next song and stops. The VU needles animate rather than reading the audio, because Android doesn't let one app read another's.
+- Songs you uploaded to Apple Music yourself can't be streamed through MusicKit; they're greyed out.
+- Tags (title and artist) are read for the first 600 local files; files after that show their file names.
+
+More detail is in the wiki under [Sources](https://github.com/deveshrai/Foldman/wiki/Sources) and [Troubleshooting](https://github.com/deveshrai/Foldman/wiki/Troubleshooting).
 
 ## Roadmap
 
