@@ -2,6 +2,11 @@
 
 All notable changes to Foldman. Versions follow [semantic versioning](https://semver.org); downloads are on the [releases page](https://github.com/deveshrai/Foldman/releases).
 
+## [0.1.2] — 2026-10-21
+
+### Changed
+- **Foldman's settings no longer go into Android backups or device transfers.** They include your Apple Music user token, which now stays on the phone. When you move to a new phone, sign in to Apple Music again there.
+
 ## [0.1.1] — 2026-10-21
 
 ### Fixed
@@ -23,5 +28,6 @@ The first release.
 - **YT Music and Apple Music via media sessions.** Transport, artwork and queue, using notification access.
 - Adaptive launcher icon with a themed (monochrome) layer.
 
+[0.1.2]: https://github.com/deveshrai/Foldman/releases/tag/v0.1.2
 [0.1.1]: https://github.com/deveshrai/Foldman/releases/tag/v0.1.1
 [0.1.0]: https://github.com/deveshrai/Foldman/releases/tag/v0.1.0

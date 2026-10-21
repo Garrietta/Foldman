@@ -13,12 +13,17 @@
         <package android:name="com.apple.android.music" />
     </queries>
 
-    <!-- allowNativeHeapPointerTagging: Apple's MusicKit native library (2021, built for apps
+    <!-- allowBackup / dataExtractionRules: the settings include the Apple Music user token, so
+         nothing is backed up or copied to a new phone. (MusicKit's auth AAR asks for allowBackup="true";
+         tools:replace keeps Foldman's choice.)
+         allowNativeHeapPointerTagging: Apple's MusicKit native library (2021, built for apps
          targeting Android 9) predates Android's tagged heap pointers, and crashed freeing memory
          while setting up a stream's DRM on an Android 17 Fold. -->
     <application
         android:allowNativeHeapPointerTagging="false"
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        tools:replace="android:allowBackup"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:label="@string/app_name"

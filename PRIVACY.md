@@ -21,7 +21,9 @@ Foldman keeps a few settings in its private app storage:
 - the CLICK and HAPTIC switch positions;
 - your Apple Music **user token**, after you sign in, and a developer token if you pasted one in.
 
-Uninstalling Foldman deletes all of it. The app currently allows Android's backup, so these settings can also be included in your phone's backup.
+None of it leaves the phone. Foldman opts out of Android's cloud backup and of device-to-device transfer, so your Apple Music token isn't copied into a backup or onto a new phone; on a new phone you sign in again. Uninstalling Foldman deletes it all.
+
+> Versions 0.1.0 and 0.1.1 allowed Android's backup, so their settings, including the Apple Music user token, could be included in your phone's backup. 0.1.2 and later don't. Signing out in Foldman deletes the token from the phone, but not from a backup that was already made. Android replaces backups over time, and you can delete an existing one in your phone's Google backup settings.
 
 ## What goes over the network
 

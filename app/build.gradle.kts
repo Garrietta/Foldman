@@ -19,8 +19,8 @@ val signingProps = Properties().apply {
 }
 
 // The app version; versionCode must go up by one with every release.
-val appVersionName = "0.1.1"
-val appVersionCode = 2
+val appVersionName = "0.1.2"
+val appVersionCode = 3
 
 base {
     archivesName = "Foldman-$appVersionName"
