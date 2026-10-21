@@ -18,8 +18,12 @@ val signingProps = Properties().apply {
     rootProject.file("signing.properties").takeIf { it.exists() }?.inputStream()?.use(::load)
 }
 
+// The app version; versionCode must go up by one with every release.
+val appVersionName = "0.1.1"
+val appVersionCode = 2
+
 base {
-    archivesName = "Foldman-0.1.0"
+    archivesName = "Foldman-$appVersionName"
 }
 
 android {
@@ -30,8 +34,8 @@ android {
         applicationId = "dev.foldman"
         minSdk = 30
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
         buildConfigField("String", "APPLE_DEVELOPER_TOKEN", "\"$appleDeveloperToken\"")
         // Every current foldable is 64-bit ARM; leaving out the rest halves the APK.
         ndk {

@@ -95,6 +95,7 @@ class KitPlayer internal constructor(private val target: Any) {
 
     private val statePlaying = constant("com.apple.android.music.playback.model.PlaybackState", "PLAYING")
     private val songType = constant("com.apple.android.music.playback.model.MediaItemType", "SONG")
+    private val shuffleOff = constant("com.apple.android.music.playback.model.PlaybackShuffleMode", "SHUFFLE_MODE_OFF")
 
     private fun constant(cls: String, field: String): Int =
         runCatching { MusicKit.cls(cls)!!.getField(field).getInt(null) }.getOrDefault(Int.MIN_VALUE)
@@ -114,10 +115,18 @@ class KitPlayer internal constructor(private val target: Any) {
     val durationMs: Long get() = (call("getDuration") as? Number)?.toLong()?.coerceAtLeast(0) ?: 0L
     val canSkipNext: Boolean get() = call("canSkipToNextItem") as? Boolean ?: false
     val canSkipPrevious: Boolean get() = call("canSkipToPreviousItem") as? Boolean ?: false
+    val shuffleMode: Int get() = (call("getShuffleMode") as? Number)?.toInt() ?: -1
     val current: KitItem? get() = call("getCurrentItem")?.let(::item)
     /** Where the playing song sits in [queue]; -1 when nothing is loaded. */
     val queueIndex: Int get() = (call("getPlaybackQueueIndex") as? Number)?.toInt() ?: -1
     val queue: List<KitItem> get() = (call("getQueueItems") as? List<*>).orEmpty().mapNotNull { it?.let(::item) }
+
+    /** Turns shuffle off if the player has it on; true if it had to. */
+    fun ensureShuffleOff(): Boolean {
+        if (shuffleOff == Int.MIN_VALUE || shuffleMode == shuffleOff || call("canSetShuffleMode") != true) return false
+        m("setShuffleMode", Int::class.javaPrimitiveType).invoke(target, shuffleOff)
+        return true
+    }
 
     /** Loads catalog songs as the play queue at [startIndex], playing at once unless [play] is false. */
     fun playSongs(catalogIds: List<String>, startIndex: Int, play: Boolean = true) {
@@ -126,11 +135,16 @@ class KitPlayer internal constructor(private val target: Any) {
         b = builderCls.getMethod("items", Int::class.javaPrimitiveType, Array<String>::class.java)
             .invoke(b, songType, catalogIds.toTypedArray()) ?: b
         b = builderCls.getMethod("startItemIndex", Int::class.javaPrimitiveType).invoke(b, startIndex) ?: b
+        // Playlists play in order. Say so explicitly rather than inherit a shuffle setting.
+        if (shuffleOff != Int.MIN_VALUE) {
+            b = builderCls.getMethod("shuffleMode", Int::class.javaPrimitiveType).invoke(b, shuffleOff) ?: b
+        }
         val provider = builderCls.getMethod("build").invoke(b)
         val prepare = c.methods.first {
             it.name == "prepare" && it.parameterTypes.size == 2 && it.parameterTypes[1] == Boolean::class.javaPrimitiveType
         }
         prepare.invoke(target, provider, play)
+        ensureShuffleOff()
     }
 
     private fun item(queueItem: Any): KitItem? = runCatching {

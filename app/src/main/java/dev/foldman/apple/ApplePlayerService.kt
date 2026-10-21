@@ -52,7 +52,11 @@ class ApplePlayerService : Service() {
 
     private val poll = object : Runnable {
         override fun run() {
-            player?.let { send(snapshot(it)) }
+            player?.let {
+                // Foldman has no shuffle control: playlists always play in order.
+                if (runCatching { it.ensureShuffleOff() }.getOrDefault(false)) android.util.Log.i("Foldman", "Apple player had shuffle on; turned it off")
+                send(snapshot(it))
+            }
             main.postDelayed(this, 250)
         }
     }
@@ -74,12 +78,15 @@ class ApplePlayerService : Service() {
         }
         pendingSeek = data.getLong(ApplePlayerProtocol.POSITION, -1L)
         p.playSongs(ids, data.getInt(ApplePlayerProtocol.INDEX), data.getBoolean(ApplePlayerProtocol.PLAY, true))
+        android.util.Log.i("Foldman", "Apple queue loaded: ${ids.size} songs, shuffle mode ${p.shuffleMode}")
     }
 
     private fun snapshot(p: KitPlayer): Bundle {
-        val queue = p.queue
+        // MusicKit's queue list holds only the songs after the current one, and queueIndex is the
+        // current song's place in the whole playlist. Show the current song followed by what's next.
+        val current = p.current
+        val queue = listOfNotNull(current) + p.queue.filter { it.queueId != current?.queueId }
         val index = p.queueIndex
-        val current = queue.getOrNull(index) ?: p.current
         val duration = p.durationMs.takeIf { it > 0 } ?: (current?.durationMs ?: 0L)
         if (pendingSeek > 0 && duration > 0) {
             p.seekTo(pendingSeek)
@@ -98,6 +105,8 @@ class ApplePlayerService : Service() {
             putBoolean(ApplePlayerProtocol.HAS_NEXT, p.canSkipNext)
             putBoolean(ApplePlayerProtocol.HAS_PREVIOUS, p.canSkipPrevious)
             putInt(ApplePlayerProtocol.INDEX, index)
+            putInt(ApplePlayerProtocol.COUNT, if (index >= 0) index + queue.size else queue.size)
+            putLong(ApplePlayerProtocol.CURRENT_ID, current?.queueId ?: -1L)
             putLongArray(ApplePlayerProtocol.QUEUE_IDS, queue.map { it.queueId }.toLongArray())
             putStringArray(ApplePlayerProtocol.QUEUE_TITLES, queue.map { it.title.orEmpty() }.toTypedArray())
             putStringArray(ApplePlayerProtocol.QUEUE_ARTISTS, queue.map { it.artist.orEmpty() }.toTypedArray())
@@ -143,6 +152,8 @@ internal object ApplePlayerProtocol {
     const val USER = "user"
     const val IDS = "ids"
     const val INDEX = "index"
+    const val COUNT = "count"
+    const val CURRENT_ID = "currentId"
     const val PLAY = "play"
     const val POSITION = "position"
     const val ID = "id"

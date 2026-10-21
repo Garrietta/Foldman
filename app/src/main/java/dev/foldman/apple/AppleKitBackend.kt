@@ -194,7 +194,7 @@ class AppleKitBackend(private val context: Context) : DeckBackend {
             ),
             isPlaying = alive && (s.getBoolean(P.PLAYING) || s.getBoolean(P.BUFFERING)),
             trackIndex = index,
-            trackCount = ids.size,
+            trackCount = s.getInt(P.COUNT, ids.size),
             hasNext = alive && s.getBoolean(P.HAS_NEXT),
             hasPrevious = alive && s.getBoolean(P.HAS_PREVIOUS),
             queue = ids.indices.map { i ->
@@ -203,7 +203,7 @@ class AppleKitBackend(private val context: Context) : DeckBackend {
                     artworkUri = arts.getOrNull(i)?.takeIf { it.isNotEmpty() }?.let(Uri::parse),
                 )
             },
-            currentQueueId = ids.getOrNull(index) ?: -1,
+            currentQueueId = s.getLong(P.CURRENT_ID, -1L),
         )
     }
 
