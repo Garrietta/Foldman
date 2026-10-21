@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- The streaming apps Foldman can drive through their media sessions. -->
+    <queries>
+        <package android:name="com.google.android.apps.youtube.music" />
+        <package android:name="com.apple.android.music" />
+    </queries>
+
+    <!-- allowNativeHeapPointerTagging: Apple's MusicKit native library (2021, built for apps
+         targeting Android 9) predates Android's tagged heap pointers, and crashed freeing memory
+         while setting up a stream's DRM on an Android 17 Fold. -->
+    <application
+        android:allowNativeHeapPointerTagging="false"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Foldman">
+
+        <!-- Folding and unfolding resizes the window in place so the reels never stop mid-spin. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:resizeableActivity="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|keyboardHidden|uiMode"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".playback.PlaybackService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
+
+        <!-- MusicKit's player, kept in its own process so a crash in Apple's native code only
+             stops the music; Foldman restarts it and carries on. -->
+        <service
+            android:name=".apple.ApplePlayerService"
+            android:exported="false"
+            android:process=":apple" />
+
+        <!-- MusicKit's sign-in callback (musicsdk://dev.foldman/authenticateresult…), opened by the
+             Apple Music app when sign-in finishes. The 2021 SDK predates Android 12's exported rule.
+             Only takes effect when the MusicKit AARs are in app/libs. -->
+        <activity
+            android:name="com.apple.android.sdk.authentication.SDKUriHandlerActivity"
+            android:exported="true"
+            tools:ignore="MissingClass"
+            tools:node="merge" />
+
+        <!-- Notification access is what lets Foldman see YT Music's and Apple Music's media sessions. -->
+        <service
+            android:name=".remote.MediaListenerService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

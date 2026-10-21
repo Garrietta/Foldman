@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="108" height="108">
+  <!-- Foldman launcher icon, drawn on Android's 108-unit adaptive-icon grid. Everything that matters
+       sits inside the 66-unit safe circle, so circle, squircle and rounded-square masks all keep it.
+       Background and foreground are separate layers in the app (see res/drawable/ic_launcher_*.xml). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6E9DD0"/>
+      <stop offset="0.55" stop-color="#3B6BA4"/>
+      <stop offset="1" stop-color="#1F3F6B"/>
+    </linearGradient>
+    <radialGradient id="bgGlow" cx="0.3" cy="0.22" r="0.6">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="enamel" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#5C8DC4"/>
+      <stop offset="1" stop-color="#2A5288"/>
+    </linearGradient>
+    <linearGradient id="silver" x1="0" y1="0" x2="1" y2="0.6">
+      <stop offset="0" stop-color="#C9CCD1"/>
+      <stop offset="0.45" stop-color="#F7F8F9"/>
+      <stop offset="0.6" stop-color="#E2E4E7"/>
+      <stop offset="1" stop-color="#9DA1A8"/>
+    </linearGradient>
+    <linearGradient id="frame" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#E4E1EE"/>
+      <stop offset="1" stop-color="#8F8BA3"/>
+    </linearGradient>
+    <linearGradient id="hub" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#BFC2C7"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background layer -->
+  <rect width="108" height="108" fill="url(#bg)"/>
+  <rect width="108" height="108" fill="url(#bgGlow)"/>
+
+  <!-- Foreground layer: a folding player, half open, with a mixtape in its window. -->
+  <g transform="translate(54 55) scale(0.8) rotate(-9) translate(-56 -56)">
+    <!-- Back half of the fold: the inner screen's dark glass in a lavender frame. -->
+    <rect x="29" y="27" width="44" height="54" rx="5" fill="url(#frame)"/>
+    <rect x="31" y="29" width="40" height="50" rx="3.6" fill="#111317"/>
+    <!-- Front half: blue enamel body with a brushed silver top. -->
+    <rect x="35.5" y="33" width="42" height="52" rx="5" fill="#000000" opacity="0.35" transform="translate(1 1.6)"/>
+    <rect x="35.5" y="33" width="42" height="52" rx="5" fill="url(#enamel)"/>
+    <path d="M40.5 33 H72.5 A5 5 0 0 1 77.5 38 V47 H35.5 V38 A5 5 0 0 1 40.5 33 Z" fill="url(#silver)"/>
+    <rect x="35.5" y="46.6" width="42" height="0.8" fill="#1E3557" opacity="0.6"/>
+    <!-- Orange hotline button on the top edge. -->
+    <rect x="40" y="30.6" width="8.5" height="3.4" rx="1" fill="#F5A51E"/>
+    <rect x="40" y="30.6" width="8.5" height="1.2" rx="0.6" fill="#FFD36A"/>
+    <!-- Cassette window with chrome rim. -->
+    <rect x="40" y="53" width="33" height="25" rx="3.2" fill="#E8EAED"/>
+    <rect x="41.2" y="54.2" width="30.6" height="22.6" rx="2.4" fill="#141518"/>
+    <!-- Printed label: sunset stripes. -->
+    <rect x="42.6" y="55.6" width="27.8" height="19.8" rx="1.6" fill="#E94B3C"/>
+    <rect x="42.6" y="58.6" width="27.8" height="3" fill="#F39A2B"/>
+    <rect x="42.6" y="61.6" width="27.8" height="2.6" fill="#F7C948"/>
+    <rect x="42.6" y="70.4" width="27.8" height="2.4" fill="#7A4FC8"/>
+    <rect x="42.6" y="72.8" width="27.8" height="2.6" rx="1" fill="#3E7DD6"/>
+    <!-- Tape window: wound tape packs, white hubs with drive teeth. -->
+    <rect x="45.4" y="62.2" width="22.2" height="10.2" rx="2.6" fill="#231E1B"/>
+    <circle cx="50.8" cy="67.3" r="4.4" fill="#4A2E1E"/>
+    <circle cx="62.2" cy="67.3" r="3.4" fill="#4A2E1E"/>
+    <circle cx="50.8" cy="67.3" r="2.6" fill="url(#hub)"/>
+    <circle cx="62.2" cy="67.3" r="2.6" fill="url(#hub)"/>
+    <circle cx="50.8" cy="67.3" r="1.5" fill="#1A1A1C"/>
+    <circle cx="62.2" cy="67.3" r="1.5" fill="#1A1A1C"/>
+    <path d="M50.4 65.6 h0.8 v1 h-0.8 z M50.4 68 h0.8 v1 h-0.8 z M49.1 66.9 h1 v0.8 h-1 z M51.5 66.9 h1 v0.8 h-1 z" fill="#EDEDED"/>
+    <path d="M61.8 65.6 h0.8 v1 h-0.8 z M61.8 68 h0.8 v1 h-0.8 z M60.5 66.9 h1 v0.8 h-1 z M62.9 66.9 h1 v0.8 h-1 z" fill="#EDEDED"/>
+    <!-- Glass glare across the window. -->
+    <path d="M58 54.2 H64 L55 76.8 H49 Z" fill="#FFFFFF" opacity="0.12"/>
+  </g>
+</svg>

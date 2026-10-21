@@ -1,0 +1,15 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+*.p8
+# Apple Music IDs, key path and developer token (see apple-music.properties.example)
+apple-music.properties
+# MusicKit SDK binaries are Apple's; each developer downloads their own
+app/libs/*.aar
+# Release signing passwords and keystore path
+signing.properties
+*.jks
+*.keystore
