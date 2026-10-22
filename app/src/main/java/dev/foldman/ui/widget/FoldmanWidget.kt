@@ -199,13 +199,15 @@ private fun WalkmanContent() {
             .background(ColorProvider(Chrome.root))
             .padding(sd(10)),
     ) {
-            // Top: dark slate panel (radius echoes the outer 26, concentric).
+            // Dark top container: 50% of height (cut by 50% per spec).
+            // Left half: square track-info (top) + counter/RESET (below).
+            // Right half: cassette at 200% scale.
             Column(
                 modifier = GlanceModifier.fillMaxWidth()
                     .defaultWeight()
                     .cornerRadius(sd(20))
                     .background(ColorProvider(Chrome.panel))
-                    .padding(sd(10)),
+                    .padding(sd(8)),
             ) {
                 Row(verticalAlignment = Alignment.Top) {
                     // Left: title box over the chrome wordmark (fixed width).
