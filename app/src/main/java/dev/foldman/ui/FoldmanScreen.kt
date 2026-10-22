@@ -202,13 +202,18 @@ fun FoldmanScreen(
                 // The cover screen is the player itself: edge to edge, system bars shown
                 // as transparent overlays.
                 Posture.Cover -> CoverWalkman(ui, anim, deck, onTapes = { shelfOpen = true }, modifier = Modifier.fillMaxSize())
-                Posture.Unfolded -> Column(
+                // Unfolded: the left two-thirds hold the library, deck and liner notes;
+                // the right third is a full-height Up Next column fed by the live queue.
+                Posture.Unfolded -> Row(
                     Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    LibraryBand(ui, shelfActions, vm::playQueueItem, Modifier.fillMaxWidth().weight(if (landscape) 0.31f else 0.27f))
-                    DeckBand(ui, anim, deck, vm, Modifier.fillMaxWidth().weight(if (landscape) 0.44f else 0.46f))
-                    NowPlayingBand(ui, vm::playQueueItem, Modifier.fillMaxWidth().weight(if (landscape) 0.25f else 0.27f))
+                    Column(Modifier.weight(2f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        LibraryBand(ui, shelfActions, vm::playQueueItem, Modifier.fillMaxWidth().weight(if (landscape) 0.31f else 0.27f), showQueue = false)
+                        DeckBand(ui, anim, deck, vm, Modifier.fillMaxWidth().weight(if (landscape) 0.44f else 0.46f))
+                        LinerNotesBand(ui, Modifier.fillMaxWidth().weight(if (landscape) 0.25f else 0.27f))
+                    }
+                    UpNextColumn(ui, vm::playQueueItem, Modifier.weight(1f).fillMaxHeight())
                 }
                 Posture.Tabletop -> {
                     val (topH, gap) = with(density) {
@@ -237,34 +242,19 @@ fun FoldmanScreen(
             }
             if (shelfOpen && posture == Posture.Cover) {
                 // Hoisted: the sheet's content lambda is a ColumnScope, which loses the
-                // BoxWithConstraints receiver that maxHeight belongs to — and inside the
-                // sheet, WindowInsets.statusBars reads as 0 because ModalBottomSheet
-                // pre-emptively consumes the top insets for its own contentWindowInsets
-                // (BottomSheetDefaults.windowInsets). Captured here, where insets are reliable.
+                // BoxWithConstraints receiver that maxHeight belongs to.
                 val screenH = maxHeight
-                val statusBarPx = WindowInsets.statusBars.getTop(density)
-                val navBarPx = WindowInsets.navigationBars.getBottom(density)
                 ModalBottomSheet(
                     onDismissRequest = { shelfOpen = false },
                     sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
                     containerColor = Color(0xFF1C1510),
-                    // We own inset handling: M3's default contentWindowInsets (safeDrawing
-                    // top+bottom) pads the sheet chrome, which would push the surface
-                    // behind the status bar at full expansion. The nav bar keeps its
-                    // padding on the content below.
-                    contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
                 ) {
-                    // The sheet grows with upward scroll, stopping right before the
-                    // status bar, and shrinks back on downward scroll at the top.
+                    // The sheet grows with upward scroll, up to the base of the status bar,
+                    // and shrinks back on downward scroll at the top of the list.
                     val shelfListState = rememberLazyListState()
-                    // M3's default drag handle (4.dp bar + 2x22.dp padding = 48.dp, per
-                    // material3 1.4.0 tokens) sits above our content inside the sheet
-                    // surface; the cap accounts for it so the surface stops exactly at
-                    // the status bar's bottom edge.
-                    val handlePx = with(density) { 48.dp.toPx() }
+                    val statusBarPx = WindowInsets.statusBars.getTop(density)
                     val minHpx = with(density) { (screenH * 0.8f).toPx() }
-                    val maxHpx = (with(density) { screenH.toPx() } - statusBarPx - handlePx - navBarPx)
-                        .coerceAtLeast(minHpx)
+                    val maxHpx = (with(density) { screenH.toPx() } - statusBarPx).coerceAtLeast(minHpx)
                     var sheetHpx by remember { mutableStateOf<Float?>(null) }
                     val growConnection = remember(minHpx, maxHpx) {
                         object : NestedScrollConnection {
@@ -419,13 +409,16 @@ private fun SideStrip(ui: DeckUi, deck: DeckControls, modifier: Modifier) {
             Text("MIC", style = EngravedCaps.copy(fontSize = 7.sp))
             Spacer(Modifier.height(8.dp))
             StatusLed(ui.transport)
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-                MiniButton("AMS", deck.previous, symbol = KeySymbol.PREV, diameter = 26.dp)
-                MiniButton("AMS", deck.next, symbol = KeySymbol.NEXT, diameter = 26.dp, enabled = ui.hasNext)
-            }
             Spacer(Modifier.height(10.dp))
-            TransportKeys(ui, deck.stop, deck.rewind, deck.play, deck.fastForward, deck.pause, onShuffle = { deck.toggleShuffle() }, modifier = Modifier.fillMaxWidth(), keyHeight = keyH, vertical = true)
+            // PREV | PLAY | NEXT | PAUSE | STOP·EJECT | SHUFFLE: the track-skip keys
+            // take the REW/FF slots (the circular AMS buttons are gone); the freed
+            // space flows into the volume slider's weight below, making it taller.
+            TransportKeys(
+                ui, deck.stop, deck.rewind, deck.play, deck.fastForward, deck.pause,
+                onShuffle = { deck.toggleShuffle() },
+                onPrevTrack = deck.previous, onNextTrack = deck.next,
+                modifier = Modifier.fillMaxWidth(), keyHeight = keyH, vertical = true,
+            )
             Spacer(Modifier.height(12.dp))
             Text("VOLUME", style = EngravedCaps.copy(fontSize = 7.sp))
             VolumeSlider(ui.volume, deck.volume, Modifier.fillMaxWidth().weight(1f))
@@ -471,12 +464,14 @@ private fun DeckBand(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, vm: D
                 EjectArrow({ deck.stop() }, Modifier.size(26.dp, 50.dp))
             }
             Spacer(Modifier.height(10.dp))
+            // PREV | PLAY | NEXT | PAUSE | STOP·EJECT: the track-skip keys take the
+            // FF/REW slots (the small circular AMS buttons are gone on the unfolded deck).
             Row(verticalAlignment = Alignment.Bottom) {
-                MiniButton("AMS", deck.previous, symbol = KeySymbol.PREV, diameter = 30.dp)
-                Spacer(Modifier.width(10.dp))
-                TransportKeys(ui, deck.stop, deck.rewind, deck.play, deck.fastForward, deck.pause, modifier = Modifier.weight(1f), keyHeight = 58.dp)
-                Spacer(Modifier.width(10.dp))
-                MiniButton("AMS", deck.next, symbol = KeySymbol.NEXT, diameter = 30.dp, enabled = ui.hasNext)
+                TransportKeys(
+                    ui, deck.stop, deck.rewind, deck.play, deck.fastForward, deck.pause,
+                    onPrevTrack = deck.previous, onNextTrack = deck.next,
+                    modifier = Modifier.weight(1f), keyHeight = 58.dp,
+                )
             }
         }
         // Silver end strip: mic, switches, volume and phones.
