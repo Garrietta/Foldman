@@ -84,6 +84,7 @@ object FoldmanWidgetUpdater {
                 state[WidgetKeys.IS_PLAYING] = snapshot.isPlaying
                 state[WidgetKeys.SOURCE] = snapshot.activeSource.name
                 state[WidgetKeys.QUEUE_INDEX] = snapshot.queueIndex
+                state[WidgetKeys.REEL_ANGLE] = snapshot.reelAngleDeg
             }
             runCatching { widget.update(appContext, glanceId) }
         }

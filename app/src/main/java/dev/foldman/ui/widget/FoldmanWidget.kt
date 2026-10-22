@@ -40,6 +40,7 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import dev.foldman.MainActivity
@@ -49,6 +50,7 @@ internal object WidgetKeys {
     val TITLE = stringPreferencesKey("title")
     val ARTIST = stringPreferencesKey("artist")
     val TAPE_PATH = stringPreferencesKey("tape_path")
+    val REEL_ANGLE = floatPreferencesKey("reel_angle")
     val SLIDERS_PATH = stringPreferencesKey("sliders_path")
     val ARTWORK_PATH = stringPreferencesKey("artwork_path")
     val KEY_PATHS = stringPreferencesKey("key_paths")
@@ -143,6 +145,10 @@ private fun WalkmanContent() {
             BitmapFactory.decodeFile(path)?.takeIf { it.width > 0 && it.height > 0 }
         }.getOrNull()
     }
+    // Reel angle: referenced so Glance recomposes on every ticker tick.
+    // The tape bitmap file is re-decoded above with the new rotation.
+    @Suppress("UNUSED_VARIABLE")
+    val reelAngle = prefs?.get(WidgetKeys.REEL_ANGLE) ?: 0f
     // Transport key icons (vector-drawn, no emoji): paths joined by "|".
     val keyBitmaps: Map<String, android.graphics.Bitmap?> =
         prefs?.get(WidgetKeys.KEY_PATHS)?.split("|")?.let { paths ->
