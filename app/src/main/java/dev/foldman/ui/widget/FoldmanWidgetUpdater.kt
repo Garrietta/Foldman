@@ -65,7 +65,6 @@ object FoldmanWidgetUpdater {
             return
         }
         val tapePath = writeTape(appContext, snapshot)
-        val slidersPath = writeSliders(appContext, snapshot)
         val artworkPath = writeArtwork(appContext, snapshot)
         val keyPaths = writeKeys(appContext)
         val widget = FoldmanWidget()
@@ -78,8 +77,6 @@ object FoldmanWidgetUpdater {
                 state[WidgetKeys.ARTIST] = snapshot.artist
                 if (tapePath != null) state[WidgetKeys.TAPE_PATH] = tapePath
                 else state.remove(WidgetKeys.TAPE_PATH)
-                if (slidersPath != null) state[WidgetKeys.SLIDERS_PATH] = slidersPath
-                else state.remove(WidgetKeys.SLIDERS_PATH)
                 if (artworkPath != null) state[WidgetKeys.ARTWORK_PATH] = artworkPath
                 else state.remove(WidgetKeys.ARTWORK_PATH)
                 if (keyPaths != null) state[WidgetKeys.KEY_PATHS] = keyPaths
@@ -154,7 +151,7 @@ object FoldmanWidgetUpdater {
         context: Context,
         snapshot: WidgetSnapshot,
     ): String? = runCatching {
-        val tape = CassetteRenderer.renderCassette(snapshot.reelAngleDeg, 640, 320)
+        val tape = CassetteRenderer.renderVerticalCassette(snapshot.reelAngleDeg, 200, 640)
         val file = File(context.filesDir, "foldman_widget_tape.png")
         FileOutputStream(file).use { out ->
             tape.compress(Bitmap.CompressFormat.PNG, 90, out)
@@ -163,16 +160,4 @@ object FoldmanWidgetUpdater {
         file.absolutePath
     }.getOrNull()
 
-    private fun writeSliders(
-        context: Context,
-        snapshot: WidgetSnapshot,
-    ): String? = runCatching {
-        val sliders = CassetteRenderer.renderSliders(snapshot.volume)
-        val file = File(context.filesDir, "foldman_widget_sliders.png")
-        FileOutputStream(file).use { out ->
-            sliders.compress(Bitmap.CompressFormat.PNG, 90, out)
-        }
-        if (!sliders.isRecycled) sliders.recycle()
-        file.absolutePath
-    }.getOrNull()
 }

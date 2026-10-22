@@ -40,6 +40,23 @@ object CassetteRenderer {
     private val ACCENT_RED = 0xFFC0392B.toInt()
     private val LABEL_INK = 0xFF3A3F45.toInt()
 
+    /**
+     * Renders the cassette rotated 90° clockwise for vertical placement.
+     * The horizontal bitmap is rendered first, then rotated.
+     */
+    fun renderVerticalCassette(angleDeg: Float, widthPx: Int, heightPx: Int): Bitmap {
+        // Render horizontal (w x h), then rotate 90° CW to get (h x w).
+        // For a vertical cassette of (widthPx x heightPx), render horizontal
+        // at (heightPx x widthPx) then rotate.
+        val horizontal = renderCassette(angleDeg, heightPx, widthPx)
+        val matrix = android.graphics.Matrix().apply { postRotate(90f) }
+        val rotated = Bitmap.createBitmap(
+            horizontal, 0, 0, horizontal.width, horizontal.height, matrix, true
+        )
+        horizontal.recycle()
+        return rotated
+    }
+
     fun renderCassette(angleDeg: Float, widthPx: Int, heightPx: Int): Bitmap {
         val w = widthPx.coerceAtLeast(1)
         val h = heightPx.coerceAtLeast(1)
