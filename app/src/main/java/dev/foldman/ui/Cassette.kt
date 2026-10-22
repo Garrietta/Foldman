@@ -53,11 +53,11 @@ private val WINDOW = Rect(15f, 21f, 88f, 43f)
 /**
  * The part of the cassette the case's window shows: both hubs, the tape packs and the printed
  * label around them. The rest of the tape stays hidden behind the body, as on the real thing.
- * The crop runs 1.5mm lower than the label so the corner captions ("TYPE I NORMAL" and the
- * source tag) sit clear of the case's overhang instead of being clipped by it.
+ * The crop runs from the VU-meter box top down to the RESET text level, showing more of the
+ * label/art above and below the cassette; the reels themselves are drawn at the same scale.
  */
-private val CROP = Rect(8f, 12.5f, 92f, 50f)
-const val TAPE_WINDOW_ASPECT = 84f / 37.5f
+private val CROP = Rect(8f, 8f, 92f, 54f)
+const val TAPE_WINDOW_ASPECT = 84f / 46f
 
 /**
  * The window in the case with the cassette behind it. [vertical] stands it on end (label side to
@@ -233,7 +233,9 @@ private fun DrawScope.drawHub(center: Offset, angle: Float, delta: Float) {
 }
 
 private fun DrawScope.drawLabel(ui: DeckUi, palette: LabelPalette, measurer: TextMeasurer, window: RoundRect, u: Float) {
-    val labelRect = RoundRect(5.5f, 4f, 94.5f, 48.5f, CornerRadius(2f))
+    // The label (and its artwork) fills the expanded window crop, so the newly
+    // revealed area above and below the cassette shows more art, not shell.
+    val labelRect = RoundRect(5.5f, 4f, 94.5f, 54f, CornerRadius(2f))
     val labelPath = Path().apply {
         fillType = PathFillType.EvenOdd
         addRoundRect(labelRect)
@@ -243,9 +245,9 @@ private fun DrawScope.drawLabel(ui: DeckUi, palette: LabelPalette, measurer: Tex
     clipPath(labelPath) {
         if (art != null) {
             drawCroppedImage(art, Rect(labelRect.left, labelRect.top, labelRect.right, labelRect.bottom))
-            drawRect(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.15f), Color.Transparent, Color.Black.copy(alpha = 0.3f)), 4f, 48.5f), Offset(5.5f, 4f), Size(89f, 44.5f))
+            drawRect(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.15f), Color.Transparent, Color.Black.copy(alpha = 0.3f)), 4f, 54f), Offset(5.5f, 4f), Size(89f, 50f))
         } else {
-            drawRect(palette.paper, Offset(5.5f, 4f), Size(89f, 44.5f))
+            drawRect(palette.paper, Offset(5.5f, 4f), Size(89f, 50f))
             drawRect(palette.stripe, Offset(5.5f, 27f), Size(89f, 3.6f))
             drawRect(palette.stripe2, Offset(5.5f, 31.4f), Size(89f, 2.2f))
             drawRect(palette.stripe.copy(alpha = 0.55f), Offset(5.5f, 34.4f), Size(89f, 1.0f))

@@ -320,10 +320,8 @@ fun VolumeSlider(volume: Float, onVolume: (Float) -> Unit, modifier: Modifier = 
             val y = ny + nubH * i / 9f
             drawLine(Color.Black.copy(alpha = 0.3f), Offset(left + 3f, y), Offset(right - 3f, y), 1f)
         }
-        val l = measurer.measure("LEFT", small)
-        val r = measurer.measure("RIGHT", small)
-        drawText(l, topLeft = Offset(xs[0] - l.size.width / 2f, size.height - labelH))
-        drawText(r, topLeft = Offset(xs[1] - r.size.width / 2f, size.height - labelH))
+        // No LEFT/RIGHT captions: the words overlapped and added noise.
+    }
     }
 }
 

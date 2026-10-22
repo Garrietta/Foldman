@@ -536,9 +536,8 @@ private fun DeckBand(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, vm: D
                 Text("PHONES", style = EngravedCaps.copy(fontSize = 6.sp))
             }
             Column(Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
-                // Spacer matches the mic grille's height so VOLUME shares MIC's baseline;
-                // the slider's scale then starts clear of the grille.
-                Spacer(Modifier.height(30.dp))
+                // VOLUME sits at the very top, level with the mic grille; the
+                // slider track extends upward into the freed space.
                 Text("VOLUME", style = EngravedCaps.copy(fontSize = 7.sp))
                 VolumeSlider(ui.volume, deck.volume, Modifier.fillMaxWidth().weight(1f))
             }
