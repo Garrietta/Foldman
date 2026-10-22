@@ -263,6 +263,9 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     private var artSource: Any? = null
     private var lastWidgetKey: Any? = null
     private var lastPrefetchKey: Any? = null
+    /** Last persisted resume snapshot for headless widget playback (LOCAL). */
+    private var lastResumeUri: String? = null
+    private var lastResumePos: Long = 0L
 
     init {
         prefs.getString(KEY_FOLDER, null)?.let { loadFolder(Uri.parse(it), firstLoad = true) }
@@ -973,6 +976,26 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
                 ))
             }
         }
+        // Persist a resume snapshot so the widget can rebuild the queue and
+        // resume headlessly when the app is closed (LOCAL only — Koda's
+        // service persists its own session). The track is keyed by URI, which
+        // is stable across rescans; writes are throttled to track changes and
+        // 5s position moves.
+        if (source == Source.LOCAL) {
+            val eff = localOrder ?: tracks
+            val uri = eff.getOrNull(state.trackIndex)?.uri?.toString()
+            val pos = backend.positionMs()
+            if (uri != null &&
+                (uri != lastResumeUri || kotlin.math.abs(pos - lastResumePos) > 5000)
+            ) {
+                lastResumeUri = uri
+                lastResumePos = pos
+                prefs.edit {
+                    putString(KEY_LAST_TRACK_URI, uri)
+                    putLong(KEY_LAST_POSITION_MS, pos)
+                }
+            }
+        }
     }
 
     private fun updateLabel(np: NowPlaying) {
@@ -1018,6 +1041,9 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         private const val KEY_FOLDER = "folder"
         private const val KEY_SOUNDS = "key_sounds"
         private const val KEY_HAPTICS = "haptics"
+        /** Resume snapshot for headless widget playback (LOCAL source only). */
+        private const val KEY_LAST_TRACK_URI = "last_track_uri"
+        private const val KEY_LAST_POSITION_MS = "last_position_ms"
         /** Winding speed relative to play: a four-minute song winds through in about 20 s. */
         const val WIND_SPEED = 12L
 

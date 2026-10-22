@@ -3,15 +3,23 @@ package dev.foldman.ui.widget
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
 import android.util.Log
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.state.updateAppWidgetState
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
 import dev.foldman.MainActivity
+import dev.foldman.deck.LocalTrack
+import dev.foldman.playback.LocalLibrary
 import dev.foldman.playback.PlaybackService
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -128,8 +136,93 @@ private fun ActionParameters.widgetSource(): WidgetSource? =
     this[SourceParam]?.let { runCatching { WidgetSource.valueOf(it) }.getOrNull() }
 
 /**
- * PLAY key: starts playback. Empty queue is a silent no-op, so this opens the
- * app where a tape can be loaded instead (the loud fallback).
+ * Headless queue restore for when the app is closed and the service restarted
+ * with an empty queue. Returns true when the controller now holds a playable
+ * queue. Never opens the app UI.
+ *
+ * - LOCAL: rebuilds from the persisted folder + last-track resume snapshot
+ *   (DeckViewModel persists both; key names must match its KEY_* consts).
+ * - YTMUSIC/PODCASTS: asks Koda's MusicService to restore its own persisted
+ *   session via its purpose-built RESTORE_PLAYBACK command, with a guard
+ *   against resuming the wrong kind of queue.
+ */
+private const val PREFS_NAME = "foldman"
+private const val KEY_FOLDER = "folder"
+private const val KEY_LAST_TRACK_URI = "last_track_uri"
+private const val KEY_LAST_POSITION_MS = "last_position_ms"
+private const val KODA_RESTORE_PLAYBACK = "com.ivor.ivormusic.RESTORE_PLAYBACK"
+
+private suspend fun ensureQueueRestored(
+    context: Context,
+    source: WidgetSource,
+    controller: MediaController,
+): Boolean {
+    if (controller.mediaItemCount > 0) return true
+    val restored = when (source) {
+        WidgetSource.LOCAL -> restoreLocalQueue(context, controller)
+        WidgetSource.YTMUSIC, WidgetSource.PODCASTS -> restoreKodaQueue(controller, source)
+    }
+    if (restored) Log.i(TAG, "ensureQueueRestored: headless restore succeeded for $source")
+    else Log.i(TAG, "ensureQueueRestored: headless restore failed for $source")
+    return restored
+}
+
+/** Rebuilds the local queue headlessly from the persisted folder + resume snapshot. */
+private suspend fun restoreLocalQueue(context: Context, controller: MediaController): Boolean {
+    val appContext = context.applicationContext
+    val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    val folder = prefs.getString(KEY_FOLDER, null)?.let { Uri.parse(it) } ?: return false
+    val tracks = runCatching { LocalLibrary(appContext).scan(folder) }.getOrNull()
+    if (tracks.isNullOrEmpty()) return false
+    val lastUri = prefs.getString(KEY_LAST_TRACK_URI, null)
+    val startIndex = tracks.indexOfFirst { it.uri.toString() == lastUri }.takeIf { it >= 0 } ?: 0
+    val startPositionMs = prefs.getLong(KEY_LAST_POSITION_MS, 0L).coerceAtLeast(0L)
+    withContext(Dispatchers.Main) {
+        controller.setMediaItems(tracks.map { it.toWidgetMediaItem() }, startIndex, startPositionMs)
+        controller.prepare()
+    }
+    return true
+}
+
+/** Asks Koda's MusicService to restore its persisted session, headlessly. */
+private suspend fun restoreKodaQueue(controller: MediaController, source: WidgetSource): Boolean {
+    val result = runCatching {
+        controller.sendCustomCommand(
+            SessionCommand(KODA_RESTORE_PLAYBACK, Bundle.EMPTY),
+            Bundle.EMPTY,
+        ).await()
+    }.getOrNull() ?: return false
+    if (result.resultCode != SessionResult.RESULT_SUCCESS) return false
+    if (controller.mediaItemCount == 0) return false
+    // Guard against resuming the wrong kind of queue (e.g. a podcast queue
+    // when the widget was on YouTube Music). Podcast song ids are
+    // "podcast:"-prefixed; YouTube items are bare video ids.
+    val currentId = runCatching {
+        controller.getMediaItemAt(controller.currentMediaItemIndex).mediaId
+    }.getOrNull().orEmpty()
+    val isPodcast = currentId.startsWith("podcast:")
+    if (source == WidgetSource.PODCASTS && !isPodcast) return false
+    if (source == WidgetSource.YTMUSIC && isPodcast) return false
+    return true
+}
+
+private fun LocalTrack.toWidgetMediaItem(): MediaItem = MediaItem.Builder()
+    .setMediaId(uri.toString())
+    .setUri(uri)
+    .setMediaMetadata(
+        MediaMetadata.Builder()
+            .setTitle(title)
+            .setArtist(artist)
+            .setAlbumTitle(folder)
+            .setArtworkUri(coverUri)
+            .build(),
+    )
+    .build()
+
+/**
+ * PLAY key: starts playback. With the app closed the service restarts empty;
+ * the queue is restored headlessly first, and the app only opens as a last
+ * resort when there is genuinely nothing to play.
  */
 class WidgetPlayAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
@@ -141,8 +234,8 @@ class WidgetPlayAction : ActionCallback {
             return
         }
         val reached = withWidgetController(context, source) { controller ->
-            if (controller.mediaItemCount == 0) {
-                Log.i(TAG, "WidgetPlayAction: empty queue on $source; opening app")
+            if (!ensureQueueRestored(context, source, controller)) {
+                Log.i(TAG, "WidgetPlayAction: empty queue on $source and restore failed; opening app")
                 openFoldmanApp(context)
             } else {
                 controller.play()
@@ -214,7 +307,9 @@ class WidgetPrevAction : ActionCallback {
             return
         }
         withWidgetController(context, source) { controller ->
-            controller.seekToPreviousMediaItem()
+            if (ensureQueueRestored(context, source, controller)) {
+                controller.seekToPreviousMediaItem()
+            }
             publishLiveState(context, glanceId, controller)
         }
     }
@@ -229,7 +324,9 @@ class WidgetNextAction : ActionCallback {
             return
         }
         withWidgetController(context, source) { controller ->
-            controller.seekToNextMediaItem()
+            if (ensureQueueRestored(context, source, controller)) {
+                controller.seekToNextMediaItem()
+            }
             publishLiveState(context, glanceId, controller)
         }
     }
