@@ -17,7 +17,7 @@ import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.SizeMode
-import androidx.glance.appwidget.action.actionParametersOf
+import androidx.glance.action.actionParametersOf
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
@@ -28,16 +28,15 @@ import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
-import androidx.glance.layout.defaultWeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.size
-import androidx.glance.state.Preferences
-import androidx.glance.state.booleanPreferencesKey
-import androidx.glance.state.currentState
-import androidx.glance.state.longPreferencesKey
-import androidx.glance.state.stringPreferencesKey
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.glance.session.currentState
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
@@ -77,7 +76,7 @@ class FoldmanWidget : GlanceAppWidget() {
 }
 
 private fun Preferences.rustic(): RusticColors {
-    fun c(key: androidx.glance.state.Preferences.Key<Long>, fallback: Color) =
+    fun c(key: androidx.datastore.preferences.core.Preferences.Key<Long>, fallback: Color) =
         get(key)?.let { Color(it.toULong()) } ?: fallback
     val f = RusticColors.Fallback
     return RusticColors(

@@ -88,7 +88,9 @@ dependencies {
     implementation("androidx.palette:palette-ktx:1.0.0")
 
     // Home-screen widget (Glance) and ListenableFuture await() for its media-controller actions.
+    // Glance's Preferences state APIs live in DataStore, not in the glance artifacts.
     implementation("androidx.glance:glance-appwidget:1.1.1")
+    implementation("androidx.datastore:datastore-preferences:1.1.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.10.1")
 
     // Local binary dependencies, if any.

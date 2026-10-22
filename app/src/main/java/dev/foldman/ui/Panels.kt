@@ -189,7 +189,6 @@ private fun Albums(ui: DeckUi, actions: ShelfActions) {
 }
 
 @Composable
-@Composable
 private fun QueueList(ui: DeckUi, onPlay: (Long) -> Unit) {
     if (ui.queue.isEmpty()) {
         val empty = when {

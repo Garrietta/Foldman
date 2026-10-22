@@ -253,7 +253,6 @@ private fun TrackList(ui: DeckUi, actions: ShelfActions, modifier: Modifier = Mo
 }
 
 @Composable
-@Composable
 private fun Prompt(text: String, button: String, onClick: () -> Unit) {
     Column {
         Text(text, style = Typed.copy(fontSize = 12.sp, lineHeight = 17.sp))
