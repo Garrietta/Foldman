@@ -80,7 +80,23 @@ import dev.foldman.deck.Transport
 import com.ivor.ivormusic.ui.player.PlayerViewModel
 import kotlinx.coroutines.launch
 
-private enum class Posture { Cover, Unfolded, Tabletop }
+/**
+ * Queue-only panel for the unfolded portrait layout: the live Up Next list,
+ * full width, no library browser (that's in the TAPES sheet).
+ */
+@Composable
+private fun QueuePanel(ui: DeckUi, actions: ShelfActions, onPlayQueue: (Long) -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier.glassPanel().padding(14.dp)) {
+        Text(
+            "Up Next",
+            style = TextStyle(fontFamily = FontFamily.Default, fontSize = 15.sp, color = Color.White),
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+        QueueList(ui, onPlayQueue, showArt = true, modifier = Modifier.fillMaxSize())
+    }
+}
+
+private enum class Posture { Cover, Unfolded, UnfoldedPortrait, Tabletop }
 
 /** Body enamel: the blue of the first portable cassette players. */
 private val Enamel = Color(0xFF2F6FB5)
@@ -215,7 +231,12 @@ fun FoldmanScreen(
             )
             val posture = when {
                 isTabletop -> Posture.Tabletop
-                isUnfolded -> Posture.Unfolded
+                isUnfolded -> {
+                    // Unfolded: landscape gets the two-pane UI; portrait gets
+                    // the vertical layout (deck full-width on top, queue below,
+                    // no liner notes) — the "good unfolded UI" from before.
+                    if (maxWidth > maxHeight) Posture.Unfolded else Posture.UnfoldedPortrait
+                }
                 // Folded: always the single-column Cover UI, regardless of
                 // rotation. The orientation lock below keeps it portrait.
                 else -> Posture.Cover
@@ -250,6 +271,21 @@ fun FoldmanScreen(
                         LinerNotesBand(ui, Modifier.fillMaxWidth().weight(0.42f))
                     }
                     LibraryPanel(ui, shelfActions, vm::playQueueItem, Modifier.weight(1f).fillMaxHeight())
+                }
+                // Unfolded portrait: vertical layout — deck full-width on top,
+                // queue (Up Next) full-width below, no liner notes. This is the
+                // "good unfolded UI" from before the posture-lock regression.
+                Posture.UnfoldedPortrait -> Column(
+                    Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    SourceRow(ui, shelfActions, Modifier.fillMaxWidth().height(78.dp))
+                    DeckBand(
+                        ui, anim, deck, vm,
+                        onShowDiagnostics = { showDiagnostics = true },
+                        Modifier.fillMaxWidth().weight(0.55f),
+                    )
+                    QueuePanel(ui, shelfActions, vm::playQueueItem, Modifier.fillMaxWidth().weight(0.45f))
                 }
                 Posture.Tabletop -> {
                     val (topH, gap) = with(density) {

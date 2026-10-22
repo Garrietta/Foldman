@@ -207,7 +207,7 @@ private fun WalkmanContent() {
                     .defaultWeight()
                     .cornerRadius(sd(20))
                     .background(ColorProvider(Chrome.panel))
-                    .padding(sd(8)),
+                    .padding(horizontal = sd(8), vertical = sd(12)),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // Left: track-info box expands to fill space between title and tape.
@@ -225,7 +225,7 @@ private fun WalkmanContent() {
                                     title,
                                     style = TextStyle(
                                         color = ColorProvider(Chrome.titleText),
-                                        fontSize = ss(20),
+                                        fontSize = ss(16),
                                         fontWeight = FontWeight.Medium,
                                         
                                     ),
@@ -244,10 +244,10 @@ private fun WalkmanContent() {
                         }
                         Spacer(GlanceModifier.height(sd(6)))
                     }
-                    Spacer(GlanceModifier.width(sd(8)))
-                    // Right: cassette anchored to the right edge, larger (200%+).
+                    Spacer(GlanceModifier.width(sd(4)))
+                    // Right: cassette pushed further right, anchored to edge.
                     Column(
-                        modifier = GlanceModifier.width(sd(220)),
+                        modifier = GlanceModifier.width(sd(200)),
                         horizontalAlignment = Alignment.End,
                     ) {
                         Box(
