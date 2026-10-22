@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.updateAppWidgetState
+import dev.foldman.ui.ReelMotion
 import java.io.File
 import java.io.FileOutputStream
 import kotlinx.coroutines.CoroutineScope
@@ -52,8 +53,9 @@ data class WidgetSnapshot(
  * redraws.
  *
  * While a snapshot reports playing, a lightweight ticker re-pushes every
- * ~750ms with the reel angle advanced 10 degrees clockwise (slow — a full
- * revolution takes ~27s), which animates the cassette's reels. The ticker
+ * [TICK_SECONDS] with the reel angle advanced by the shared
+ * [ReelMotion.REEL_DEG_PER_SEC] rate (slow — a full revolution takes ~27s),
+ * which animates the cassette's reels at exactly the deck's speed. The ticker
  * stops on pause (reels freeze at current angle) and whenever a fresh snapshot
  * arrives with [WidgetSnapshot.isPlaying] false.
  *
@@ -124,11 +126,12 @@ object FoldmanWidgetUpdater {
         if (tickerJob?.isActive == true) return
         tickerJob = tickerScope.launch {
             while (isActive) {
-                delay(750)
+                delay((TICK_SECONDS * 1000).toLong())
                 try {
                     val snap = lastSnapshot ?: break
                     if (!snap.isPlaying) break
-                    currentAngle = (currentAngle + 10f) % 360f
+                    // Same slow mechanical rate as the deck cassette: ReelMotion.REEL_DEG_PER_SEC.
+                    currentAngle = (currentAngle + ReelMotion.REEL_DEG_PER_SEC * TICK_SECONDS) % 360f
                     update(context, snap.copy(reelAngleDeg = currentAngle))
                 } catch (e: Exception) {
                     // Keep the ticker alive; a transient failure shouldn't kill rotation.
@@ -136,6 +139,11 @@ object FoldmanWidgetUpdater {
                 }
             }
         }
+    }
+
+    companion object {
+        /** Widget reel ticker interval; the per-tick advance derives from REEL_DEG_PER_SEC. */
+        const val TICK_SECONDS = 0.75f
     }
 
     private fun stopTicker() {

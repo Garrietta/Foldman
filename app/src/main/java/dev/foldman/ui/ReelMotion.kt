@@ -20,13 +20,12 @@ import kotlin.math.exp
 import kotlin.math.sqrt
 
 /**
- * The tape transport as a little physics model. The tape moves at a constant linear speed, so each
- * reel turns at speed / radius: the nearly empty reel spins fast, the full one slowly, and the two
- * trade places as the song plays. The reels spin up and coast down rather than snapping, and the
- * counter is geared to the take-up reel the way a real one is.
+ * The tape transport as a little physics model. The reels spin up and coast down rather than
+ * snapping, and the counter is geared to the take-up reel the way a real one is.
  *
- * Angles are in degrees, clockwise positive (Compose's convention). In play, tape runs left to right
- * across the heads, which turns both reels counter-clockwise.
+ * Steady-state reel speed is one shared constant, [REEL_DEG_PER_SEC] — the same value the home
+ * screen widget's ticker uses, so the deck cassette and the widget tape wheels turn at the same
+ * slow mechanical rate. Angles are in degrees, clockwise positive (Compose's convention).
  */
 @Stable
 class ReelMotion {
@@ -75,14 +74,15 @@ class ReelMotion {
         val gap = progress - shownProgress
         shownProgress = if (abs(gap) < 0.004f) progress else shownProgress + gap * (1f - exp(-dt / 0.35f))
 
-        // ω = v / r, in degrees per second; negative because forward motion is counter-clockwise.
-        val dl = -tapeSpeed / leftRadius * RAD_TO_DEG * dt
-        val dr = -tapeSpeed / rightRadius * RAD_TO_DEG * dt
-        leftAngle = (leftAngle + dl) % 360f
-        rightAngle = (rightAngle + dr) % 360f
-        leftDelta = dl
-        rightDelta = dr
-        counter += -dr / 360.0 * COUNTER_RATIO
+        // One shared reel speed for the deck and the widget: steady-state degrees per second,
+        // clockwise. tapeSpeed/PLAY_SPEED eases 0..1 on play (and beyond while winding), so the
+        // reels still spin up and coast down instead of snapping.
+        val d = tapeSpeed / PLAY_SPEED * REEL_DEG_PER_SEC * dt
+        leftAngle = (leftAngle + d) % 360f
+        rightAngle = (rightAngle + d) % 360f
+        leftDelta = d
+        rightDelta = d
+        counter += d / 360.0 * COUNTER_RATIO
     }
 
     internal val isAtRest: Boolean get() = tapeSpeed == 0f
@@ -93,10 +93,15 @@ class ReelMotion {
         const val R_FULL = 21.0f
         /** 4.76 cm/s, the Compact Cassette standard. */
         const val PLAY_SPEED = 47.6f
+        /**
+         * Shared reel angular velocity, degrees per second, clockwise: 10 degrees per 750 ms,
+         * one revolution every 27 seconds. Single source of truth for the deck cassette AND the
+         * home-screen widget's ticker, so both turn at the same slow mechanical rate.
+         */
+        const val REEL_DEG_PER_SEC = 40f / 3f
         /** How much faster the reels look while winding (kept below the wagon-wheel limit). */
         const val WIND_VISUAL = 6f
         private const val COUNTER_RATIO = 0.5
-        private const val RAD_TO_DEG = 57.29578f
 
         /** Tape area is conserved, so radius goes with the square root of the fraction wound on. */
         fun packRadius(fraction: Float): Float =
