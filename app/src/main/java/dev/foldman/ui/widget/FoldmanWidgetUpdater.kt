@@ -8,6 +8,13 @@ import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.updateAppWidgetState
 import java.io.File
 import java.io.FileOutputStream
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 /**
  * What the widget shows. Built by the caller from the deck state; the widget
@@ -21,23 +28,38 @@ data class WidgetSnapshot(
     val isPlaying: Boolean,
     val shuffleOn: Boolean,
     val activeSource: WidgetSource,
+    /** Reel angle for the cassette window; the ticker advances it while playing. */
+    val reelAngleDeg: Float = 0f,
 )
 
 /**
  * Pushes a [WidgetSnapshot] to every installed Foldman widget: derives the
- * rustic palette from the artwork (downscaled first — Glance state and the
- * Binder transaction punish full-size bitmaps), writes the art to a file the
- * widget reads back in [FoldmanWidget.provideGlance], stores everything in
- * Glance state, and redraws.
+ * rustic palette from the artwork, renders the cassette window (label art +
+ * reels at [WidgetSnapshot.reelAngleDeg]) to a file the widget reads back in
+ * [FoldmanWidget.provideGlance], stores everything in Glance state, and
+ * redraws.
+ *
+ * While a snapshot reports playing, a lightweight ticker re-pushes every
+ * ~750ms with the reel angle advanced 40 degrees, which animates the
+ * cassette's reels. The ticker stops on pause and whenever a fresh snapshot
+ * arrives with [WidgetSnapshot.isPlaying] false.
  */
 object FoldmanWidgetUpdater {
+
+    private val tickerScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var tickerJob: Job? = null
+    private var lastSnapshot: WidgetSnapshot? = null
 
     suspend fun update(context: Context, snapshot: WidgetSnapshot) {
         val appContext = context.applicationContext
         val ids = appWidgetIds(appContext)
-        if (ids.isEmpty()) return
+        lastSnapshot = snapshot
+        if (ids.isEmpty()) {
+            stopTicker()
+            return
+        }
         val colors = RusticColors.from(snapshot.artwork)
-        val artPath = snapshot.artwork?.let { writeArtwork(appContext, it) }
+        val tapePath = writeTape(appContext, colors, snapshot)
         val widget = FoldmanWidget()
         val manager = GlanceAppWidgetManager(appContext)
         for (appWidgetId in ids) {
@@ -46,8 +68,8 @@ object FoldmanWidgetUpdater {
             updateAppWidgetState(appContext, glanceId) { state ->
                 state[WidgetKeys.TITLE] = snapshot.title
                 state[WidgetKeys.ARTIST] = snapshot.artist
-                if (artPath != null) state[WidgetKeys.ART_PATH] = artPath
-                else state.remove(WidgetKeys.ART_PATH)
+                if (tapePath != null) state[WidgetKeys.TAPE_PATH] = tapePath
+                else state.remove(WidgetKeys.TAPE_PATH)
                 state[WidgetKeys.IS_PLAYING] = snapshot.isPlaying
                 state[WidgetKeys.SHUFFLE] = snapshot.shuffleOn
                 state[WidgetKeys.SOURCE] = snapshot.activeSource.name
@@ -60,6 +82,30 @@ object FoldmanWidgetUpdater {
             }
             runCatching { widget.update(appContext, glanceId) }
         }
+        if (snapshot.isPlaying) startTicker(appContext) else stopTicker()
+    }
+
+    /** Stops the reel ticker, e.g. when the app is backgrounded for good. */
+    fun stop() {
+        stopTicker()
+        lastSnapshot = null
+    }
+
+    private fun startTicker(context: Context) {
+        if (tickerJob?.isActive == true) return
+        tickerJob = tickerScope.launch {
+            while (isActive) {
+                delay(750)
+                val snap = lastSnapshot ?: break
+                if (!snap.isPlaying) break
+                update(context, snap.copy(reelAngleDeg = (snap.reelAngleDeg + 40f) % 360f))
+            }
+        }
+    }
+
+    private fun stopTicker() {
+        tickerJob?.cancel()
+        tickerJob = null
     }
 
     private fun appWidgetIds(context: Context): IntArray =
@@ -68,12 +114,17 @@ object FoldmanWidgetUpdater {
                 .getAppWidgetIds(ComponentName(context, FoldmanWidgetReceiver::class.java))
         }.getOrNull() ?: IntArray(0)
 
-    private fun writeArtwork(context: Context, art: Bitmap): String? = runCatching {
-        val scaled = Bitmap.createScaledBitmap(art, 192, 192, true)
-        val file = File(context.filesDir, "foldman_widget_art.png")
+    private fun writeTape(
+        context: Context,
+        colors: RusticColors,
+        snapshot: WidgetSnapshot,
+    ): String? = runCatching {
+        val tape = CassetteRenderer.render(colors, snapshot.artwork, snapshot.reelAngleDeg, 220)
+        val file = File(context.filesDir, "foldman_widget_tape.png")
         FileOutputStream(file).use { out ->
-            scaled.compress(Bitmap.CompressFormat.PNG, 90, out)
+            tape.compress(Bitmap.CompressFormat.PNG, 90, out)
         }
+        if (!tape.isRecycled) tape.recycle()
         file.absolutePath
     }.getOrNull()
 }

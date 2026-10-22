@@ -5,7 +5,6 @@ import android.graphics.BitmapFactory
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
-import androidx.glance.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.BitmapImageProvider
@@ -22,6 +21,7 @@ import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
+import androidx.glance.currentState
 import androidx.glance.unit.ColorProvider
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
@@ -29,12 +29,13 @@ import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
+import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.size
+import androidx.glance.layout.width
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.glance.currentState
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.glance.text.FontWeight
@@ -42,11 +43,11 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import dev.foldman.MainActivity
 
-/** Glance state keys. Colors ride as ARGB longs. */
+/** Glance state keys. Colors ride as ARGB longs; the tape is a rendered file. */
 internal object WidgetKeys {
     val TITLE = stringPreferencesKey("title")
     val ARTIST = stringPreferencesKey("artist")
-    val ART_PATH = stringPreferencesKey("art_path")
+    val TAPE_PATH = stringPreferencesKey("tape_path")
     val IS_PLAYING = booleanPreferencesKey("is_playing")
     val SHUFFLE = booleanPreferencesKey("shuffle")
     val HAS_NEXT = booleanPreferencesKey("has_next")
@@ -61,10 +62,15 @@ internal object WidgetKeys {
 }
 
 /**
- * Foldman's deck on the home screen: one compact horizontal row in the
- * Walkman idiom — artwork tile, title/artist, and four key caps (previous,
- * play/pause, next, shuffle) with engraved captions, all tinted by the
- * [RusticColors] derived from the album art.
+ * Foldman's deck on the home screen, in the Walkman idiom:
+ *
+ * - Top row: the song title up top and prominent, artist beneath it, and the
+ *   cassette window at the top right — a mini tape whose label shows the
+ *   album art and whose reels turn while a song is playing.
+ * - Bottom row: four key caps (previous, play/pause, next, shuffle) spanning
+ *   the full width, with engraved captions, in the deck-key style.
+ *
+ * Everything is tinted by the [RusticColors] derived from the album art.
  */
 class FoldmanWidget : GlanceAppWidget() {
 
@@ -76,7 +82,7 @@ class FoldmanWidget : GlanceAppWidget() {
 }
 
 private fun Preferences.rustic(): RusticColors {
-    fun c(key: androidx.datastore.preferences.core.Preferences.Key<Long>, fallback: Color) =
+    fun c(key: Preferences.Key<Long>, fallback: Color) =
         get(key)?.let { Color(it.toULong()) } ?: fallback
     val f = RusticColors.Fallback
     return RusticColors(
@@ -98,79 +104,97 @@ private fun WalkmanContent() {
     val isPlaying = prefs[WidgetKeys.IS_PLAYING] == true
     val shuffleOn = prefs[WidgetKeys.SHUFFLE] == true
     val sourceName = prefs[WidgetKeys.SOURCE] ?: WidgetSource.LOCAL.name
-    val artPath = prefs[WidgetKeys.ART_PATH]
-    val artwork = remember(artPath) {
-        artPath?.let { runCatching { BitmapFactory.decodeFile(it) }.getOrNull() }
-    }
+    val tapePath = prefs[WidgetKeys.TAPE_PATH]
+    // Deliberately not remembered: the updater re-renders the tape file on
+    // every reel tick while playing, so it must be re-decoded each time.
+    val tape = tapePath?.let { runCatching { BitmapFactory.decodeFile(it) }.getOrNull() }
     val openApp = actionStartActivity<MainActivity>()
     val params = actionParametersOf(SourceParam to sourceName)
 
-    Row(
+    Column(
         modifier = GlanceModifier.fillMaxSize()
-            .padding(6.dp)
             .cornerRadius(28.dp)
             .background(ColorProvider(colors.background))
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
-        // Artwork tile; tap opens the app.
-        Box(
-            modifier = GlanceModifier.size(62.dp)
-                .cornerRadius(18.dp)
-                .background(ColorProvider(colors.keycap.copy(alpha = 0.28f)))
-                .clickable(openApp),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (artwork != null) {
-                Image(
-                    provider = BitmapImageProvider(artwork),
-                    contentDescription = "Album art",
-                    modifier = GlanceModifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                )
-            } else {
-                Text(
-                    "♪",
-                    style = TextStyle(
-                        color = ColorProvider(colors.subtitle),
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                    ),
-                )
-            }
-        }
-        // Title / artist; tap opens the app.
-        Column(
+        // Top row: title block on the left, cassette window top right.
+        Row(
             modifier = GlanceModifier.defaultWeight()
-                .padding(horizontal = 10.dp)
-                .clickable(openApp),
+                .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                title,
-                style = TextStyle(
-                    color = ColorProvider(colors.title),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                ),
-                maxLines = 1,
+            Column(
+                modifier = GlanceModifier.defaultWeight()
+                    .clickable(openApp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    title,
+                    style = TextStyle(
+                        color = ColorProvider(colors.title),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                    maxLines = 1,
+                )
+                Spacer(GlanceModifier.height(2.dp))
+                Text(
+                    artist,
+                    style = TextStyle(color = ColorProvider(colors.subtitle), fontSize = 12.sp),
+                    maxLines = 1,
+                )
+            }
+            Spacer(GlanceModifier.width(8.dp))
+            Box(
+                modifier = GlanceModifier.size(52.dp)
+                    .cornerRadius(13.dp)
+                    .clickable(openApp),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (tape != null) {
+                    Image(
+                        provider = BitmapImageProvider(tape),
+                        contentDescription = "Cassette",
+                        modifier = GlanceModifier.fillMaxSize(),
+                    )
+                } else {
+                    Text(
+                        "♪",
+                        style = TextStyle(
+                            color = ColorProvider(colors.subtitle),
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                        ),
+                    )
+                }
+            }
+        }
+        Spacer(GlanceModifier.height(4.dp))
+        // Bottom row: the keys span the full width.
+        Row(modifier = GlanceModifier.fillMaxWidth()) {
+            DeckWidgetKey(
+                GlanceModifier.defaultWeight(), "PREV", "⏮", colors,
+                accent = false, latched = false,
+                actionRunCallback<WidgetPrevAction>(params),
             )
-            Text(
-                artist,
-                style = TextStyle(color = ColorProvider(colors.subtitle), fontSize = 11.sp),
-                maxLines = 1,
+            DeckWidgetKey(
+                GlanceModifier.defaultWeight(),
+                if (isPlaying) "PAUSE" else "PLAY",
+                if (isPlaying) "⏸" else "▶",
+                colors, accent = true, latched = false,
+                actionRunCallback<WidgetPlayPauseAction>(params),
+            )
+            DeckWidgetKey(
+                GlanceModifier.defaultWeight(), "NEXT", "⏭", colors,
+                accent = false, latched = false,
+                actionRunCallback<WidgetNextAction>(params),
+            )
+            DeckWidgetKey(
+                GlanceModifier.defaultWeight(), "SHUF", "⇄", colors,
+                accent = false, latched = shuffleOn,
+                actionRunCallback<WidgetShuffleAction>(params),
             )
         }
-        // The keys: prev, play/pause (accent, like the deck), next, shuffle.
-        DeckWidgetKey("PREV", "⏮", colors, false, false, actionRunCallback<WidgetPrevAction>(params))
-        DeckWidgetKey(
-            if (isPlaying) "PAUSE" else "PLAY",
-            if (isPlaying) "⏸" else "▶",
-            colors, accent = true, latched = false,
-            actionRunCallback<WidgetPlayPauseAction>(params),
-        )
-        DeckWidgetKey("NEXT", "⏭", colors, false, false, actionRunCallback<WidgetNextAction>(params))
-        DeckWidgetKey("SHUF", "⇄", colors, false, shuffleOn, actionRunCallback<WidgetShuffleAction>(params))
     }
 }
 
@@ -181,6 +205,7 @@ private fun WalkmanContent() {
  */
 @Composable
 private fun DeckWidgetKey(
+    modifier: GlanceModifier,
     caption: String,
     symbol: String,
     colors: RusticColors,
@@ -190,7 +215,7 @@ private fun DeckWidgetKey(
 ) {
     val hot = accent || latched
     Column(
-        modifier = GlanceModifier.padding(horizontal = 2.dp),
+        modifier = modifier.padding(horizontal = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
@@ -198,10 +223,11 @@ private fun DeckWidgetKey(
             style = TextStyle(color = ColorProvider(colors.subtitle), fontSize = 7.sp),
             maxLines = 1,
         )
-        Spacer(GlanceModifier.height(3.dp))
+        Spacer(GlanceModifier.height(2.dp))
         Box(
-            modifier = GlanceModifier.size(44.dp, 40.dp)
-                .cornerRadius(13.dp)
+            modifier = GlanceModifier.fillMaxWidth()
+                .height(28.dp)
+                .cornerRadius(9.dp)
                 .background(ColorProvider(if (hot) colors.accent else colors.keycap))
                 .clickable(action),
             contentAlignment = Alignment.Center,
@@ -210,7 +236,7 @@ private fun DeckWidgetKey(
                 symbol,
                 style = TextStyle(
                     color = ColorProvider(if (hot) colors.title else colors.symbol),
-                    fontSize = 16.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                 ),
             )
