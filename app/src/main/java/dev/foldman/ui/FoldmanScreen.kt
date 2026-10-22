@@ -102,6 +102,9 @@ fun FoldmanScreen(
     } else {
         null
     }
+    // The deck key's shuffle reshuffles the session's queue, so the deck needs
+    // the player even when the tap doesn't come through a browser action.
+    LaunchedEffect(youtubePlayer) { vm.kodaPlayer = youtubePlayer }
     val anim = rememberDeckAnimations(ui.transport, ui.progress)
     val sounds = remember { MechSounds() }
     DisposableEffect(sounds) { onDispose { sounds.release() } }

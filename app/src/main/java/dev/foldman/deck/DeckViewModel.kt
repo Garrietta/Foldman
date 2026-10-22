@@ -109,10 +109,125 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     val podcasts: StateFlow<PodcastsUi> = _podcasts.asStateFlow()
     private var podcastJob: Job? = null
     private val _shuffleOn = MutableStateFlow(false)
+    /**
+     * Koda's PlayerViewModel, attached by the UI when the YouTube/podcast
+     * player exists. Lets the SHUFFLE deck key reshuffle the session's queue
+     * instead of just flipping the session flag.
+     */
+    var kodaPlayer: PlayerViewModel? = null
+    /** The song list most recently handed to Koda's session (any source). */
+    private var lastKodaSongs: List<Song> = emptyList()
+    /**
+     * Foldman-owned shuffle order for the local tape. Non-null while local
+     * shuffle is on: the backend plays this order verbatim (its session
+     * shuffle flag stays off) so the visible queue always matches playback.
+     * [tracks] keeps the canonical folder order for the Albums browser.
+     */
+    private var localOrder: List<LocalTrack>? = null
 
-    /** Toggles shuffle on the queue that's in the deck. */
+    /**
+     * Toggles shuffle on the queue that's in the deck. Enabling fully
+     * reshuffles the current queue and starts it on a random track — shuffle
+     * never starts on the first song of the unshuffled list. Disabling just
+     * unlatches; the queue keeps playing in its listed order.
+     */
     @androidx.media3.common.util.UnstableApi
-    fun toggleShuffle() = setShuffleEnabled(!_shuffleOn.value)
+    fun toggleShuffle() {
+        if (_shuffleOn.value) {
+            // Unlatch only: the queue keeps playing in its listed order (the
+            // backend is never un-shuffled; ExoPlayer behaves the same way).
+            _shuffleOn.value = false
+            setPlaybackShuffle(false)
+            tick()
+            return
+        }
+        when (source) {
+            Source.LOCAL -> shuffleLocalQueue()
+            Source.YT_MUSIC, Source.PODCASTS -> shuffleKodaQueue()
+        }
+    }
+
+    /**
+     * Full shuffle for shuffle-play: every track takes part, and the list is
+     * rotated so a random track lands on top.
+     */
+    private fun <T> shufflePlayOrder(items: List<T>): List<T> {
+        if (items.size <= 1) return items
+        val shuffled = items.shuffled()
+        val start = shuffled.indices.random()
+        return shuffled.drop(start) + shuffled.take(start)
+    }
+
+    /** SHUFFLE key with the local tape in the deck: reshuffle and start on a random track. */
+    private fun shuffleLocalQueue() {
+        if (tracks.isEmpty()) return
+        if (winding != 0) finishWinding()
+        val order = shufflePlayOrder(tracks)
+        localOrder = order
+        local.setTracks(order, startIndex = 0)
+        local.setShuffleEnabled(false)
+        _shuffleOn.value = true
+        stopped = false
+        playRequestedAt = SystemClock.elapsedRealtime()
+        local.playTrack(0)
+        tick()
+    }
+
+    /** SHUFFLE key with YouTube Music / Podcasts in the deck: reshuffle the session's queue. */
+    @androidx.media3.common.util.UnstableApi
+    private fun shuffleKodaQueue() {
+        val player = kodaPlayer ?: return
+        val songs = lastKodaSongs
+        if (songs.isEmpty()) return
+        startShuffledKodaPlayback(songs, player, source)
+    }
+
+    /**
+     * Starts a fully-shuffled playback of [songs] on a random track.
+     * Foldman owns the order: the session's shuffle flag is forced off so the
+     * session plays the list verbatim and the visible queue always matches
+     * what plays. Only Foldman's latch flips on.
+     */
+    @androidx.media3.common.util.UnstableApi
+    private fun startShuffledKodaPlayback(songs: List<Song>, player: PlayerViewModel, forSource: Source) {
+        if (songs.isEmpty()) return
+        _shuffleOn.value = true
+        setKodaSessionShuffle(false)
+        playKodaSongs(shufflePlayOrder(songs), 0, player, forSource)
+    }
+
+    /**
+     * Raw session/backend shuffle flag, without touching Foldman's latch.
+     * Local goes straight to Foldman's player; YouTube Music and Podcasts go
+     * through Koda's MusicService via a throwaway MediaController (released
+     * right after the flag lands).
+     */
+    private fun setPlaybackShuffle(enabled: Boolean) {
+        when (source) {
+            Source.LOCAL -> local.setShuffleEnabled(enabled)
+            Source.YT_MUSIC, Source.PODCASTS -> setKodaSessionShuffle(enabled)
+        }
+    }
+
+    private fun setKodaSessionShuffle(enabled: Boolean) {
+        val app = getApplication<Application>()
+        val token = SessionToken(app, ComponentName(app, MusicService::class.java))
+        val future = MediaController.Builder(app, token).buildAsync()
+        future.addListener({
+            val controller = runCatching { future.get() }.getOrNull()
+            if (controller == null) {
+                MediaController.releaseFuture(future)
+                return@addListener
+            }
+            // The session can already have shuffle on: Koda persists it
+            // across restarts. Re-setting an already-set flag is a silent
+            // no-op (no shuffle-mode-changed callback), so cycle it to
+            // guarantee the set lands.
+            if (enabled) controller.shuffleModeEnabled = false
+            controller.shuffleModeEnabled = enabled
+            controller.release()
+        }, ContextCompat.getMainExecutor(app))
+    }
 
     private val _ui = MutableStateFlow(DeckUi())
     val ui: StateFlow<DeckUi> = _ui.asStateFlow()
@@ -312,12 +427,24 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         loadFolder(uri, firstLoad = false)
     }
 
+    /**
+     * Plays a local track by its index in the Albums browser ([tracks] order).
+     * While local shuffle is on, the backend holds the shuffled order, so the
+     * index is mapped across.
+     */
     fun playTrack(index: Int) {
         selectSource(Source.LOCAL)
         if (winding != 0) finishWinding()
         stopped = false
         playRequestedAt = SystemClock.elapsedRealtime()
-        local.playTrack(index)
+        local.playTrack(toBackendIndex(index))
+    }
+
+    /** Maps an index in [tracks] (canonical folder order) to the backend's order. */
+    private fun toBackendIndex(index: Int): Int {
+        val order = localOrder ?: return index
+        val track = tracks.getOrNull(index) ?: return index
+        return order.indexOfFirst { it.uri == track.uri }.takeIf { it >= 0 } ?: index
     }
 
     private fun loadFolder(uri: Uri, firstLoad: Boolean) {
@@ -332,12 +459,25 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             }
             folderName = found.firstOrNull()?.folder ?: uri.lastPathSegment?.substringAfterLast(':')
             tracks = found
+            // A new folder drops a new tape: any local shuffle order dies with the old one.
+            localOrder = null
+            _shuffleOn.value = false
             local.setTracks(found, startIndex = if (firstLoad) null else 0)
             if (!firstLoad) stopped = true
             tick()
             val tagged = library.readTags(found)
             tracks = tagged
-            local.setTracks(tagged)
+            val order = localOrder
+            if (order != null) {
+                // Shuffle was enabled during the tag read: refresh titles inside
+                // the shuffled order. The first URI is unchanged, so the backend
+                // takes the sameQueue path and playback is undisturbed.
+                val refreshed = order.map { sh -> tagged.firstOrNull { it.uri == sh.uri } ?: sh }
+                localOrder = refreshed
+                local.setTracks(refreshed, startIndex = null)
+            } else {
+                local.setTracks(tagged)
+            }
             tick()
         }
     }
@@ -467,9 +607,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             val pending = pendingShufflePlaylist?.takeIf { it.first.id == playlist.id }
             if (pending != null && cachedTracks.isNotEmpty()) {
                 pendingShufflePlaylist = null
-                selectSource(Source.YT_MUSIC)
-                setShuffleEnabled(true)
-                playKodaSongs(shufflePlayOrder(cachedTracks), 0, pending.second, Source.YT_MUSIC)
+                startShuffledKodaPlayback(cachedTracks, pending.second, Source.YT_MUSIC)
                 return@launch
             }
             launch { fetchPlaylistTracksFromNetwork(playlist) }
@@ -503,9 +641,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             pendingShufflePlaylist?.takeIf { it.first.id == playlist.id }?.let { (_, player) ->
                 pendingShufflePlaylist = null
                 if (songs.isNotEmpty()) {
-                    selectSource(Source.YT_MUSIC)
-                    setShuffleEnabled(true)
-                    playKodaSongs(shufflePlayOrder(songs), 0, player, Source.YT_MUSIC)
+                    startShuffledKodaPlayback(songs, player, Source.YT_MUSIC)
                 }
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -540,30 +676,21 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         if (winding != 0) finishWinding()
         stopped = false
         playRequestedAt = SystemClock.elapsedRealtime()
+        lastKodaSongs = songs
         player.playQueue(songs, startSong)
         youtubeBackend.refresh()
         tick()
     }
 
-    /**
-     * Shuffle-play order: the first song stays on top, the rest shuffle.
-     * Shuffling the list itself (not just the session flag) makes the queue
-     * order deterministic regardless of when the async session flag lands.
-     */
-    private fun shufflePlayOrder(songs: List<Song>): List<Song> =
-        if (songs.size > 1) listOf(songs[0]) + songs.drop(1).shuffled() else songs
-
-    /** Plays a podcast feed's episodes from the top, shuffled (first episode plays, the rest shuffle). */
+    /** Plays a podcast feed's episodes shuffled, starting on a random episode. */
     @androidx.media3.common.util.UnstableApi
     fun playPodcastFeedShuffled(feed: PodcastFeed, player: PlayerViewModel) {
         val songs = podcastSongs(feed.id)
         if (songs.isEmpty()) return
-        selectSource(Source.PODCASTS)
-        setShuffleEnabled(true)
-        playKodaSongs(shufflePlayOrder(songs), 0, player, Source.PODCASTS)
+        startShuffledKodaPlayback(songs, player, Source.PODCASTS)
     }
 
-    /** Plays a YouTube Music playlist from the top, shuffled. */
+    /** Plays a YouTube Music playlist shuffled, starting on a random track. */
     @androidx.media3.common.util.UnstableApi
     fun playYouTubePlaylistShuffled(playlist: PlaylistDisplayItem, player: PlayerViewModel) {
         val songs = _youtubeMusic.value.playlistTracks.takeIf { _youtubeMusic.value.openPlaylist?.id == playlist.id }
@@ -573,9 +700,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             pendingShufflePlaylist = playlist to player
             return
         }
-        selectSource(Source.YT_MUSIC)
-        setShuffleEnabled(true)
-        playKodaSongs(shufflePlayOrder(songs), 0, player, Source.YT_MUSIC)
+        startShuffledKodaPlayback(songs, player, Source.YT_MUSIC)
     }
 
     private var pendingShufflePlaylist: Pair<PlaylistDisplayItem, PlayerViewModel>? = null
@@ -600,46 +725,20 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             .map { podcastRepository.episodeToSong(it, feed) }
     }
 
-    /**
-     * Shuffles the active source's queue. Local goes straight to Foldman's player;
-     * YouTube Music and Podcasts go through Koda's MusicService via a throwaway
-     * MediaController (released right after the flag lands).
-     */
-    @androidx.media3.common.util.UnstableApi
-    fun setShuffleEnabled(enabled: Boolean) {
-        _shuffleOn.value = enabled
-        when (source) {
-            Source.LOCAL -> local.setShuffleEnabled(enabled)
-            Source.YT_MUSIC, Source.PODCASTS -> {
-                val app = getApplication<Application>()
-                val token = SessionToken(app, ComponentName(app, MusicService::class.java))
-                val future = MediaController.Builder(app, token).buildAsync()
-                future.addListener({
-                    val controller = runCatching { future.get() }.getOrNull()
-                    if (controller == null) {
-                        MediaController.releaseFuture(future)
-                        return@addListener
-                    }
-                    // The session can already have shuffle on: Koda persists
-                    // it across restarts, and the widget flips it without
-                    // telling the deck. Re-setting an already-set flag is a
-                    // silent no-op (no shuffle-mode-changed callback, no
-                    // reshuffle), so cycle it to guarantee a fresh shuffle.
-                    if (enabled) controller.shuffleModeEnabled = false
-                    controller.shuffleModeEnabled = enabled
-                    controller.release()
-                }, ContextCompat.getMainExecutor(app))
-            }
-        }
-    }
+    // (setShuffleEnabled removed: shuffle is now Foldman-owned. See toggleShuffle,
+// startShuffledKodaPlayback and setPlaybackShuffle above.)
 
     private var queueFor: List<LocalTrack>? = null
     private var queueCache: List<QueueEntry> = emptyList()
 
     private fun localQueue(): List<QueueEntry> {
-        if (queueFor !== tracks) {
-            queueFor = tracks
-            queueCache = tracks.mapIndexed { i, t ->
+        // The visible queue is the effective order: shuffled while local
+        // shuffle is on, canonical folder order otherwise. The backend holds
+        // this same order verbatim, so queue indices are backend indices.
+        val effective = localOrder ?: tracks
+        if (queueFor !== effective) {
+            queueFor = effective
+            queueCache = effective.mapIndexed { i, t ->
                 QueueEntry(i.toLong(), t.title, t.artist ?: t.folder, artworkUri = t.coverUri)
             }
         }
@@ -647,11 +746,20 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun playQueueItem(id: Long) {
-        if (source == Source.LOCAL) return playTrack(id.toInt())
+        if (source == Source.LOCAL) return playLocalQueueIndex(id.toInt())
         if (winding != 0) finishWinding()
         stopped = false
         playRequestedAt = SystemClock.elapsedRealtime()
         backend.playQueueItem(id)
+    }
+
+    /** Plays a local queue row by its index in the displayed (effective) order. */
+    private fun playLocalQueueIndex(index: Int) {
+        selectSource(Source.LOCAL)
+        if (winding != 0) finishWinding()
+        stopped = false
+        playRequestedAt = SystemClock.elapsedRealtime()
+        local.playTrack(index)
     }
 
     fun setKeySounds(on: Boolean) {
@@ -794,7 +902,9 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         if (trackKey != lastPrefetchKey) {
             lastPrefetchKey = trackKey
             val upcomingUris = if (source == Source.LOCAL) {
-                tracks.drop(state.trackIndex + 1).take(3).mapNotNull { it.coverUri }
+                // state.trackIndex is the backend's index: resolve it against
+                // the effective (possibly shuffled) order, not the canonical one.
+                (localOrder ?: tracks).drop(state.trackIndex + 1).take(3).mapNotNull { it.coverUri }
             } else {
                 val queue = state.queue
                 val pos = queue.indexOfFirst { it.id == state.currentQueueId }.takeIf { it >= 0 } ?: -1
