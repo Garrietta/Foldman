@@ -205,7 +205,7 @@ fun FoldmanScreen(
             when (posture) {
                 // The cover screen is the player itself: edge to edge, system bars shown
                 // as transparent overlays.
-                Posture.Cover -> CoverWalkman(ui, anim, deck, onTapes = { shelfOpen = true }, modifier = Modifier.fillMaxSize())
+                Posture.Cover -> CoverWalkman(ui, anim, deck, onTapes = { shelfOpen = true }, onShowDiagnostics = { showDiagnostics = true }, modifier = Modifier.fillMaxSize())
                 // Unfolded: the left two-thirds hold the source row, deck and liner
                 // notes; the right third is the dual-tab library panel (Up Next /
                 // Your Library) with its own search.
@@ -215,7 +215,7 @@ fun FoldmanScreen(
                 ) {
                     Column(Modifier.weight(2f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         SourceRow(ui, shelfActions, Modifier.fillMaxWidth().height(78.dp))
-                        DeckBand(ui, anim, deck, vm, Modifier.fillMaxWidth().weight(0.58f))
+                        DeckBand(ui, anim, deck, vm, onShowDiagnostics = { showDiagnostics = true }, Modifier.fillMaxWidth().weight(0.58f))
                         LinerNotesBand(ui, Modifier.fillMaxWidth().weight(0.42f))
                     }
                     LibraryPanel(ui, shelfActions, vm::playQueueItem, Modifier.weight(1f).fillMaxHeight())
@@ -227,6 +227,7 @@ fun FoldmanScreen(
                     Column(Modifier.fillMaxSize()) {
                         DeckBand(
                             ui, anim, deck, vm,
+                            onShowDiagnostics = { showDiagnostics = true },
                             Modifier
                                 .height(topH)
                                 .fillMaxWidth()
@@ -378,7 +379,7 @@ private val OnEnamel = EngravedCaps.copy(color = Color(0xFFDCE6F2))
 
 /** The folded phone: an upright portable player. */
 @Composable
-private fun CoverWalkman(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, onTapes: () -> Unit, modifier: Modifier) {
+private fun CoverWalkman(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, onTapes: () -> Unit, onShowDiagnostics: () -> Unit, modifier: Modifier) {
     BoxWithConstraints(modifier) {
         val capH = maxHeight * 0.12f
         Row(Modifier.fillMaxSize().paintedBody(Enamel, capHeight = capH, corner = 0.dp, framed = false)) {
@@ -413,7 +414,7 @@ private fun CoverWalkman(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, o
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.height(10.dp))
-                DiagnosticsWordmark("FOLDMAN", 40.sp, onFiveTap = { showDiagnostics = true })
+                DiagnosticsWordmark("FOLDMAN", 40.sp, onFiveTap = onShowDiagnostics)
                 Spacer(Modifier.height(20.dp))
             }
             SideStrip(ui, deck, Modifier.weight(0.27f).fillMaxHeight())
@@ -466,7 +467,7 @@ private fun SideStrip(ui: DeckUi, deck: DeckControls, modifier: Modifier) {
 
 /** The unfolded phone: the player laid down as a deck. */
 @Composable
-private fun DeckBand(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, vm: DeckViewModel, modifier: Modifier) {
+private fun DeckBand(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, vm: DeckViewModel, onShowDiagnostics: () -> Unit, modifier: Modifier) {
     Row(modifier.paintedBody(Enamel, corner = 22.dp)) {
         // De-cramped: the blue deck takes a wider share from the silver end strip
         // so the dials and the cassette window can breathe. Top padding reduced
@@ -475,7 +476,7 @@ private fun DeckBand(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, vm: D
             Row(verticalAlignment = Alignment.Bottom) {
                 Text("STEREO", style = Serif.copy(fontSize = 24.sp))
                 Spacer(Modifier.weight(1f))
-                DiagnosticsWordmark("FOLDMAN", 26.sp, onFiveTap = { showDiagnostics = true })
+                DiagnosticsWordmark("FOLDMAN", 26.sp, onFiveTap = onShowDiagnostics)
             }
             Spacer(Modifier.height(8.dp))
             Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
