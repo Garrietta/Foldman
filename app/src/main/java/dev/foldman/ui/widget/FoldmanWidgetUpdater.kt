@@ -3,6 +3,7 @@ package dev.foldman.ui.widget
 import android.content.ComponentName
 import android.content.Context
 import android.graphics.Bitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.updateAppWidgetState
 import java.io.File
