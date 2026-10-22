@@ -359,7 +359,7 @@ private fun SideStrip(ui: DeckUi, deck: DeckControls, modifier: Modifier) {
                 MiniButton("AMS", deck.next, symbol = KeySymbol.NEXT, diameter = 26.dp, enabled = ui.hasNext)
             }
             Spacer(Modifier.height(10.dp))
-            TransportKeys(ui, deck.stop, deck.rewind, deck.play, deck.fastForward, deck.pause, Modifier.fillMaxWidth(), keyHeight = keyH, vertical = true)
+            TransportKeys(ui, deck.stop, deck.rewind, deck.play, deck.fastForward, deck.pause, onShuffle = { deck.toggleShuffle() }, modifier = Modifier.fillMaxWidth(), keyHeight = keyH, vertical = true)
             Spacer(Modifier.height(12.dp))
             Text("VOLUME", style = EngravedCaps.copy(fontSize = 7.sp))
             VolumeSlider(ui.volume, deck.volume, Modifier.fillMaxWidth().weight(1f))
