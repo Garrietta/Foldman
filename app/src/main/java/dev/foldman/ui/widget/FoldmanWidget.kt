@@ -158,16 +158,16 @@ private fun WalkmanContent() {
     fun sd(v: Number) = (v.toFloat() * scale).dp
     fun ss(v: Number) = (v.toFloat() * scale).sp
 
-    Box(
-        modifier = GlanceModifier.fillMaxSize(),
-        contentAlignment = Alignment.TopStart,
+    // The chrome fills the entire allocated rect (no letterbox); the panel
+    // below absorbs any extra height via weight, while every element keeps
+    // the min-fit scale, so nothing can clip. Grow and shrink both work:
+    // the scale follows the rect.
+    Column(
+        modifier = GlanceModifier.fillMaxSize()
+            .cornerRadius(sd(26))
+            .background(ColorProvider(Chrome.root))
+            .padding(sd(10)),
     ) {
-        Column(
-            modifier = GlanceModifier.size(sd(DESIGN_W), sd(DESIGN_H))
-                .cornerRadius(sd(26))
-                .background(ColorProvider(Chrome.root))
-                .padding(sd(10)),
-        ) {
             // Top: dark slate panel.
             Column(
                 modifier = GlanceModifier.fillMaxWidth()
@@ -332,7 +332,6 @@ private fun WalkmanContent() {
                 }
             }
         }
-    }
 }
 
 /**
