@@ -69,10 +69,10 @@ fun Modifier.glassPanel(corner: Dp = 18.dp): Modifier = drawWithCache {
 
 /** Library band: sources, then albums (folders) or the streaming app's state, then the queue. */
 @Composable
-fun LibraryBand(ui: DeckUi, actions: ShelfActions, onPlayQueue: (Long) -> Unit, modifier: Modifier = Modifier) {
+fun LibraryBand(ui: DeckUi, actions: ShelfActions, onPlayQueue: (Long) -> Unit, modifier: Modifier = Modifier, showQueue: Boolean = true) {
     Row(modifier.glassPanel().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         // Scrolls if the panel is ever too short for every source.
-        Column(Modifier.weight(0.3f).fillMaxHeight().verticalScroll(rememberScrollState())) {
+        Column(Modifier.weight(if (showQueue) 0.3f else 0.45f).fillMaxHeight().verticalScroll(rememberScrollState())) {
             Text("Sources", style = Header)
             Spacer(Modifier.height(6.dp))
             Source.entries.forEach { s ->
@@ -95,17 +95,19 @@ fun LibraryBand(ui: DeckUi, actions: ShelfActions, onPlayQueue: (Long) -> Unit, 
                 }
             }
         }
-        Column(Modifier.weight(0.36f).fillMaxHeight()) {
+        Column(Modifier.weight(if (showQueue) 0.36f else 0.55f).fillMaxHeight()) {
             when (ui.source) {
                 Source.LOCAL -> Albums(ui, actions)
                 Source.YT_MUSIC -> YouTubeMusicBrowser(ui.youtubeMusic, actions.youtubeMusic, Modifier.fillMaxSize())
                 Source.PODCASTS -> PodcastsBrowser(ui.podcasts, actions.podcasts, Modifier.fillMaxSize())
             }
         }
-        Column(Modifier.weight(0.34f).fillMaxHeight()) {
-            Text("Queue", style = Header)
-            Spacer(Modifier.height(8.dp))
-            QueueList(ui, onPlayQueue)
+        if (showQueue) {
+            Column(Modifier.weight(0.34f).fillMaxHeight()) {
+                Text("Queue", style = Header)
+                Spacer(Modifier.height(8.dp))
+                QueueList(ui, onPlayQueue)
+            }
         }
     }
 }
@@ -185,7 +187,7 @@ private fun Albums(ui: DeckUi, actions: ShelfActions) {
 }
 
 @Composable
-private fun QueueList(ui: DeckUi, onPlay: (Long) -> Unit) {
+private fun QueueList(ui: DeckUi, onPlay: (Long) -> Unit, showArt: Boolean = false, modifier: Modifier = Modifier) {
     if (ui.queue.isEmpty()) {
         val empty = when {
             ui.source == Source.LOCAL -> "Nothing loaded"
@@ -199,10 +201,20 @@ private fun QueueList(ui: DeckUi, onPlay: (Long) -> Unit) {
     val list = rememberLazyListState()
     val currentIndex = ui.queue.indexOfFirst { it.id == ui.currentQueueId }
     LaunchedEffect(currentIndex) { if (currentIndex >= 0) list.animateScrollToItem(currentIndex) }
-    LazyColumn(state = list) {
+    LazyColumn(state = list, modifier = modifier) {
         itemsIndexed(ui.queue, key = { _, q -> q.id }) { _, q ->
-            QueueRow(q, current = q.id == ui.currentQueueId, onClick = { onPlay(q.id) })
+            QueueRow(q, current = q.id == ui.currentQueueId, onClick = { onPlay(q.id) }, showArt = showArt)
         }
+    }
+}
+
+/** Full-height queue column for the unfolded layout: the live queue, titled Up Next. */
+@Composable
+fun UpNextColumn(ui: DeckUi, onPlayQueue: (Long) -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier.glassPanel().padding(14.dp)) {
+        Text("Up Next", style = Header)
+        Spacer(Modifier.height(8.dp))
+        QueueList(ui, onPlayQueue, showArt = true, modifier = Modifier.weight(1f))
     }
 }
 
@@ -250,9 +262,9 @@ private fun Thumb(bitmap: Bitmap?, uri: Uri?, modifier: Modifier) {
     }
 }
 
-/** Now-playing band: the cover big, what's up next, and liner notes. */
+/** Bottom-left band on the unfolded screen: the cover big, and liner notes. */
 @Composable
-fun NowPlayingBand(ui: DeckUi, onPlayQueue: (Long) -> Unit, modifier: Modifier = Modifier) {
+fun LinerNotesBand(ui: DeckUi, modifier: Modifier = Modifier) {
     Row(modifier.glassPanel().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Box(
             Modifier
@@ -265,15 +277,7 @@ fun NowPlayingBand(ui: DeckUi, onPlayQueue: (Long) -> Unit, modifier: Modifier =
             ui.artwork?.let { Image(it, "Album art", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
                 ?: Text("A", style = TextStyle(fontSize = 56.sp, fontWeight = FontWeight.Black, color = Color.White.copy(alpha = 0.85f)))
         }
-        Column(Modifier.weight(0.5f).fillMaxHeight()) {
-            Text("Up next", style = Header)
-            Spacer(Modifier.height(6.dp))
-            val i = ui.queue.indexOfFirst { it.id == ui.currentQueueId }
-            val next = if (i >= 0) ui.queue.drop(i + 1).take(4) else emptyList()
-            if (next.isEmpty()) Text("End of side A", style = Sub)
-            next.forEach { q -> QueueRow(q, current = false, onClick = { onPlayQueue(q.id) }, showArt = true) }
-        }
-        Column(Modifier.weight(0.5f).fillMaxHeight()) {
+        Column(Modifier.weight(1f).fillMaxHeight()) {
             Text("Liner notes", style = Header)
             Spacer(Modifier.height(8.dp))
             Text(ui.title.ifBlank { "No tape playing" }, style = Title.copy(fontSize = 18.sp, fontWeight = FontWeight.SemiBold), maxLines = 2, overflow = TextOverflow.Ellipsis)
