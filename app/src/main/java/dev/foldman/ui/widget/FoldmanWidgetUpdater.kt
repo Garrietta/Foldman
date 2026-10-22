@@ -55,9 +55,10 @@ data class WidgetSnapshot(
  * ([ReelMotion]: ω = v/r per reel, counter-clockwise in play, spin-up /
  * coast-down easing). While a snapshot reports playing, a ticker re-pushes
  * every [TICK_SECONDS] and integrates the model, so the widget wheels turn
- * exactly like the app's. The tick is 120ms: at ~278°/s (empty pack) that's
- * ~33° per tick — smooth enough for the 3-spoke reels without strobing, and
- * ~8 widget updates/sec while playing.
+ * exactly like the app's. The tick is 50ms: at ~278°/s (empty pack) that's
+ * ~14° per tick, ~6.5° at a full pack — under the ~15° choppiness threshold
+ * for the 3-spoke reels, so the motion reads smooth. That's ~20 widget
+ * updates/sec, but only while playing; pause stops the ticker.
  *
  * Pause stops the ticker and freezes both reel angles; resume spins back up
  * from rest. The angles reset to 0 only when [WidgetSnapshot.trackId]
@@ -65,8 +66,8 @@ data class WidgetSnapshot(
  */
 object FoldmanWidgetUpdater {
 
-    /** Widget reel ticker interval, in seconds. */
-    private const val TICK_SECONDS = 0.12f
+    /** Widget reel ticker interval, in seconds. 50ms keeps the fastest reel under ~14°/tick. */
+    private const val TICK_SECONDS = 0.05f
 
     private val tickerScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var tickerJob: Job? = null
