@@ -152,7 +152,10 @@ object FoldmanWidgetUpdater {
         context: Context,
         snapshot: WidgetSnapshot,
     ): String? = runCatching {
-        val tape = CassetteRenderer.renderVerticalCassette(snapshot.reelAngleDeg, 200, 640)
+        // Aspect matches the navy panel's inner box (112:188 design dp), so
+        // ContentScale.Fit fills the panel width and the panel's uniform 8dp
+        // padding becomes the thin navy border on all four sides.
+        val tape = CassetteRenderer.renderVerticalCassette(snapshot.reelAngleDeg, 336, 564)
         val file = File(context.filesDir, "foldman_widget_tape.png")
         FileOutputStream(file).use { out ->
             tape.compress(Bitmap.CompressFormat.PNG, 90, out)

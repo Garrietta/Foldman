@@ -26,6 +26,7 @@ import androidx.glance.currentState
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
+import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
@@ -320,7 +321,8 @@ private fun WalkmanContent() {
         Spacer(GlanceModifier.width(sd(6)))
         // Right: vertical cassette spanning the full height.
         // (Glance Box in a Row stretches vertically to fill the Row's height.)
-        // Wider tape with uniform navy margins on all four sides.
+        // The tape bitmap is rendered at the inner box's aspect (112:188), so
+        // Fit fills the width and the 8dp padding is a uniform navy border.
         Box(
             modifier = GlanceModifier.width(sd(128))
                 .cornerRadius(sd(14))
@@ -333,7 +335,8 @@ private fun WalkmanContent() {
                 Image(
                     provider = BitmapImageProvider(tape),
                     contentDescription = "Cassette",
-                    modifier = GlanceModifier.fillMaxWidth(),
+                    modifier = GlanceModifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit,
                 )
             } else {
                 // Empty dark window until the updater renders the tape.
