@@ -413,7 +413,7 @@ private fun CoverWalkman(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, o
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.height(10.dp))
-                Wordmark("FOLDMAN", 40.sp, modifier = Modifier.fiveTap { showDiagnostics = true })
+                DiagnosticsWordmark("FOLDMAN", 40.sp, onFiveTap = { showDiagnostics = true })
                 Spacer(Modifier.height(20.dp))
             }
             SideStrip(ui, deck, Modifier.weight(0.27f).fillMaxHeight())
@@ -434,7 +434,10 @@ private fun SideStrip(ui: DeckUi, deck: DeckControls, modifier: Modifier) {
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
                 .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.End))
                 .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
-                .padding(start = 10.dp, end = 12.dp, top = 28.dp, bottom = 24.dp),
+                // The mic grille sits a smidge higher; the key column below
+                // shifts up with it, and the freed space flows into the
+                // volume slider's weight, making it taller.
+                .padding(start = 10.dp, end = 12.dp, top = 20.dp, bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             MicGrille(Modifier.fillMaxWidth().height(26.dp))
@@ -472,7 +475,7 @@ private fun DeckBand(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, vm: D
             Row(verticalAlignment = Alignment.Bottom) {
                 Text("STEREO", style = Serif.copy(fontSize = 24.sp))
                 Spacer(Modifier.weight(1f))
-                Wordmark("FOLDMAN", 26.sp, modifier = Modifier.fiveTap { showDiagnostics = true })
+                DiagnosticsWordmark("FOLDMAN", 26.sp, onFiveTap = { showDiagnostics = true })
             }
             Spacer(Modifier.height(8.dp))
             Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

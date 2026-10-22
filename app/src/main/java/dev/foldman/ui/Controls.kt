@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.composed
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -132,28 +131,40 @@ fun Wordmark(text: String, size: TextUnit, modifier: Modifier = Modifier, light:
 }
 
 /**
- * Hidden-gesture detector: fires [onFiveTap] after five taps land within a
- * three-second window. The hidden diagnostics screen hangs off this
- * (FOLDMAN wordmark); nothing in the UI advertises it.
+ * FOLDMAN wordmark with the hidden five-tap diagnostics gesture: five taps
+ * within three seconds fire [onFiveTap]. Nothing in the UI advertises it.
+ * (A Modifier-based version would need `composed`, which this Compose BOM
+ * removed — hence the wrapper.)
  */
-fun Modifier.fiveTap(onFiveTap: () -> Unit): Modifier = composed(
-    inspectorInfo = { name = "fiveTap" },
+@Composable
+fun DiagnosticsWordmark(
+    text: String,
+    size: TextUnit,
+    onFiveTap: () -> Unit,
+    modifier: Modifier = Modifier,
+    light: Boolean = true,
 ) {
-    var recent by remember { mutableStateOf(emptyList<Long>()) }
-    val latest by rememberUpdatedState(onFiveTap)
-    pointerInput(Unit) {
-        detectTapGestures(
-            onTap = {
-                val now = SystemClock.elapsedRealtime()
-                val window = (recent + now).filter { now - it <= 3000L }
-                recent = window
-                if (window.size >= 5) {
-                    recent = emptyList()
-                    latest()
-                }
-            },
-        )
-    }
+    var taps by remember { mutableStateOf(emptyList<Long>()) }
+    val latestTaps by rememberUpdatedState(taps)
+    val latestAction by rememberUpdatedState(onFiveTap)
+    Wordmark(
+        text,
+        size,
+        modifier = modifier.pointerInput(Unit) {
+            detectTapGestures(
+                onTap = {
+                    val now = SystemClock.elapsedRealtime()
+                    val window = (latestTaps + now).filter { now - it <= 3000L }
+                    taps = window
+                    if (window.size >= 5) {
+                        taps = emptyList()
+                        latestAction()
+                    }
+                },
+            )
+        },
+        light = light,
+    )
 }
 
 /** A two-position slide switch with a ridged metal nub, labelled on its left. */
