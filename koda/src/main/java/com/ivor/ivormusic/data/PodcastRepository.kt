@@ -113,12 +113,14 @@ class PodcastRepository(context: Context) {
                     artworkUrl = parsed.artworkUrl,
                     addedAt = existing?.addedAt ?: System.currentTimeMillis(),
                 )
-                val episodes = parsed.episodes.map { ep ->
+                val episodes = parsed.episodes.mapNotNull { ep ->
+                    val audioUrl = ep.audioUrl?.takeIf { it.isNotBlank() }
+                        ?: return@mapNotNull null
                     PodcastEpisode(
-                        id = ep.guid?.takeIf { it.isNotBlank() } ?: ep.audioUrl,
+                        id = ep.guid?.takeIf { it.isNotBlank() } ?: audioUrl,
                         feedId = id,
                         title = ep.title,
-                        audioUrl = ep.audioUrl,
+                        audioUrl = audioUrl,
                         artworkUrl = ep.artworkUrl ?: parsed.artworkUrl,
                         description = ep.description,
                         pubDate = ep.pubDate,
@@ -145,12 +147,14 @@ class PodcastRepository(context: Context) {
         return try {
             val parsed = fetchAndParse(feed.feedUrl)
             mutex.withLock {
-                val episodes = parsed.episodes.map { ep ->
+                val episodes = parsed.episodes.mapNotNull { ep ->
+                    val audioUrl = ep.audioUrl?.takeIf { it.isNotBlank() }
+                        ?: return@mapNotNull null
                     PodcastEpisode(
-                        id = ep.guid?.takeIf { it.isNotBlank() } ?: ep.audioUrl,
+                        id = ep.guid?.takeIf { it.isNotBlank() } ?: audioUrl,
                         feedId = feedId,
                         title = ep.title,
-                        audioUrl = ep.audioUrl,
+                        audioUrl = audioUrl,
                         artworkUrl = ep.artworkUrl ?: parsed.artworkUrl,
                         description = ep.description,
                         pubDate = ep.pubDate,

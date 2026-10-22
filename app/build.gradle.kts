@@ -64,6 +64,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
 
     buildFeatures {
@@ -74,6 +75,7 @@ android {
 
 dependencies {
     implementation(project(":koda"))
+    coreLibraryDesugaring(kodaLibs.desugar.jdk.libs.nio)
 
     val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
     implementation(composeBom)
