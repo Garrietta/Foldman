@@ -45,8 +45,9 @@ data class WidgetSnapshot(
  * redraws.
  *
  * While a snapshot reports playing, a lightweight ticker re-pushes every
- * ~750ms with the reel angle advanced 40 degrees, which animates the
- * cassette's reels. The ticker stops on pause and whenever a fresh snapshot
+ * ~750ms with the reel angle advanced 10 degrees clockwise (slow — a full
+ * revolution takes ~27s), which animates the cassette's reels. The ticker
+ * stops on pause (reels freeze at current angle) and whenever a fresh snapshot
  * arrives with [WidgetSnapshot.isPlaying] false.
  */
 object FoldmanWidgetUpdater {
@@ -106,7 +107,7 @@ object FoldmanWidgetUpdater {
                 try {
                     val snap = lastSnapshot ?: break
                     if (!snap.isPlaying) break
-                    update(context, snap.copy(reelAngleDeg = (snap.reelAngleDeg + 40f) % 360f))
+                    update(context, snap.copy(reelAngleDeg = (snap.reelAngleDeg + 10f) % 360f))
                 } catch (e: Exception) {
                     // Keep the ticker alive; a transient failure shouldn't kill rotation.
                     continue
