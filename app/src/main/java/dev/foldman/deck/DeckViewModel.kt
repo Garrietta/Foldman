@@ -39,8 +39,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
 
 /** Cassette label colours, taken from the album art when there is some. */
@@ -98,6 +100,8 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     private val _youtubeMusic = MutableStateFlow(YouTubeMusicUi())
     val youtubeMusic: StateFlow<YouTubeMusicUi> = _youtubeMusic.asStateFlow()
     private var youtubeJob: Job? = null
+    /** Disk cache for YouTube Music library metadata: stale-while-revalidate. */
+    private val metadataCache = MetadataCache(app)
     private val podcastRepository = PodcastRepository(app)
     private val _podcasts = MutableStateFlow(PodcastsUi())
     val podcasts: StateFlow<PodcastsUi> = _podcasts.asStateFlow()
@@ -149,6 +153,15 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             podcastRepository.ensureLoaded()
             launch { podcastRepository.feeds.collect { feeds -> _podcasts.value = _podcasts.value.copy(feeds = feeds) } }
             launch { podcastRepository.episodesByFeed.collect { map -> _podcasts.value = _podcasts.value.copy(episodesByFeed = map) } }
+            // Quiet background refresh of subscribed feeds. The disk cache (Koda's
+            // PodcastRepository) already rendered instantly above; this just tops up
+            // episode lists without touching the UI. Failures stay silent.
+            launch(Dispatchers.IO) {
+                val feeds = withTimeoutOrNull(30_000) {
+                    podcastRepository.feeds.first { it.isNotEmpty() }
+                }.orEmpty()
+                feeds.forEach { feed -> runCatching { podcastRepository.refreshFeed(feed.id) } }
+            }
         }
         viewModelScope.launch {
             while (true) {
@@ -331,15 +344,28 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         tick()
     }
 
+    /**
+     * Stale-while-revalidate: the library renders instantly from the disk cache,
+     * then a background network refresh rewrites the cache. Manual refreshes
+     * always hit the network.
+     */
     fun refreshYouTubeMusic() {
         val signedIn = youtubeSession.isLoggedIn()
-        _youtubeMusic.value = _youtubeMusic.value.copy(
-            signedIn = signedIn,
-            accountName = youtubeSession.getUserName(),
-            playlists = if (signedIn) _youtubeMusic.value.playlists else emptyList(),
-            message = null,
-        )
-        if (signedIn) loadYouTubePlaylists()
+        youtubeJob?.cancel()
+        youtubeJob = viewModelScope.launch {
+            val cached = withContext(Dispatchers.IO) { metadataCache.loadLibrary() }
+            _youtubeMusic.value = _youtubeMusic.value.copy(
+                signedIn = signedIn,
+                accountName = youtubeSession.getUserName(),
+                playlists = if (signedIn) {
+                    cached?.playlists?.map { it.toDisplayItem() } ?: _youtubeMusic.value.playlists
+                } else {
+                    emptyList()
+                },
+                message = null,
+            )
+            if (signedIn) launch { fetchPlaylistsFromNetwork() }
+        }
     }
 
     fun setYouTubeMusicQuery(query: String) {
@@ -377,61 +403,99 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun loadYouTubePlaylists() {
-        youtubeJob?.cancel()
-        youtubeJob = viewModelScope.launch {
-            _youtubeMusic.value = _youtubeMusic.value.copy(loading = true, message = null)
-            try {
-                val playlists = youtubeRepository.getUserPlaylists()
-                _youtubeMusic.value = _youtubeMusic.value.copy(
-                    playlists = playlists,
-                    message = if (playlists.isEmpty()) "No playlists were found in this account." else null,
-                )
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _youtubeMusic.value = _youtubeMusic.value.copy(
-                    message = e.message ?: "Couldn't load your YouTube Music library.",
-                )
-            } finally {
-                _youtubeMusic.value = _youtubeMusic.value.copy(loading = false)
+    /**
+     * Background network revalidation of the playlist list. Runs as a child of
+     * [youtubeJob] so searches and playlist opens cancel it. The spinner only
+     * shows when there is nothing cached to display.
+     */
+    private suspend fun fetchPlaylistsFromNetwork() {
+        _youtubeMusic.value = _youtubeMusic.value.copy(
+            loading = _youtubeMusic.value.playlists.isEmpty(),
+            message = null,
+        )
+        try {
+            val playlists = withContext(Dispatchers.IO) { youtubeRepository.getUserPlaylists() }
+            withContext(Dispatchers.IO) {
+                metadataCache.saveLibrary(_youtubeMusic.value.accountName, playlists)
             }
+            _youtubeMusic.value = _youtubeMusic.value.copy(
+                playlists = playlists,
+                message = if (playlists.isEmpty()) "No playlists were found in this account." else null,
+            )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _youtubeMusic.value = _youtubeMusic.value.copy(
+                message = e.message ?: "Couldn't load your YouTube Music library.",
+            )
+        } finally {
+            _youtubeMusic.value = _youtubeMusic.value.copy(loading = false)
         }
     }
 
+    /**
+     * Stale-while-revalidate: the playlist's tracks render instantly from the
+     * disk cache when present, then a background network refresh rewrites the
+     * cache. A pending shuffle-play is fulfilled from the cache immediately
+     * when possible instead of waiting on the network.
+     */
     fun openYouTubePlaylist(playlist: PlaylistDisplayItem) {
         youtubeJob?.cancel()
         if (pendingShufflePlaylist?.first?.id != playlist.id) pendingShufflePlaylist = null
         youtubeJob = viewModelScope.launch {
+            val cachedTracks = withContext(Dispatchers.IO) {
+                metadataCache.loadPlaylistTracks(playlist.id)?.tracks.orEmpty()
+            }
             _youtubeMusic.value = _youtubeMusic.value.copy(
                 openPlaylist = playlist,
-                playlistTracks = emptyList(),
-                loading = true,
+                playlistTracks = cachedTracks,
+                loading = cachedTracks.isEmpty(),
                 message = null,
             )
-            try {
-                val songs = youtubeRepository.getPlaylist(playlist.id)
-                _youtubeMusic.value = _youtubeMusic.value.copy(
-                    playlistTracks = songs,
-                    message = if (songs.isEmpty()) "This playlist has no playable songs." else null,
-                )
-                pendingShufflePlaylist?.takeIf { it.first.id == playlist.id }?.let { (_, player) ->
-                    pendingShufflePlaylist = null
-                    if (songs.isNotEmpty()) {
-                        selectSource(Source.YT_MUSIC)
-                        setShuffleEnabled(true)
-                        playKodaSongs(songs, 0, player, Source.YT_MUSIC)
-                    }
-                }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _youtubeMusic.value = _youtubeMusic.value.copy(
-                    message = e.message ?: "Couldn't open this playlist.",
-                )
-            } finally {
-                _youtubeMusic.value = _youtubeMusic.value.copy(loading = false)
+            val pending = pendingShufflePlaylist?.takeIf { it.first.id == playlist.id }
+            if (pending != null && cachedTracks.isNotEmpty()) {
+                pendingShufflePlaylist = null
+                selectSource(Source.YT_MUSIC)
+                setShuffleEnabled(true)
+                playKodaSongs(cachedTracks, 0, pending.second, Source.YT_MUSIC)
+                return@launch
             }
+            launch { fetchPlaylistTracksFromNetwork(playlist) }
+        }
+    }
+
+    /**
+     * Background network revalidation of one playlist's tracks. Runs as a child
+     * of [youtubeJob] so it is cancelled by searches and other playlist opens.
+     */
+    private suspend fun fetchPlaylistTracksFromNetwork(playlist: PlaylistDisplayItem) {
+        _youtubeMusic.value = _youtubeMusic.value.copy(
+            loading = _youtubeMusic.value.playlistTracks.isEmpty(),
+            message = null,
+        )
+        try {
+            val songs = withContext(Dispatchers.IO) { youtubeRepository.getPlaylist(playlist.id) }
+            withContext(Dispatchers.IO) { metadataCache.savePlaylistTracks(playlist.id, songs) }
+            _youtubeMusic.value = _youtubeMusic.value.copy(
+                playlistTracks = songs,
+                message = if (songs.isEmpty()) "This playlist has no playable songs." else null,
+            )
+            pendingShufflePlaylist?.takeIf { it.first.id == playlist.id }?.let { (_, player) ->
+                pendingShufflePlaylist = null
+                if (songs.isNotEmpty()) {
+                    selectSource(Source.YT_MUSIC)
+                    setShuffleEnabled(true)
+                    playKodaSongs(songs, 0, player, Source.YT_MUSIC)
+                }
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _youtubeMusic.value = _youtubeMusic.value.copy(
+                message = e.message ?: "Couldn't open this playlist.",
+            )
+        } finally {
+            _youtubeMusic.value = _youtubeMusic.value.copy(loading = false)
         }
     }
 

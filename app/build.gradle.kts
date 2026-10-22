@@ -3,6 +3,7 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 // Release signing, from the git-ignored signing.properties (storeFile, storePassword, keyAlias,
@@ -91,6 +92,8 @@ dependencies {
     // Glance's Preferences state APIs live in DataStore, not in the glance artifacts.
     implementation("androidx.glance:glance-appwidget:1.1.1")
     implementation("androidx.datastore:datastore-preferences:1.1.7")
+    // Metadata disk cache (deck/MetadataCache.kt) serializes Koda's Song/playlist models.
+    implementation(kodaLibs.kotlinx.serialization.json)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.10.1")
 
     // Local binary dependencies, if any.

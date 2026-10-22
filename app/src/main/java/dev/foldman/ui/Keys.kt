@@ -63,9 +63,6 @@ fun TransportKeys(
     onFastForward: () -> Unit,
     onPause: () -> Unit,
     onShuffle: (() -> Unit)? = null,
-    // When set, the REW/FF slots become PREV/NEXT track keys (unfolded deck).
-    onPrevTrack: (() -> Unit)? = null,
-    onNextTrack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     keyHeight: Dp = 86.dp,
     vertical: Boolean = false,
@@ -74,20 +71,12 @@ fun TransportKeys(
     // Captions sit on the silver strip when stacked, on the dark key well otherwise.
     val cc = if (vertical) DeckColors.Engrave else Color(0xFF9EA1A7)
     val keys: @Composable (Modifier, Modifier) -> Unit = { k, play ->
-        if (onPrevTrack != null) {
-            DeckKey(KeySymbol.PREV, "PREV", latched = false, onPress = onPrevTrack, modifier = k, height = keyHeight, captionColor = cc)
-        } else {
-            DeckKey(KeySymbol.REW, "REW", latched = t == Transport.REWINDING, onPress = onRewind, modifier = k, height = keyHeight, captionColor = cc)
-        }
+        DeckKey(KeySymbol.REW, "REW", latched = t == Transport.REWINDING, onPress = onRewind, modifier = k, height = keyHeight, captionColor = cc)
         DeckKey(
             KeySymbol.PLAY, "PLAY", latched = t == Transport.PLAYING || t == Transport.PAUSED, onPress = onPlay,
             modifier = play, height = keyHeight, captionColor = cc, accent = true,
         )
-        if (onNextTrack != null) {
-            DeckKey(KeySymbol.NEXT, "NEXT", latched = false, onPress = onNextTrack, modifier = k, height = keyHeight, captionColor = cc)
-        } else {
-            DeckKey(KeySymbol.FF, "FF", latched = t == Transport.FAST_FORWARDING, onPress = onFastForward, modifier = k, height = keyHeight, captionColor = cc)
-        }
+        DeckKey(KeySymbol.FF, "FF", latched = t == Transport.FAST_FORWARDING, onPress = onFastForward, modifier = k, height = keyHeight, captionColor = cc)
         DeckKey(KeySymbol.PAUSE, "PAUSE", latched = t == Transport.PAUSED, onPress = onPause, modifier = k, height = keyHeight, captionColor = cc, mark = Color(0xFF3E9C5A))
         DeckKey(KeySymbol.STOP, "STOP·EJECT", latched = false, onPress = onStop, modifier = k, height = keyHeight, captionColor = cc, mark = Color(0xFFC8352B))
         // Folded deck only: a SHUFFLE key in the PLAY key's active language (accent underline,

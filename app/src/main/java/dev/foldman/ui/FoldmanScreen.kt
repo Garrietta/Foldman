@@ -202,18 +202,13 @@ fun FoldmanScreen(
                 // The cover screen is the player itself: edge to edge, system bars shown
                 // as transparent overlays.
                 Posture.Cover -> CoverWalkman(ui, anim, deck, onTapes = { shelfOpen = true }, modifier = Modifier.fillMaxSize())
-                // Unfolded: the left two-thirds hold the library, deck and liner notes;
-                // the right third is a full-height Up Next column fed by the live queue.
-                Posture.Unfolded -> Row(
+                Posture.Unfolded -> Column(
                     Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Column(Modifier.weight(2f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        LibraryBand(ui, shelfActions, vm::playQueueItem, Modifier.fillMaxWidth().weight(if (landscape) 0.31f else 0.27f), showQueue = false)
-                        DeckBand(ui, anim, deck, vm, Modifier.fillMaxWidth().weight(if (landscape) 0.44f else 0.46f))
-                        LinerNotesBand(ui, Modifier.fillMaxWidth().weight(if (landscape) 0.25f else 0.27f))
-                    }
-                    UpNextColumn(ui, vm::playQueueItem, Modifier.weight(1f).fillMaxHeight())
+                    LibraryBand(ui, shelfActions, vm::playQueueItem, Modifier.fillMaxWidth().weight(if (landscape) 0.31f else 0.27f))
+                    DeckBand(ui, anim, deck, vm, Modifier.fillMaxWidth().weight(if (landscape) 0.44f else 0.46f))
+                    NowPlayingBand(ui, vm::playQueueItem, Modifier.fillMaxWidth().weight(if (landscape) 0.25f else 0.27f))
                 }
                 Posture.Tabletop -> {
                     val (topH, gap) = with(density) {
@@ -461,14 +456,12 @@ private fun DeckBand(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, vm: D
                 EjectArrow({ deck.stop() }, Modifier.size(26.dp, 50.dp))
             }
             Spacer(Modifier.height(10.dp))
-            // PREV | PLAY | NEXT | PAUSE | STOP·EJECT: the track-skip keys take the
-            // FF/REW slots (the small circular AMS buttons are gone on the unfolded deck).
             Row(verticalAlignment = Alignment.Bottom) {
-                TransportKeys(
-                    ui, deck.stop, deck.rewind, deck.play, deck.fastForward, deck.pause,
-                    onPrevTrack = deck.previous, onNextTrack = deck.next,
-                    modifier = Modifier.weight(1f), keyHeight = 58.dp,
-                )
+                MiniButton("AMS", deck.previous, symbol = KeySymbol.PREV, diameter = 30.dp)
+                Spacer(Modifier.width(10.dp))
+                TransportKeys(ui, deck.stop, deck.rewind, deck.play, deck.fastForward, deck.pause, modifier = Modifier.weight(1f), keyHeight = 58.dp)
+                Spacer(Modifier.width(10.dp))
+                MiniButton("AMS", deck.next, symbol = KeySymbol.NEXT, diameter = 30.dp, enabled = ui.hasNext)
             }
         }
         // Silver end strip: mic, switches, volume and phones.
