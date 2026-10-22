@@ -63,8 +63,11 @@ data class WidgetSnapshot(
  * must never clobber the running angle, so pause/resume keeps the frozen
  * position. The angle resets to 0 only when [WidgetSnapshot.trackId] changes
  * (a new song/audio file starts).
- */
+  */
 object FoldmanWidgetUpdater {
+
+    /** Widget reel ticker interval, in seconds; the per-tick advance derives from REEL_DEG_PER_SEC. */
+    private const val TICK_SECONDS = 0.75f
 
     private val tickerScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var tickerJob: Job? = null
@@ -139,11 +142,6 @@ object FoldmanWidgetUpdater {
                 }
             }
         }
-    }
-
-    companion object {
-        /** Widget reel ticker interval; the per-tick advance derives from REEL_DEG_PER_SEC. */
-        const val TICK_SECONDS = 0.75f
     }
 
     private fun stopTicker() {
