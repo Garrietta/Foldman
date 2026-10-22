@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.updateAppWidgetState
+import dev.foldman.deck.Transport
 import dev.foldman.ui.ReelMotion
 import java.io.File
 import java.io.FileOutputStream
@@ -30,70 +31,86 @@ data class WidgetSnapshot(
     /** Retained for pipeline compat; this widget design has no shuffle key. */
     val shuffleOn: Boolean,
     val activeSource: WidgetSource,
-    /** Reel angle for the cassette. Owned by the updater: callers leave the
-     * default; the ticker advances it while playing. */
-    val reelAngleDeg: Float = 0f,
+    /** Track duration in ms; lets the ticker integrate tape progress while playing. */
+    val durationMs: Long = 0L,
     /** 0..1 system music volume; drives the VOLUME slider indicator. */
     val volume: Float = 0.5f,
     /** 0-based index of the now-playing track in the queue; drives the counter. */
     val queueIndex: Int = 0,
     /**
      * Stable identity of the now-playing queue entry (BackendState.currentQueueId).
-     * The updater resets the reel angle to 0 only when this changes — a
-     * pause/resume keeps the frozen angle.
+     * The updater resets the reel angles to 0 only when this changes — a
+     * pause/resume keeps the frozen angles.
      */
     val trackId: Long = -1,
 )
 
 /**
  * Pushes a [WidgetSnapshot] to every installed Foldman widget: renders the
- * horizontal cassette (reels at [WidgetSnapshot.reelAngleDeg]) and the
- * VOLUME/TONE slider cluster to files the widget reads back in
- * [FoldmanWidget.provideGlance], stores everything in Glance state, and
- * redraws.
+ * vertical cassette (each reel at its own physics-model angle) to a file the
+ * widget reads back in [FoldmanWidget.provideGlance], stores everything in
+ * Glance state, and redraws.
  *
- * While a snapshot reports playing, a lightweight ticker re-pushes every
- * [TICK_SECONDS] with the reel angle advanced by the shared
- * [ReelMotion.REEL_DEG_PER_SEC] rate (slow — a full revolution takes ~27s),
- * which animates the cassette's reels at exactly the deck's speed. The ticker
- * stops on pause (reels freeze at current angle) and whenever a fresh snapshot
- * arrives with [WidgetSnapshot.isPlaying] false.
+ * The reels run the SAME pack-radius physics as the deck cassette
+ * ([ReelMotion]: ω = v/r per reel, counter-clockwise in play, spin-up /
+ * coast-down easing). While a snapshot reports playing, a ticker re-pushes
+ * every [TICK_SECONDS] and integrates the model, so the widget wheels turn
+ * exactly like the app's. The tick is 120ms: at ~278°/s (empty pack) that's
+ * ~33° per tick — smooth enough for the 3-spoke reels without strobing, and
+ * ~8 widget updates/sec while playing.
  *
- * The angle is owned here, not by the caller: a fresh snapshot's default 0
- * must never clobber the running angle, so pause/resume keeps the frozen
- * position. The angle resets to 0 only when [WidgetSnapshot.trackId] changes
- * (a new song/audio file starts).
-  */
+ * Pause stops the ticker and freezes both reel angles; resume spins back up
+ * from rest. The angles reset to 0 only when [WidgetSnapshot.trackId]
+ * changes (a new song/audio file starts).
+ */
 object FoldmanWidgetUpdater {
 
-    /** Widget reel ticker interval, in seconds; the per-tick advance derives from REEL_DEG_PER_SEC. */
-    private const val TICK_SECONDS = 0.75f
+    /** Widget reel ticker interval, in seconds. */
+    private const val TICK_SECONDS = 0.12f
 
     private val tickerScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var tickerJob: Job? = null
     private var lastSnapshot: WidgetSnapshot? = null
-    /** Running reel angle; survives pause/resume, resets only on track change. */
-    private var currentAngle = 0f
+    private var lastIsPlaying: Boolean? = null
+    /** Physics model owned here; survives pause/resume, fresh on track change. */
+    private var reels = ReelMotion()
+    /** Tape progress the model is drawn at; integrated by the ticker. */
+    private var currentProgress = 0f
     private var lastTrackId: Long? = null
 
     suspend fun update(context: Context, snapshot: WidgetSnapshot) {
         val appContext = context.applicationContext
         if (snapshot.trackId != lastTrackId) {
-            // New song/audio file: the spinners restart from 0.
+            // New song/audio file: fresh model, spinners restart from 0.
             lastTrackId = snapshot.trackId
-            currentAngle = 0f
+            reels = ReelMotion()
+            currentProgress = 0f
+        } else if (snapshot.isPlaying && lastIsPlaying != true) {
+            // Resume from pause: spin the reels back up from rest, keeping
+            // the frozen angles.
+            reels.resetTapeSpeed()
         }
-        // Freeze-frame on pause: carry the running angle forward; the
-        // snapshot's default 0 must never reset the reels.
-        val effective = snapshot.copy(reelAngleDeg = currentAngle)
+        lastIsPlaying = snapshot.isPlaying
+        lastSnapshot = snapshot
+        push(appContext, snapshot)
+        if (snapshot.isPlaying) startTicker(appContext) else stopTicker()
+    }
+
+    /** Stops the reel ticker, e.g. when the app is backgrounded for good. */
+    fun stop() {
+        stopTicker()
+        lastSnapshot = null
+        lastIsPlaying = null
+    }
+
+    private suspend fun push(appContext: Context, snapshot: WidgetSnapshot) {
         val ids = appWidgetIds(appContext)
-        lastSnapshot = effective
         if (ids.isEmpty()) {
             stopTicker()
             return
         }
-        val tapePath = writeTape(appContext, effective)
-        val artworkPath = writeArtwork(appContext, effective)
+        val tapePath = writeTape(appContext, reels.leftAngle, reels.rightAngle)
+        val artworkPath = writeArtwork(appContext, snapshot)
         val keyPaths = writeKeys(appContext)
         val widget = FoldmanWidget()
         val manager = GlanceAppWidgetManager(appContext)
@@ -101,28 +118,23 @@ object FoldmanWidgetUpdater {
             val glanceId = runCatching { manager.getGlanceIdBy(appWidgetId) }.getOrNull()
                 ?: continue
             updateAppWidgetState(appContext, glanceId) { state ->
-                state[WidgetKeys.TITLE] = effective.title
-                state[WidgetKeys.ARTIST] = effective.artist
+                state[WidgetKeys.TITLE] = snapshot.title
+                state[WidgetKeys.ARTIST] = snapshot.artist
                 if (tapePath != null) state[WidgetKeys.TAPE_PATH] = tapePath
                 else state.remove(WidgetKeys.TAPE_PATH)
                 if (artworkPath != null) state[WidgetKeys.ARTWORK_PATH] = artworkPath
                 else state.remove(WidgetKeys.ARTWORK_PATH)
                 if (keyPaths != null) state[WidgetKeys.KEY_PATHS] = keyPaths
                 else state.remove(WidgetKeys.KEY_PATHS)
-                state[WidgetKeys.IS_PLAYING] = effective.isPlaying
-                state[WidgetKeys.SOURCE] = effective.activeSource.name
-                state[WidgetKeys.QUEUE_INDEX] = effective.queueIndex
-                state[WidgetKeys.REEL_ANGLE] = effective.reelAngleDeg
+                state[WidgetKeys.IS_PLAYING] = snapshot.isPlaying
+                state[WidgetKeys.SOURCE] = snapshot.activeSource.name
+                state[WidgetKeys.QUEUE_INDEX] = snapshot.queueIndex
+                // Recompose triggers; the rotation itself is baked into the tape PNG.
+                state[WidgetKeys.REEL_ANGLE_LEFT] = reels.leftAngle
+                state[WidgetKeys.REEL_ANGLE_RIGHT] = reels.rightAngle
             }
             runCatching { widget.update(appContext, glanceId) }
         }
-        if (effective.isPlaying) startTicker(appContext) else stopTicker()
-    }
-
-    /** Stops the reel ticker, e.g. when the app is backgrounded for good. */
-    fun stop() {
-        stopTicker()
-        lastSnapshot = null
     }
 
     private fun startTicker(context: Context) {
@@ -133,9 +145,14 @@ object FoldmanWidgetUpdater {
                 try {
                     val snap = lastSnapshot ?: break
                     if (!snap.isPlaying) break
-                    // Same slow mechanical rate as the deck cassette: ReelMotion.REEL_DEG_PER_SEC.
-                    currentAngle = (currentAngle + ReelMotion.REEL_DEG_PER_SEC * TICK_SECONDS) % 360f
-                    update(context, snap.copy(reelAngleDeg = currentAngle))
+                    val dt = TICK_SECONDS
+                    val dur = snap.durationMs
+                    if (dur > 0) {
+                        currentProgress =
+                            (currentProgress + dt * 1000f / dur).coerceIn(0f, 1f)
+                    }
+                    reels.step(dt, Transport.PLAYING, currentProgress)
+                    push(context, snap)
                 } catch (e: Exception) {
                     // Keep the ticker alive; a transient failure shouldn't kill rotation.
                     continue
@@ -180,12 +197,13 @@ object FoldmanWidgetUpdater {
 
     private fun writeTape(
         context: Context,
-        snapshot: WidgetSnapshot,
+        leftAngleDeg: Float,
+        rightAngleDeg: Float,
     ): String? = runCatching {
         // Aspect matches the navy panel's inner box (112:188 design dp), so
         // ContentScale.Fit fills the panel width and the panel's uniform 8dp
         // padding becomes the thin navy border on all four sides.
-        val tape = CassetteRenderer.renderVerticalCassette(snapshot.reelAngleDeg, 336, 564)
+        val tape = CassetteRenderer.renderVerticalCassette(leftAngleDeg, rightAngleDeg, 336, 564)
         val file = File(context.filesDir, "foldman_widget_tape.png")
         FileOutputStream(file).use { out ->
             tape.compress(Bitmap.CompressFormat.PNG, 90, out)

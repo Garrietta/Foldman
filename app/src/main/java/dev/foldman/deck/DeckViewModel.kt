@@ -966,6 +966,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
                     isPlaying = transport == Transport.PLAYING,
                     shuffleOn = _shuffleOn.value,
                     activeSource = WidgetSource.fromDeckName(source.name),
+                    durationMs = np.durationMs,
                     volume = volume,
                     queueIndex = qIndex,
                     trackId = state.currentQueueId,

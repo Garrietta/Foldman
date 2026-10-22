@@ -16,8 +16,10 @@ import kotlin.math.sin
  * (Glance/RemoteViews has no canvas):
  *
  * - [renderCassette]: the horizontal dark cassette window with twin metallic
- *   reels. [angleDeg] rotates the reel spokes; [FoldmanWidgetUpdater]
- *   re-renders on its 750ms ticker while playing, which animates the reels.
+ *   reels. [leftAngleDeg]/[rightAngleDeg] rotate each reel's spokes
+ *   independently (the pack-radius physics model turns them at different
+ *   rates); [FoldmanWidgetUpdater] re-renders on its ticker while playing,
+ *   which animates the reels.
  * - [renderSliders]: the VOLUME/TONE indicator cluster. The volume thumb
  *   tracks [volume] (0..1); tone sits at a fixed neutral spot. Visual only —
  *   taps open the app, per the mockup.
@@ -44,11 +46,11 @@ object CassetteRenderer {
      * Renders the cassette rotated 90° clockwise for vertical placement.
      * The horizontal bitmap is rendered first, then rotated.
      */
-    fun renderVerticalCassette(angleDeg: Float, widthPx: Int, heightPx: Int): Bitmap {
+    fun renderVerticalCassette(leftAngleDeg: Float, rightAngleDeg: Float, widthPx: Int, heightPx: Int): Bitmap {
         // Render horizontal (w x h), then rotate 90° CW to get (h x w).
         // For a vertical cassette of (widthPx x heightPx), render horizontal
         // at (heightPx x widthPx) then rotate.
-        val horizontal = renderCassette(angleDeg, heightPx, widthPx)
+        val horizontal = renderCassette(leftAngleDeg, rightAngleDeg, heightPx, widthPx)
         val matrix = android.graphics.Matrix().apply { postRotate(90f) }
         val rotated = Bitmap.createBitmap(
             horizontal, 0, 0, horizontal.width, horizontal.height, matrix, true
@@ -57,14 +59,15 @@ object CassetteRenderer {
         return rotated
     }
 
-    fun renderCassette(angleDeg: Float, widthPx: Int, heightPx: Int): Bitmap {
+    fun renderCassette(leftAngleDeg: Float, rightAngleDeg: Float, widthPx: Int, heightPx: Int): Bitmap {
         val w = widthPx.coerceAtLeast(1)
         val h = heightPx.coerceAtLeast(1)
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         val wf = w.toFloat()
         val hf = h.toFloat()
-        val angle = if (angleDeg.isFinite()) angleDeg else 0f
+        val leftAngle = if (leftAngleDeg.isFinite()) leftAngleDeg else 0f
+        val rightAngle = if (rightAngleDeg.isFinite()) rightAngleDeg else 0f
 
         // Body.
         val body = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = BODY }
@@ -87,8 +90,8 @@ object CassetteRenderer {
             strokeWidth = hf * 0.022f
         }
         canvas.drawLine(leftX, reelY, rightX, reelY, tapePaint)
-        drawReel(canvas, leftX, reelY, reelR, angle)
-        drawReel(canvas, rightX, reelY, reelR, angle)
+        drawReel(canvas, leftX, reelY, reelR, leftAngle)
+        drawReel(canvas, rightX, reelY, reelR, rightAngle)
 
         // Corner screws + a small red accent tab, like the deck hardware.
         val screw = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = HUB }

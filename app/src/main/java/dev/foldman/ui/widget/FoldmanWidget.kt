@@ -51,7 +51,8 @@ internal object WidgetKeys {
     val TITLE = stringPreferencesKey("title")
     val ARTIST = stringPreferencesKey("artist")
     val TAPE_PATH = stringPreferencesKey("tape_path")
-    val REEL_ANGLE = floatPreferencesKey("reel_angle")
+    val REEL_ANGLE_LEFT = floatPreferencesKey("reel_angle_left")
+    val REEL_ANGLE_RIGHT = floatPreferencesKey("reel_angle_right")
     val SLIDERS_PATH = stringPreferencesKey("sliders_path")
     val ARTWORK_PATH = stringPreferencesKey("artwork_path")
     val KEY_PATHS = stringPreferencesKey("key_paths")
@@ -146,10 +147,12 @@ private fun WalkmanContent() {
             BitmapFactory.decodeFile(path)?.takeIf { it.width > 0 && it.height > 0 }
         }.getOrNull()
     }
-    // Reel angle: referenced so Glance recomposes on every ticker tick.
-    // The tape bitmap file is re-decoded above with the new rotation.
+    // Reel angles: referenced so Glance recomposes on every ticker tick.
+    // The tape bitmap file is re-decoded above with the new rotations.
     @Suppress("UNUSED_VARIABLE")
-    val reelAngle = prefs?.get(WidgetKeys.REEL_ANGLE) ?: 0f
+    val reelAngleLeft = prefs?.get(WidgetKeys.REEL_ANGLE_LEFT) ?: 0f
+    @Suppress("UNUSED_VARIABLE")
+    val reelAngleRight = prefs?.get(WidgetKeys.REEL_ANGLE_RIGHT) ?: 0f
     // Transport key icons (vector-drawn, no emoji): paths joined by "|".
     val keyBitmaps: Map<String, android.graphics.Bitmap?> =
         prefs?.get(WidgetKeys.KEY_PATHS)?.split("|")?.let { paths ->
