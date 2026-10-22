@@ -25,8 +25,6 @@ import com.ivor.ivormusic.data.Song
 import com.ivor.ivormusic.data.YouTubeRepository
 import com.ivor.ivormusic.service.MusicService
 import com.ivor.ivormusic.ui.player.PlayerViewModel
-import dev.foldman.playback.Artwork
-import dev.foldman.playback.ArtworkCache
 import dev.foldman.playback.LocalBackend
 import dev.foldman.playback.LocalLibrary
 import dev.foldman.playback.YouTubeMusicBackend
@@ -146,7 +144,6 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     private var artBitmap: ImageBitmap? = null
     private var artSource: Any? = null
     private var lastWidgetKey: Any? = null
-    private var lastPrefetchKey: Any? = null
 
     init {
         prefs.getString(KEY_FOLDER, null)?.let { loadFolder(Uri.parse(it), firstLoad = true) }
@@ -460,7 +457,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
                 pendingShufflePlaylist = null
                 selectSource(Source.YT_MUSIC)
                 setShuffleEnabled(true)
-                playKodaSongs(cachedTracks, 0, pending.second, Source.YT_MUSIC)
+                playKodaSongs(shufflePlayOrder(cachedTracks), 0, pending.second, Source.YT_MUSIC)
                 return@launch
             }
             launch { fetchPlaylistTracksFromNetwork(playlist) }
@@ -488,7 +485,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
                 if (songs.isNotEmpty()) {
                     selectSource(Source.YT_MUSIC)
                     setShuffleEnabled(true)
-                    playKodaSongs(songs, 0, player, Source.YT_MUSIC)
+                    playKodaSongs(shufflePlayOrder(songs), 0, player, Source.YT_MUSIC)
                 }
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -528,6 +525,14 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         tick()
     }
 
+    /**
+     * Shuffle-play order: the first song stays on top, the rest shuffle.
+     * Shuffling the list itself (not just the session flag) makes the queue
+     * order deterministic regardless of when the async session flag lands.
+     */
+    private fun shufflePlayOrder(songs: List<Song>): List<Song> =
+        if (songs.size > 1) listOf(songs[0]) + songs.drop(1).shuffled() else songs
+
     /** Plays a podcast feed's episodes from the top, shuffled (first episode plays, the rest shuffle). */
     @androidx.media3.common.util.UnstableApi
     fun playPodcastFeedShuffled(feed: PodcastFeed, player: PlayerViewModel) {
@@ -535,7 +540,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         if (songs.isEmpty()) return
         selectSource(Source.PODCASTS)
         setShuffleEnabled(true)
-        playKodaSongs(songs, 0, player, Source.PODCASTS)
+        playKodaSongs(shufflePlayOrder(songs), 0, player, Source.PODCASTS)
     }
 
     /** Plays a YouTube Music playlist from the top, shuffled. */
@@ -550,7 +555,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         }
         selectSource(Source.YT_MUSIC)
         setShuffleEnabled(true)
-        playKodaSongs(songs, 0, player, Source.YT_MUSIC)
+        playKodaSongs(shufflePlayOrder(songs), 0, player, Source.YT_MUSIC)
     }
 
     private var pendingShufflePlaylist: Pair<PlaylistDisplayItem, PlayerViewModel>? = null
@@ -589,6 +594,12 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
                         MediaController.releaseFuture(future)
                         return@addListener
                     }
+                    // The session can already have shuffle on: Koda persists
+                    // it across restarts, and the widget flips it without
+                    // telling the deck. Re-setting an already-set flag is a
+                    // silent no-op (no shuffle-mode-changed callback, no
+                    // reshuffle), so cycle it to guarantee a fresh shuffle.
+                    if (enabled) controller.shuffleModeEnabled = false
                     controller.shuffleModeEnabled = enabled
                     controller.release()
                 }, ContextCompat.getMainExecutor(app))
@@ -751,30 +762,6 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             podcasts = _podcasts.value,
             youtubeMusic = _youtubeMusic.value,
         )
-        // Warm the art cache for what's coming next, so hitting NEXT finds the cover
-        // already cached instead of flashing the default background while it loads.
-        val trackKey = listOf(source, np.title, np.artist)
-        if (trackKey != lastPrefetchKey) {
-            lastPrefetchKey = trackKey
-            val upcomingUris = if (source == Source.LOCAL) {
-                tracks.drop(state.trackIndex + 1).take(3).mapNotNull { it.coverUri }
-            } else {
-                val queue = state.queue
-                val pos = queue.indexOfFirst { it.id == state.currentQueueId }.takeIf { it >= 0 } ?: -1
-                queue.drop(pos + 1).take(3).mapNotNull { it.artworkUri }
-            }
-            if (upcomingUris.isNotEmpty()) {
-                val app = getApplication<Application>()
-                viewModelScope.launch(Dispatchers.IO) {
-                    for (uri in upcomingUris) {
-                        val key = ArtworkCache.stableKey(uri) ?: continue
-                        if (ArtworkCache.get(app, key) == null) {
-                            Artwork.load(app, uri)?.let { ArtworkCache.put(app, key, it) }
-                        }
-                    }
-                }
-            }
-        }
         // Push now-playing state to the home-screen widget. Gated on track /
         // transport / artwork / shuffle changes — never on position ticks.
         val widgetKey = listOf(np.title, np.artist, transport, source, _shuffleOn.value, np.artwork)
@@ -797,9 +784,6 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     private fun updateLabel(np: NowPlaying) {
         val bitmap = np.artwork
         if (bitmap == null) {
-            // A new track's cover is still loading: hold the previous art/label instead of
-            // flashing the default background. Only fall back when a track genuinely has no art.
-            if (np.artworkLoading) return
             artBitmap = null
             artSource = null
             paletteKey = null
