@@ -236,6 +236,9 @@ fun FoldmanScreen(
                 }
             }
             if (shelfOpen && posture == Posture.Cover) {
+                // Hoisted: the sheet's content lambda is a ColumnScope, which loses the
+                // BoxWithConstraints receiver that maxHeight belongs to.
+                val screenH = maxHeight
                 ModalBottomSheet(
                     onDismissRequest = { shelfOpen = false },
                     sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -245,8 +248,8 @@ fun FoldmanScreen(
                     // and shrinks back on downward scroll at the top of the list.
                     val shelfListState = rememberLazyListState()
                     val statusBarPx = WindowInsets.statusBars.getTop(density)
-                    val minHpx = with(density) { (maxHeight * 0.8f).toPx() }
-                    val maxHpx = (with(density) { maxHeight.toPx() } - statusBarPx).coerceAtLeast(minHpx)
+                    val minHpx = with(density) { (screenH * 0.8f).toPx() }
+                    val maxHpx = (with(density) { screenH.toPx() } - statusBarPx).coerceAtLeast(minHpx)
                     var sheetHpx by remember { mutableStateOf<Float?>(null) }
                     val growConnection = remember(minHpx, maxHpx) {
                         object : NestedScrollConnection {

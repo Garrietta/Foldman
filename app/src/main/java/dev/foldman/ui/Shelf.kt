@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -52,6 +53,9 @@ import com.ivor.ivormusic.data.PlaylistDisplayItem
 import com.ivor.ivormusic.data.PodcastEpisode
 import com.ivor.ivormusic.data.PodcastFeed
 import com.ivor.ivormusic.data.Song
+
+private val Hand = TextStyle(fontFamily = FontFamily.Cursive, color = DeckColors.Ink, fontSize = 20.sp)
+private val Typed = TextStyle(fontFamily = FontFamily.Monospace, color = DeckColors.Ink, fontSize = 12.sp)
 
 class ShelfActions(
     val selectSource: (Source) -> Unit,
@@ -93,8 +97,15 @@ class PodcastActions(
  * beneath it.
  */
 @Composable
-fun TapeShelf(ui: DeckUi, actions: ShelfActions, modifier: Modifier = Modifier) {
-    val listState = rememberLazyListState()
+fun TapeShelf(
+    ui: DeckUi,
+    actions: ShelfActions,
+    modifier: Modifier = Modifier,
+    listState: LazyListState? = null,
+) {
+    // Hoisted so the sheet container can watch the scroll position for the
+    // grow-with-scroll behavior; defaults to a private state as before.
+    val list = listState ?: rememberLazyListState()
     var lastSource by remember { mutableStateOf(ui.source) }
     LaunchedEffect(ui.source, ui.trackIndex) {
         val switched = ui.source != lastSource
@@ -103,10 +114,10 @@ fun TapeShelf(ui: DeckUi, actions: ShelfActions, modifier: Modifier = Modifier) 
             // Item indices: 0-2 source spines, 3 local header row, 4+i track i
             // (the stickyHeader takes no index). Mirrors the old inner track list,
             // which kept the current track visible.
-            listState.animateScrollToItem((ui.trackIndex + 2).coerceAtLeast(0))
+            list.animateScrollToItem((ui.trackIndex + 2).coerceAtLeast(0))
         } else if (switched) {
             // Switching tapes used to swap in a fresh list; reset scroll the same way.
-            listState.scrollToItem(0)
+            list.scrollToItem(0)
         }
     }
     // In the sheet the browser rows sit on the J-card's paper, exactly as before.
@@ -130,7 +141,7 @@ fun TapeShelf(ui: DeckUi, actions: ShelfActions, modifier: Modifier = Modifier) 
         Text("TAPES", style = EngravedCaps.copy(color = Color(0xFFB59B80), fontSize = 10.sp, letterSpacing = 3.sp))
         Spacer(Modifier.height(10.dp))
         LazyColumn(
-            state = listState,
+            state = list,
             modifier = Modifier.weight(1f).fillMaxWidth(),
         ) {
             // (1) The source rows scroll up and hide under the fixed header.
@@ -147,7 +158,7 @@ fun TapeShelf(ui: DeckUi, actions: ShelfActions, modifier: Modifier = Modifier) 
             // (3) The browser list scrolls beneath it, on the card's paper.
             when (ui.source) {
                 Source.LOCAL -> localItems(ui, actions, paperWrap)
-                Source.YT_MUSIC -> youtubeMusicItems(ui.youtubeMusic, actions.youtubeMusic, onPaper = true, wrap = paperWrap)
+                Source.YT_MUSIC -> youtubeMusicItems(ui.youtubeMusic, actions.youtubeMusic, paperWrap)
                 Source.PODCASTS -> podcastItems(ui.podcasts, actions.podcasts, paperWrap)
             }
             // Rounded foot of the paper card.
