@@ -3,8 +3,15 @@ Copyright 2026 Devesh Rai
 
 This product includes software developed by Devesh Rai (https://github.com/deveshrai/Foldman).
 
-Any redistribution or derivative work must retain this NOTICE file and credit the original
-project, as required by section 4(d) of the Apache License, Version 2.0.
+Foldman's original source files are available under Apache License 2.0. The combined
+application is distributed under GNU General Public License v3.0; see LICENSE and
+LICENSE-APACHE-2.0.
+
+This product includes source code from Koda, copyright Garrietta, licensed under GPL-3.0.
+The vendored source is in koda/src; its original license and third-party attributions are in
+koda/LICENSE and koda/THIRD_PARTY_NOTICES.md. Foldman embeds Koda revision
+0d9be5146499fcfd4ecb8db3a500aa3f7ef89c84 as an Android library and removes Koda's launcher
+aliases so Foldman remains the only launcher entry. See koda/README.foldman.md.
 
 Foldman is not affiliated with, endorsed by, or sponsored by Sony, Apple, Google, or Samsung.
 "Walkman" is a trademark of Sony Group Corporation. Apple Music and MusicKit are trademarks of
@@ -16,3 +23,4 @@ Third-party software bundled in release builds:
   Apple Developer Program License Agreement. It is not part of this repository's source and is
   not covered by the Apache License.
 - AndroidX, Jetpack Compose and Media3, (c) The Android Open Source Project, Apache License 2.0.
+- NewPipe Extractor, licensed under GPL-3.0-or-later; distributed as a dependency.

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Podcasts tab (RSS feeds), under the music Library. -->
+    <string name="tab_podcasts">Podcasts</string>
+    <string name="podcast_add_feed">Add podcast</string>
+    <string name="podcast_add_feed_title">Add podcast feed</string>
+    <string name="podcast_add_feed_hint">Paste the RSS feed URL of a podcast to subscribe.</string>
+    <string name="podcast_feed_url_label">Feed URL</string>
+    <string name="podcast_add_feed_working">Fetching feed…</string>
+    <string name="podcast_add">Add</string>
+    <string name="podcast_empty">No podcasts yet. Add a feed to start listening.</string>
+    <string name="podcast_no_episodes">No episodes in this feed.</string>
+    <string name="podcast_episode_count">%1$d episodes</string>
+    <string name="podcast_refresh">Refresh feed</string>
+    <string name="podcast_remove">Remove feed</string>
+    <string name="action_back">Back</string>
+</resources>

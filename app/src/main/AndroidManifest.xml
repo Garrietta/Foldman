@@ -7,9 +7,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- The streaming apps Foldman can drive through their media sessions. -->
+    <!-- Apple Music remains an external media-session source. -->
     <queries>
-        <package android:name="com.google.android.apps.youtube.music" />
         <package android:name="com.apple.android.music" />
     </queries>
 
@@ -44,6 +43,16 @@
             </intent-filter>
         </activity>
 
+        <activity-alias android:name="com.ivor.ivormusic.MainActivityDefault" tools:node="remove" />
+        <activity-alias android:name="com.ivor.ivormusic.MainActivityCrimson" tools:node="remove" />
+        <activity-alias android:name="com.ivor.ivormusic.MainActivityMidnight" tools:node="remove" />
+        <activity-alias android:name="com.ivor.ivormusic.MainActivityEmerald" tools:node="remove" />
+        <activity-alias android:name="com.ivor.ivormusic.MainActivitySunset" tools:node="remove" />
+        <activity-alias android:name="com.ivor.ivormusic.MainActivityOcean" tools:node="remove" />
+        <activity-alias android:name="com.ivor.ivormusic.MainActivityBlossom" tools:node="remove" />
+        <activity-alias android:name="com.ivor.ivormusic.MainActivityMonochrome" tools:node="remove" />
+        <activity-alias android:name="com.ivor.ivormusic.MainActivitySolar" tools:node="remove" />
+
         <service
             android:name=".playback.PlaybackService"
             android:exported="true"
@@ -69,7 +78,7 @@
             tools:ignore="MissingClass"
             tools:node="merge" />
 
-        <!-- Notification access is what lets Foldman see YT Music's and Apple Music's media sessions. -->
+        <!-- Notification access is only needed for Apple Music's external media session. -->
         <service
             android:name=".remote.MediaListenerService"
             android:exported="true"

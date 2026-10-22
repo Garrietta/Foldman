@@ -7,7 +7,7 @@ Thanks for wanting to help. Bug reports, ideas and pull requests are all welcome
 Open an [issue](https://github.com/deveshrai/Foldman/issues/new/choose) using the bug template. The most useful details are:
 - your phone model and Android version;
 - the Foldman version (Android Settings → Apps → Foldman);
-- which source you were using (local folder, YT Music, Apple Music via MusicKit, or Apple Music via media session);
+- which source you were using (local folder, Koda/YouTube Music, Koda/RSS podcasts, Apple Music via MusicKit, or Apple Music via media session);
 - the posture (folded, unfolded, half-open);
 - a screenshot or screen recording.
 
@@ -19,7 +19,7 @@ adb logcat -d -b crash > crash.txt
 
 ## Building
 
-See [Building from source](https://github.com/deveshrai/Foldman/wiki/Building-from-source) in the wiki. In short, `./gradlew :app:assembleDebug` builds without any Apple setup; MusicKit is optional.
+See [Building from source](https://github.com/deveshrai/Foldman/wiki/Building-from-source) in the wiki. In short, `./gradlew :app:assembleDebug` builds without any Apple setup; MusicKit is optional. The build fetches Koda's dependencies from Maven Central and JitPack.
 
 ## Pull requests
 
@@ -29,4 +29,4 @@ See [Building from source](https://github.com/deveshrai/Foldman/wiki/Building-fr
 - UI changes: include before and after screenshots.
 - The launcher icon is generated. Edit `art/icon.svg` and run `python3 tools/svg_to_icon.py`.
 
-By contributing, you agree your work is released under the project's [Apache License 2.0](LICENSE).
+By contributing, you agree your work is released under the project's [GPL-3.0](LICENSE). Existing Foldman files retain their Apache-2.0 notices.

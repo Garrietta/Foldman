@@ -220,6 +220,13 @@ private fun TrackList(ui: DeckUi, actions: ShelfActions) {
 @Composable
 private fun RemoteCard(ui: DeckUi, actions: ShelfActions) {
     val app = ui.source.label
+    if (ui.source == Source.YT_MUSIC) {
+        Prompt(
+            "Sign in and browse your YouTube Music library, or play RSS podcasts in Koda. Playback returns to this deck.",
+            "Open Koda library", actions.openApp,
+        )
+        return
+    }
     when (ui.status) {
         SourceStatus.NeedsAccess -> Column {
             Prompt(

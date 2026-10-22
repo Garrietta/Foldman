@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 /** Where the tape in the deck comes from. */
 enum class Source(val label: String, val packageName: String?) {
     LOCAL("Local folder", null),
-    YT_MUSIC("YT Music", "com.google.android.apps.youtube.music"),
+    YT_MUSIC("Koda", null),
     APPLE_MUSIC("Apple Music", "com.apple.android.music"),
 }
 

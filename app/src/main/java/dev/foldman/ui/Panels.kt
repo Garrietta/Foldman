@@ -196,7 +196,12 @@ private fun RemoteState(ui: DeckUi, actions: ShelfActions, showHeader: Boolean =
         Text(app, style = Header)
         Spacer(Modifier.height(8.dp))
     }
-    val (text, button, action) = when (ui.status) {
+    val (text, button, action) = if (ui.source == Source.YT_MUSIC) {
+        Triple(
+            "Sign in, browse YouTube Music, or play RSS podcasts in Koda. Playback and the queue return to Foldman.",
+            "Open Koda", actions.openApp,
+        )
+    } else when (ui.status) {
         SourceStatus.NeedsAccess -> Triple(
             "Foldman plays $app through its media session, which Android only shares with apps that have notification access. If the switch is greyed out: App info → ⋮ → Allow restricted settings.",
             "Grant access", actions.openAccess,
@@ -224,6 +229,7 @@ private fun QueueList(ui: DeckUi, onPlay: (Long) -> Unit) {
         val empty = when {
             ui.source == Source.LOCAL -> "Nothing loaded"
             ui.source == Source.APPLE_MUSIC && ui.apple.sdkPlayback -> "Pick a playlist to load the queue"
+            ui.source == Source.YT_MUSIC -> "Open Koda to browse music and RSS podcasts"
             else -> "This app doesn't share its queue"
         }
         Text(empty, style = Sub)

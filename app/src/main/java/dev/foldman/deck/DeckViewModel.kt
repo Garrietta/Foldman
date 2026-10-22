@@ -20,6 +20,7 @@ import dev.foldman.apple.AppleKitBackend
 import dev.foldman.apple.AppleMusicApi
 import dev.foldman.apple.ApplePlaylist
 import dev.foldman.apple.MusicKit
+import dev.foldman.koda.KodaBackend
 import dev.foldman.playback.LocalBackend
 import dev.foldman.playback.LocalLibrary
 import dev.foldman.remote.RemoteBackend
@@ -86,8 +87,8 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     private val appleKit = if (MusicKit.hasPlayback) AppleKitBackend(app) else null
     private val apple = MutableStateFlow(AppleUi(sdkAuth = MusicKit.hasAuth, sdkPlayback = appleKit != null))
     private var appleJob: Job? = null
+    private val koda = KodaBackend(app)
     private val remotes = mapOf(
-        Source.YT_MUSIC to RemoteBackend(app, Source.YT_MUSIC),
         Source.APPLE_MUSIC to RemoteBackend(app, Source.APPLE_MUSIC),
     )
 
@@ -101,7 +102,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         get() = when (source) {
             Source.LOCAL -> local
             Source.APPLE_MUSIC -> appleKit ?: remotes.getValue(source)
-            else -> remotes.getValue(source)
+            Source.YT_MUSIC -> koda
         }
 
     private var tracks: List<LocalTrack> = emptyList()
@@ -322,7 +323,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun openSourceApp() {
-        (remotes[source])?.openApp()
+        if (source == Source.YT_MUSIC) koda.openLibrary() else remotes[source]?.openApp()
     }
 
     private var queueFor: List<LocalTrack>? = null
@@ -572,6 +573,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     override fun onCleared() {
         local.release()
         remotes.values.forEach { it.release() }
+        koda.release()
         appleKit?.release()
     }
 

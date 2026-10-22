@@ -4,14 +4,14 @@
 
 <p align="center">
   <a href="https://github.com/deveshrai/Foldman/releases/latest"><img alt="Download" src="https://img.shields.io/github/v/release/deveshrai/Foldman?label=download&color=f0722b&style=for-the-badge"></a>
-  <a href="LICENSE"><img alt="Apache 2.0" src="https://img.shields.io/badge/license-Apache%202.0-2f6fb5?style=for-the-badge"></a>
+  <a href="LICENSE"><img alt="GPL 3.0" src="https://img.shields.io/badge/license-GPL--3.0-2f6fb5?style=for-the-badge"></a>
   <img alt="Android 11+" src="https://img.shields.io/badge/Android-11%2B-3d9c5a?style=for-the-badge&logo=android&logoColor=white">
   <img alt="Kotlin and Jetpack Compose" src="https://img.shields.io/badge/Kotlin-Compose-7f52ff?style=for-the-badge&logo=kotlin&logoColor=white">
 </p>
 
 <p align="center"><b>Foldman turns a folding phone into a cassette player.</b><br>
 Folded, it's a portable player in your hand. Unfold it and it lays down into a deck.<br>
-Play your own music files, or drive YT Music and Apple Music from real piano keys.</p>
+Play local music, browse YouTube Music and RSS podcasts in Koda, or drive Apple Music from real piano keys.</p>
 
 <p align="center">
   <a href="https://github.com/deveshrai/Foldman/wiki"><b>📖 Wiki</b></a> ·
@@ -65,20 +65,21 @@ Foldman reads the hinge and rebuilds itself for each posture, without stopping t
   <br><sub>The deck on a real Z Fold 8: needles swinging, the counter rolling, FF winding the tape on.</sub>
 </p>
 
-## Three ways to load a tape
+## Four ways to load a tape
 
 | | Source | How it works |
 | --- | --- | --- |
 | 🗂 | **Local folder** | Pick any folder on the phone. MP3, FLAC, M4A, OGG, Opus, WAV and more play through Media3 in the background, with the system media controls and headphone keys. Album art comes from the files' embedded art or a `cover.jpg` / `folder.png` beside them, and each sub-folder becomes an album. |
 | 🍎 | **Apple Music** | Sign in through Apple's MusicKit, browse your library playlists inside Foldman, and stream them in-app. Apple's player runs in its own process: if Apple's native code crashes, the music picks up again on the same song a few seconds later, and Foldman never closes. |
-| ▶️ | **YT Music** (and Apple Music without MusicKit) | Foldman drives the app's own media session: the keys, REW/FF, skip, artwork on the label and the queue all work on it, and you pick what to play in the app itself. |
+| ▶️ | **Koda: YouTube Music + podcasts** | Sign in and browse your YouTube Music library in Koda. Koda's in-app player streams music and RSS podcasts; Foldman shares its queue, artwork and transport controls. |
+| 🍎 | **Apple Music without MusicKit** | Foldman drives Apple Music's media session; pick music in Apple Music and use the deck for transport. |
 
 The album art is printed on the cassette label, so you only see it around the reels, the way you would on a real tape. Its colours also tint the paper strip with the handwritten title.
 
 ## Install
 
 1. Download the **`Foldman-…-release.apk`** from the [latest release](https://github.com/deveshrai/Foldman/releases/latest) and open it on your phone. You'll need to allow installs from your browser or file manager.
-2. **For YT Music:** open Foldman → YT Music → *Grant access*. Android only shares other apps' playback with apps that have notification access. If the switch is greyed out, go to **App info → ⋮ → Allow restricted settings** first; Android does this for apps installed outside the Play Store.
+2. **For YouTube Music and podcasts:** choose **Koda** in Foldman and open its library. Sign in to YouTube Music there, or browse RSS podcasts. Start playback in Koda; the queue and cassette controls are available back in Foldman.
 3. **For Apple Music:** install Apple Music and sign in with a subscribed Apple ID, then choose Foldman → Apple Music → *Sign in to Apple Music*.
 
 Works on Android 11 and later, on 64-bit ARM phones. It's designed for the Galaxy Z Fold 8 and runs on any foldable or regular phone. Samsung's **Auto Blocker** can stop sideloaded installs, so switch it off in Settings → Security and privacy if the install is refused.
@@ -91,7 +92,7 @@ cd Foldman
 ./gradlew :app:assembleDebug
 ```
 
-You'll need JDK 17+ and the Android SDK (compile SDK 37). The APK lands in `app/build/outputs/apk/debug/`. With no extra setup, local files and YT Music work fully, and Apple Music runs through media-session control.
+You'll need JDK 17+, the Android SDK (compile SDK 37), and an internet connection for the Koda/NewPipe dependencies. The APK lands in `app/build/outputs/apk/debug/`. Local files and Koda work without Apple setup; Apple Music runs through media-session control unless MusicKit is configured.
 
 <details>
 <summary><b>Optional: Apple Music inside Foldman (MusicKit)</b></summary>
@@ -131,11 +132,16 @@ flowchart LR
     end
     VM["DeckViewModel<br/>transport state machine<br/>REW/FF winding"] --> Screen
     VM --> Local["LocalBackend<br/>Media3 controller"]
-    VM --> Remote["RemoteBackend<br/>other apps' media sessions"]
+    VM --> Remote["RemoteBackend<br/>Apple Music media session"]
+    VM --> KodaBackend["KodaBackend<br/>MediaBrowser"]
     VM --> Kit["AppleKitBackend<br/>MusicKit client"]
     Local --> Service["PlaybackService<br/>ExoPlayer + media notification"]
     Kit -- "Messenger IPC" --> ApplePlayer["ApplePlayerService<br/>own :apple process"]
-    Remote --> Apps["YT Music · Apple Music apps"]
+    KodaBackend --> KodaService["Koda MusicService<br/>MediaLibraryService + ExoPlayer"]
+    KodaBackend --> KodaUi["Koda library + sign-in UI"]
+    KodaService --> YouTube["YouTube Music"]
+    KodaService --> Podcasts["RSS podcast feeds"]
+    Remote --> Apps["Apple Music app"]
     Kit --> API["Apple Music API<br/>library playlists"]
 ```
 
@@ -150,7 +156,8 @@ flowchart LR
 - **In-app Apple Music isn't a background service yet.** It has no lock-screen controls, and Android may stop it if Foldman stays in the background for a long time. Local music doesn't have this problem.
 - **Another app taking over the audio stops Foldman.** Opening the Apple Music app, for example, can resume its own song; press PLAY in Foldman to take the audio back.
 - **The developer token in release builds expires on 19 April 2027.** In-app Apple Music stops working after that until there's a new release. Driving the Apple Music app keeps working.
-- **Streaming sources:** pick music inside YT Music or the Apple Music app (Foldman browses only your Apple Music *library* playlists). REW/FF winds within the current song: rewinding stops at its start, and fast-forwarding past its end skips to the next song and stops. The VU needles animate rather than reading the audio, because Android doesn't let one app read another's.
+- **YouTube Music:** Koda uses unofficial YouTube interfaces and stream resolution, not an official Google playback SDK. Google may change or restrict these interfaces; account sign-in and playback can stop working until Koda is updated.
+- **Streaming sources:** browse in Koda or Apple Music (Foldman browses only your Apple Music *library* playlists). REW/FF winds within the current song: rewinding stops at its start, and fast-forwarding past its end skips to the next song and stops. The VU needles animate rather than reading the audio, because Android doesn't let one app read another's.
 - Songs you uploaded to Apple Music yourself can't be streamed through MusicKit; they're greyed out.
 - Tags (title and artist) are read for the first 600 local files; files after that show their file names.
 
@@ -167,7 +174,7 @@ Ideas and bug reports are welcome in [Issues](https://github.com/deveshrai/Foldm
 
 ## License
 
-Foldman is released under the [Apache License 2.0](LICENSE). You can use, change and redistribute it, including commercially, but you must keep the copyright notice and the [NOTICE](NOTICE) file crediting the original project.
+The combined Foldman application is released under [GPL-3.0](LICENSE). Foldman's original code remains available under [Apache-2.0](LICENSE-APACHE-2.0); Koda is included under its [GPL-3.0 license](koda/LICENSE). See [NOTICE](NOTICE) and [Koda provenance](koda/README.foldman.md) for attribution and modifications.
 
 Copyright © 2026 [Devesh Rai](https://github.com/deveshrai).
 
