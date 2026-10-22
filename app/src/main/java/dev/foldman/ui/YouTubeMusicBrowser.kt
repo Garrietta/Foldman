@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -85,7 +86,7 @@ fun LazyListScope.youtubeMusicItems(
     val accountStyle = if (onPaper) Typed.copy(fontSize = 10.sp, color = DeckColors.Ink.copy(alpha = 0.55f))
         else Sub
     val sectionStyle = if (onPaper) Typed.copy(fontWeight = FontWeight.Bold) else Header
-    val linkStyle = if (onPaper) EngravedCaps.copy(color = DeckColors.AccentDeep)
+    val linkStyle = if (onPaper) TextStyle(fontFamily = FontFamily.Default, color = DeckColors.AccentDeep)
         else Sub.copy(color = DeckColors.Accent, fontWeight = FontWeight.SemiBold)
     val bodyStyle = if (onPaper) Typed.copy(fontSize = 12.sp) else Sub
     val accent = if (onPaper) DeckColors.AccentDeep else DeckColors.Accent
@@ -252,7 +253,7 @@ fun LazyListScope.youtubeMusicItems(
 /** Quiet shuffle affordance in the Foldman idiom: small engraved caps, no chrome. */
 @Composable
 fun ShuffleButton(onClick: () -> Unit, modifier: Modifier = Modifier, onPaper: Boolean = false) {
-    val style = if (onPaper) EngravedCaps.copy(color = DeckColors.AccentDeep)
+    val style = if (onPaper) TextStyle(fontFamily = FontFamily.Default, color = DeckColors.AccentDeep)
         else Sub.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold, color = DeckColors.Accent)
     TextButton(onClick = onClick, modifier = modifier, contentPadding = PaddingValues(horizontal = 8.dp)) {
         Text("SHUFFLE", style = style)
@@ -266,7 +267,7 @@ private fun PlaylistRow(
     onOpen: () -> Unit,
     onShuffle: () -> Unit,
 ) {
-    val itemStyle = if (onPaper) Hand.copy(fontSize = 19.sp) else Title.copy(fontSize = 12.sp)
+    val itemStyle = if (onPaper) TextStyle(fontFamily = FontFamily.Default, fontSize = 19.sp) else Title.copy(fontSize = 12.sp)
     val itemSubStyle = if (onPaper) Typed.copy(fontSize = 10.sp, color = DeckColors.Ink.copy(alpha = 0.55f))
         else Sub.copy(fontSize = 10.sp)
     val glyphStyle = if (onPaper) Typed.copy(color = DeckColors.Ink.copy(alpha = 0.5f)) else Sub
@@ -290,7 +291,7 @@ private fun PlaylistRow(
 
 @Composable
 private fun SongRow(song: Song, onPaper: Boolean, onPlay: () -> Unit) {
-    val itemStyle = if (onPaper) Hand.copy(fontSize = 19.sp) else Title.copy(fontSize = 12.sp)
+    val itemStyle = if (onPaper) TextStyle(fontFamily = FontFamily.Default, fontSize = 19.sp) else Title.copy(fontSize = 12.sp)
     val itemSubStyle = if (onPaper) Typed.copy(fontSize = 10.sp, color = DeckColors.Ink.copy(alpha = 0.55f))
         else Sub.copy(fontSize = 10.sp)
     val glyphStyle = if (onPaper) Typed.copy(color = DeckColors.Ink.copy(alpha = 0.5f)) else Sub

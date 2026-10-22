@@ -376,7 +376,7 @@ private fun LazyListScope.localItems(
             }
         }
         is SourceStatus.Scanning -> item(key = "local-scanning") {
-            wrap { Text("Winding on… ${status.found} songs found", style = Hand) }
+            wrap { Text("Winding on… ${status.found} songs found", style = TextStyle(fontFamily = FontFamily.Default, color = DeckColors.Ink, fontSize = 20.sp)) }
         }
         SourceStatus.EmptyFolder -> item(key = "local-empty") {
             wrap { Prompt("No music in that folder.", "Choose another folder", actions.pickFolder) }

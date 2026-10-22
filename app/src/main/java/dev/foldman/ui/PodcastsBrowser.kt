@@ -81,10 +81,10 @@ fun LazyListScope.podcastItems(
     val subStyle = if (onPaper) Typed.copy(fontSize = 10.sp, color = DeckColors.Ink.copy(alpha = 0.55f))
         else Sub.copy(fontSize = 10.sp)
     val sectionStyle = if (onPaper) Typed.copy(fontWeight = FontWeight.Bold) else Header
-    val linkStyle = if (onPaper) EngravedCaps.copy(color = DeckColors.AccentDeep)
+    val linkStyle = if (onPaper) TextStyle(fontFamily = FontFamily.Default, color = DeckColors.AccentDeep)
         else Sub.copy(color = DeckColors.Accent, fontWeight = FontWeight.SemiBold)
     val bodyStyle = if (onPaper) Typed.copy(fontSize = 12.sp) else Sub
-    val itemStyle = if (onPaper) Hand.copy(fontSize = 19.sp) else Title.copy(fontSize = 12.sp)
+    val itemStyle = if (onPaper) TextStyle(fontFamily = FontFamily.Default, fontSize = 19.sp) else Title.copy(fontSize = 12.sp)
     val itemSubStyle = if (onPaper) Typed.copy(fontSize = 10.sp, color = DeckColors.Ink.copy(alpha = 0.55f))
         else Sub.copy(fontSize = 10.sp)
     val glyphStyle = if (onPaper) Typed.copy(color = DeckColors.Ink.copy(alpha = 0.5f)) else Sub
@@ -221,11 +221,11 @@ private fun FeedRow(
     onRefresh: () -> Unit,
     onRemove: () -> Unit,
 ) {
-    val itemStyle = if (onPaper) Hand.copy(fontSize = 19.sp) else Title.copy(fontSize = 12.sp)
+    val itemStyle = if (onPaper) TextStyle(fontFamily = FontFamily.Default, fontSize = 19.sp) else Title.copy(fontSize = 12.sp)
     val itemSubStyle = if (onPaper) Typed.copy(fontSize = 10.sp, color = DeckColors.Ink.copy(alpha = 0.55f))
         else Sub.copy(fontSize = 10.sp)
     val glyphStyle = if (onPaper) Typed.copy(color = DeckColors.Ink.copy(alpha = 0.5f)) else Sub
-    val linkStyle = if (onPaper) EngravedCaps.copy(color = DeckColors.AccentDeep)
+    val linkStyle = if (onPaper) TextStyle(fontFamily = FontFamily.Default, color = DeckColors.AccentDeep)
         else Sub.copy(color = DeckColors.Accent, fontWeight = FontWeight.SemiBold)
     Row(
         Modifier
@@ -258,7 +258,7 @@ private fun FeedRow(
 
 @Composable
 private fun EpisodeRow(episode: PodcastEpisode, onPaper: Boolean, onPlay: () -> Unit) {
-    val itemStyle = if (onPaper) Hand.copy(fontSize = 19.sp) else Title.copy(fontSize = 12.sp)
+    val itemStyle = if (onPaper) TextStyle(fontFamily = FontFamily.Default, fontSize = 19.sp) else Title.copy(fontSize = 12.sp)
     val itemSubStyle = if (onPaper) Typed.copy(fontSize = 10.sp, color = DeckColors.Ink.copy(alpha = 0.55f))
         else Sub.copy(fontSize = 10.sp)
     val glyphStyle = if (onPaper) Typed.copy(color = DeckColors.Ink.copy(alpha = 0.5f)) else Sub
