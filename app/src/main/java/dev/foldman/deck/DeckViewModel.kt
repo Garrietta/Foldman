@@ -583,6 +583,10 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     /** Plays one episode inside its feed's episode list. */
     @androidx.media3.common.util.UnstableApi
     fun playPodcastEpisode(episode: PodcastEpisode, player: PlayerViewModel) {
+        // Defensive: never hand the player an episode without a playable URI.
+        // A blank/malformed enclosure URL would otherwise throw in Uri.parse
+        // or fail in ExoPlayer and trigger the skip loop.
+        if (episode.audioUrl.isBlank()) return
         val songs = podcastSongs(episode.feedId)
         val index = songs.indexOfFirst { it.id == "podcast:${episode.id}" }.coerceAtLeast(0)
         playKodaSongs(songs, index, player, Source.PODCASTS)
@@ -591,7 +595,9 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     private fun podcastSongs(feedId: String): List<Song> {
         val ui = _podcasts.value
         val feed = ui.feeds.firstOrNull { it.id == feedId }
-        return (ui.episodesByFeed[feedId] ?: emptyList()).map { podcastRepository.episodeToSong(it, feed) }
+        return (ui.episodesByFeed[feedId] ?: emptyList())
+            .filter { it.audioUrl.isNotBlank() }
+            .map { podcastRepository.episodeToSong(it, feed) }
     }
 
     /**
