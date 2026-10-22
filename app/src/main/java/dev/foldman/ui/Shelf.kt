@@ -54,9 +54,6 @@ import com.ivor.ivormusic.data.PodcastEpisode
 import com.ivor.ivormusic.data.PodcastFeed
 import com.ivor.ivormusic.data.Song
 
-private val Hand = TextStyle(fontFamily = FontFamily.Cursive, color = DeckColors.Ink, fontSize = 20.sp)
-private val Typed = TextStyle(fontFamily = FontFamily.Monospace, color = DeckColors.Ink, fontSize = 12.sp)
-
 class ShelfActions(
     val selectSource: (Source) -> Unit,
     val pickFolder: () -> Unit,
@@ -158,7 +155,7 @@ fun TapeShelf(
             // (3) The browser list scrolls beneath it, on the card's paper.
             when (ui.source) {
                 Source.LOCAL -> localItems(ui, actions, paperWrap)
-                Source.YT_MUSIC -> youtubeMusicItems(ui.youtubeMusic, actions.youtubeMusic, paperWrap)
+                Source.YT_MUSIC -> youtubeMusicItems(ui.youtubeMusic, actions.youtubeMusic, onPaper = true, wrap = paperWrap)
                 Source.PODCASTS -> podcastItems(ui.podcasts, actions.podcasts, paperWrap)
             }
             // Rounded foot of the paper card.
