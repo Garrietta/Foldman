@@ -11,7 +11,7 @@
 
 <p align="center"><b>Foldman turns a folding phone into a cassette player.</b><br>
 Folded, it's a portable player in your hand. Unfold it and it lays down into a deck.<br>
-Play local music, browse YouTube Music and RSS podcasts in Koda, or drive Apple Music from real piano keys.</p>
+Play local music, sign in to YouTube Music and play it inside Foldman, or drive Apple Music from real piano keys.</p>
 
 <p align="center">
   <a href="https://github.com/deveshrai/Foldman/wiki"><b>📖 Wiki</b></a> ·
@@ -71,7 +71,7 @@ Foldman reads the hinge and rebuilds itself for each posture, without stopping t
 | --- | --- | --- |
 | 🗂 | **Local folder** | Pick any folder on the phone. MP3, FLAC, M4A, OGG, Opus, WAV and more play through Media3 in the background, with the system media controls and headphone keys. Album art comes from the files' embedded art or a `cover.jpg` / `folder.png` beside them, and each sub-folder becomes an album. |
 | 🍎 | **Apple Music** | Sign in through Apple's MusicKit, browse your library playlists inside Foldman, and stream them in-app. Apple's player runs in its own process: if Apple's native code crashes, the music picks up again on the same song a few seconds later, and Foldman never closes. |
-| ▶️ | **Koda: YouTube Music + podcasts** | Sign in and browse your YouTube Music library in Koda. Koda's in-app player streams music and RSS podcasts; Foldman shares its queue, artwork and transport controls. |
+| ▶️ | **YouTube Music** | Sign in, search, browse your playlists and stream songs directly in Foldman. Playback, the queue and cassette controls all stay in the app. |
 | 🍎 | **Apple Music without MusicKit** | Foldman drives Apple Music's media session; pick music in Apple Music and use the deck for transport. |
 
 The album art is printed on the cassette label, so you only see it around the reels, the way you would on a real tape. Its colours also tint the paper strip with the handwritten title.
@@ -79,7 +79,7 @@ The album art is printed on the cassette label, so you only see it around the re
 ## Install
 
 1. Download the **`Foldman-…-release.apk`** from the [latest release](https://github.com/deveshrai/Foldman/releases/latest) and open it on your phone. You'll need to allow installs from your browser or file manager.
-2. **For YouTube Music and podcasts:** choose **Koda** in Foldman and open its library. Sign in to YouTube Music there, or browse RSS podcasts. Start playback in Koda; the queue and cassette controls are available back in Foldman.
+2. **For YouTube Music:** choose **YouTube Music** in Foldman, sign in from the library panel, then search for a song or open one of your playlists. Tap a song to play it directly in Foldman.
 3. **For Apple Music:** install Apple Music and sign in with a subscribed Apple ID, then choose Foldman → Apple Music → *Sign in to Apple Music*.
 
 Works on Android 11 and later, on 64-bit ARM phones. It's designed for the Galaxy Z Fold 8 and runs on any foldable or regular phone. Samsung's **Auto Blocker** can stop sideloaded installs, so switch it off in Settings → Security and privacy if the install is refused.
@@ -92,7 +92,7 @@ cd Foldman
 ./gradlew :app:assembleDebug
 ```
 
-You'll need JDK 17+, the Android SDK (compile SDK 37), and an internet connection for the Koda/NewPipe dependencies. The APK lands in `app/build/outputs/apk/debug/`. Local files and Koda work without Apple setup; Apple Music runs through media-session control unless MusicKit is configured.
+You'll need JDK 17+, the Android SDK (compile SDK 37), and an internet connection for the bundled YouTube Music/NewPipe dependencies. The APK lands in `app/build/outputs/apk/debug/`. Local files and YouTube Music work without Apple setup; Apple Music runs through media-session control unless MusicKit is configured.
 
 <details>
 <summary><b>Optional: Apple Music inside Foldman (MusicKit)</b></summary>
@@ -133,14 +133,13 @@ flowchart LR
     VM["DeckViewModel<br/>transport state machine<br/>REW/FF winding"] --> Screen
     VM --> Local["LocalBackend<br/>Media3 controller"]
     VM --> Remote["RemoteBackend<br/>Apple Music media session"]
-    VM --> KodaBackend["KodaBackend<br/>MediaBrowser"]
+    VM --> YTBrowser["Foldman YouTube Music browser<br/>sign-in · search · playlists"]
+    VM --> YTBackend["YouTubeMusicBackend<br/>MediaBrowser"]
     VM --> Kit["AppleKitBackend<br/>MusicKit client"]
     Local --> Service["PlaybackService<br/>ExoPlayer + media notification"]
     Kit -- "Messenger IPC" --> ApplePlayer["ApplePlayerService<br/>own :apple process"]
-    KodaBackend --> KodaService["Koda MusicService<br/>MediaLibraryService + ExoPlayer"]
-    KodaBackend --> KodaUi["Koda library + sign-in UI"]
-    KodaService --> YouTube["YouTube Music"]
-    KodaService --> Podcasts["RSS podcast feeds"]
+    YTBrowser --> YouTube["YouTube Music"]
+    YTBackend --> KodaService["Bundled playback service<br/>MediaLibraryService + ExoPlayer"]
     Remote --> Apps["Apple Music app"]
     Kit --> API["Apple Music API<br/>library playlists"]
 ```
@@ -156,8 +155,8 @@ flowchart LR
 - **In-app Apple Music isn't a background service yet.** It has no lock-screen controls, and Android may stop it if Foldman stays in the background for a long time. Local music doesn't have this problem.
 - **Another app taking over the audio stops Foldman.** Opening the Apple Music app, for example, can resume its own song; press PLAY in Foldman to take the audio back.
 - **The developer token in release builds expires on 19 April 2027.** In-app Apple Music stops working after that until there's a new release. Driving the Apple Music app keeps working.
-- **YouTube Music:** Koda uses unofficial YouTube interfaces and stream resolution, not an official Google playback SDK. Google may change or restrict these interfaces; account sign-in and playback can stop working until Koda is updated.
-- **Streaming sources:** browse in Koda or Apple Music (Foldman browses only your Apple Music *library* playlists). REW/FF winds within the current song: rewinding stops at its start, and fast-forwarding past its end skips to the next song and stops. The VU needles animate rather than reading the audio, because Android doesn't let one app read another's.
+- **YouTube Music:** Foldman uses unofficial YouTube interfaces and stream resolution, not an official Google playback SDK. Google may change or restrict these interfaces; account sign-in and playback can stop working until the integration is updated.
+- **Streaming sources:** browse YouTube Music in Foldman or Apple Music's library playlists. REW/FF winds within the current song: rewinding stops at its start, and fast-forwarding past its end skips to the next song and stops. The VU needles animate rather than reading the audio, because Android doesn't let one app read another's.
 - Songs you uploaded to Apple Music yourself can't be streamed through MusicKit; they're greyed out.
 - Tags (title and artist) are read for the first 600 local files; files after that show their file names.
 

@@ -7,7 +7,7 @@ Thanks for wanting to help. Bug reports, ideas and pull requests are all welcome
 Open an [issue](https://github.com/deveshrai/Foldman/issues/new/choose) using the bug template. The most useful details are:
 - your phone model and Android version;
 - the Foldman version (Android Settings → Apps → Foldman);
-- which source you were using (local folder, Koda/YouTube Music, Koda/RSS podcasts, Apple Music via MusicKit, or Apple Music via media session);
+- which source you were using (local folder, YouTube Music in Foldman, Koda/RSS podcasts, Apple Music via MusicKit, or Apple Music via media session);
 - the posture (folded, unfolded, half-open);
 - a screenshot or screen recording.
 

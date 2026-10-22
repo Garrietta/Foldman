@@ -1,5 +1,6 @@
 package dev.foldman.ui
 
+import android.content.Context
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -54,12 +55,17 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.media3.common.util.UnstableApi
 import androidx.window.layout.FoldingFeature
 import androidx.window.layout.WindowLayoutInfo
 import dev.foldman.deck.DeckEvent
 import dev.foldman.deck.DeckUi
 import dev.foldman.deck.DeckViewModel
 import dev.foldman.deck.Source
+import com.ivor.ivormusic.ui.player.PlayerViewModel
 import kotlinx.coroutines.launch
 
 private enum class Posture { Cover, Unfolded, Tabletop }
@@ -74,7 +80,7 @@ private val Enamel = Color(0xFF2F6FB5)
  *  - unfolded: the same player laid down as a deck, with the library above and now-playing below;
  *  - half-open on a table (Flex mode): the deck on the upper half, the library on the lower.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, UnstableApi::class)
 @Composable
 fun FoldmanScreen(
     vm: DeckViewModel,
@@ -84,6 +90,12 @@ fun FoldmanScreen(
     onAppleSignIn: () -> Unit,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+    val applicationContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    val youtubePlayer = if (ui.source == Source.YT_MUSIC) {
+        viewModel<PlayerViewModel>(factory = remember(applicationContext) { YouTubePlayerViewModelFactory(applicationContext) })
+    } else {
+        null
+    }
     val anim = rememberDeckAnimations(ui.transport, ui.progress)
     val sounds = remember { MechSounds() }
     DisposableEffect(sounds) { onDispose { sounds.release() } }
@@ -126,7 +138,19 @@ fun FoldmanScreen(
             play = vm::playApplePlaylist,
         )
     }
-    val shelfActions = remember(vm) {
+    val youtubeMusicActions = remember(vm, youtubePlayer) {
+        YouTubeMusicActions(
+            queryChanged = vm::setYouTubeMusicQuery,
+            search = vm::searchYouTubeMusic,
+            openPlaylist = vm::openYouTubePlaylist,
+            closePlaylist = vm::closeYouTubePlaylist,
+            playSongs = { songs, index ->
+                youtubePlayer?.let { vm.playYouTubeMusic(songs, index, it) }
+            },
+            refresh = vm::refreshYouTubeMusic,
+        )
+    }
+    val shelfActions = remember(vm, appleActions, youtubeMusicActions) {
         ShelfActions(
             selectSource = vm::selectSource,
             pickFolder = onPickFolder,
@@ -135,6 +159,7 @@ fun FoldmanScreen(
             openApp = vm::openSourceApp,
             installApp = onInstallApp,
             apple = appleActions,
+            youtubeMusic = youtubeMusicActions,
         )
     }
     val deck = remember(vm) { DeckControls(vm) }
@@ -212,12 +237,24 @@ fun FoldmanScreen(
                             openApp = vm::openSourceApp,
                             installApp = onInstallApp,
                             apple = appleActions,
+                            youtubeMusic = youtubeMusicActions,
                         ),
                         Modifier.fillMaxWidth().height(sheetHeight),
                     )
                 }
             }
         }
+    }
+}
+
+@OptIn(UnstableApi::class)
+private class YouTubePlayerViewModelFactory(private val context: Context) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass != PlayerViewModel::class.java) {
+            throw IllegalArgumentException("Unsupported ViewModel: ${modelClass.name}")
+        }
+        @Suppress("UNCHECKED_CAST")
+        return PlayerViewModel(context) as T
     }
 }
 

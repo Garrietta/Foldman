@@ -43,6 +43,9 @@ import androidx.compose.ui.unit.sp
 import dev.foldman.deck.DeckUi
 import dev.foldman.deck.Source
 import dev.foldman.deck.SourceStatus
+import dev.foldman.deck.YouTubeMusicUi
+import com.ivor.ivormusic.data.PlaylistDisplayItem
+import com.ivor.ivormusic.data.Song
 
 private val Hand = TextStyle(fontFamily = FontFamily.Cursive, color = DeckColors.Ink, fontSize = 20.sp)
 private val Typed = TextStyle(fontFamily = FontFamily.Monospace, color = DeckColors.Ink, fontSize = 12.sp)
@@ -55,6 +58,16 @@ class ShelfActions(
     val openApp: () -> Unit,
     val installApp: (Source) -> Unit,
     val apple: AppleActions,
+    val youtubeMusic: YouTubeMusicActions,
+)
+
+class YouTubeMusicActions(
+    val queryChanged: (String) -> Unit,
+    val search: () -> Unit,
+    val openPlaylist: (PlaylistDisplayItem) -> Unit,
+    val closePlaylist: () -> Unit,
+    val playSongs: (List<Song>, Int) -> Unit,
+    val refresh: () -> Unit,
 )
 
 /**
@@ -221,10 +234,7 @@ private fun TrackList(ui: DeckUi, actions: ShelfActions) {
 private fun RemoteCard(ui: DeckUi, actions: ShelfActions) {
     val app = ui.source.label
     if (ui.source == Source.YT_MUSIC) {
-        Prompt(
-            "Sign in and browse your YouTube Music library, or play RSS podcasts in Koda. Playback returns to this deck.",
-            "Open Koda library", actions.openApp,
-        )
+        YouTubeMusicBrowser(ui.youtubeMusic, actions.youtubeMusic)
         return
     }
     when (ui.status) {

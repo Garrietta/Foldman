@@ -14,15 +14,20 @@ import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.palette.graphics.Palette
+import com.ivor.ivormusic.data.PlaylistDisplayItem
+import com.ivor.ivormusic.data.SessionManager
+import com.ivor.ivormusic.data.Song
+import com.ivor.ivormusic.data.YouTubeRepository
+import com.ivor.ivormusic.ui.player.PlayerViewModel
 import dev.foldman.BuildConfig
 import dev.foldman.apple.AppleAuthExpired
 import dev.foldman.apple.AppleKitBackend
 import dev.foldman.apple.AppleMusicApi
 import dev.foldman.apple.ApplePlaylist
 import dev.foldman.apple.MusicKit
-import dev.foldman.koda.KodaBackend
 import dev.foldman.playback.LocalBackend
 import dev.foldman.playback.LocalLibrary
+import dev.foldman.playback.YouTubeMusicBackend
 import dev.foldman.remote.RemoteBackend
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -66,6 +71,7 @@ data class DeckUi(
     val keySounds: Boolean = true,
     val haptics: Boolean = true,
     val apple: AppleUi = AppleUi(),
+    val youtubeMusic: YouTubeMusicUi = YouTubeMusicUi(),
 ) {
     /** How far through the tape we are: the left reel empties into the right one as this grows. */
     val progress: Float get() = if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
@@ -87,7 +93,12 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     private val appleKit = if (MusicKit.hasPlayback) AppleKitBackend(app) else null
     private val apple = MutableStateFlow(AppleUi(sdkAuth = MusicKit.hasAuth, sdkPlayback = appleKit != null))
     private var appleJob: Job? = null
-    private val koda = KodaBackend(app)
+    private val youtubeBackend = YouTubeMusicBackend(app)
+    private val youtubeSession = SessionManager(app)
+    private val youtubeRepository = YouTubeRepository(app)
+    private val _youtubeMusic = MutableStateFlow(YouTubeMusicUi())
+    val youtubeMusic: StateFlow<YouTubeMusicUi> = _youtubeMusic.asStateFlow()
+    private var youtubeJob: Job? = null
     private val remotes = mapOf(
         Source.APPLE_MUSIC to RemoteBackend(app, Source.APPLE_MUSIC),
     )
@@ -102,7 +113,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         get() = when (source) {
             Source.LOCAL -> local
             Source.APPLE_MUSIC -> appleKit ?: remotes.getValue(source)
-            Source.YT_MUSIC -> koda
+            Source.YT_MUSIC -> youtubeBackend
         }
 
     private var tracks: List<LocalTrack> = emptyList()
@@ -135,6 +146,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         backend.refresh()
+        refreshYouTubeMusic()
         viewModelScope.launch {
             while (true) {
                 tick()
@@ -323,7 +335,118 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun openSourceApp() {
-        if (source == Source.YT_MUSIC) koda.openLibrary() else remotes[source]?.openApp()
+        if (source != Source.YT_MUSIC) remotes[source]?.openApp()
+    }
+
+    fun refreshYouTubeMusic() {
+        val signedIn = youtubeSession.isLoggedIn()
+        _youtubeMusic.value = _youtubeMusic.value.copy(
+            signedIn = signedIn,
+            accountName = youtubeSession.getUserName(),
+            playlists = if (signedIn) _youtubeMusic.value.playlists else emptyList(),
+            message = null,
+        )
+        if (signedIn) loadYouTubePlaylists()
+    }
+
+    fun setYouTubeMusicQuery(query: String) {
+        _youtubeMusic.value = _youtubeMusic.value.copy(query = query)
+    }
+
+    fun searchYouTubeMusic() {
+        val query = _youtubeMusic.value.query.trim()
+        if (query.isEmpty()) return
+        youtubeJob?.cancel()
+        youtubeJob = viewModelScope.launch {
+            _youtubeMusic.value = _youtubeMusic.value.copy(
+                loading = true,
+                searched = true,
+                searchResults = emptyList(),
+                openPlaylist = null,
+                playlistTracks = emptyList(),
+                message = null,
+            )
+            try {
+                val songs = youtubeRepository.search(query)
+                _youtubeMusic.value = _youtubeMusic.value.copy(
+                    searchResults = songs,
+                    message = if (songs.isEmpty()) "No songs found." else null,
+                )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _youtubeMusic.value = _youtubeMusic.value.copy(
+                    message = e.message ?: "Couldn't search YouTube Music.",
+                )
+            } finally {
+                _youtubeMusic.value = _youtubeMusic.value.copy(loading = false)
+            }
+        }
+    }
+
+    private fun loadYouTubePlaylists() {
+        youtubeJob?.cancel()
+        youtubeJob = viewModelScope.launch {
+            _youtubeMusic.value = _youtubeMusic.value.copy(loading = true, message = null)
+            try {
+                val playlists = youtubeRepository.getUserPlaylists()
+                _youtubeMusic.value = _youtubeMusic.value.copy(
+                    playlists = playlists,
+                    message = if (playlists.isEmpty()) "No playlists were found in this account." else null,
+                )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _youtubeMusic.value = _youtubeMusic.value.copy(
+                    message = e.message ?: "Couldn't load your YouTube Music library.",
+                )
+            } finally {
+                _youtubeMusic.value = _youtubeMusic.value.copy(loading = false)
+            }
+        }
+    }
+
+    fun openYouTubePlaylist(playlist: PlaylistDisplayItem) {
+        youtubeJob?.cancel()
+        youtubeJob = viewModelScope.launch {
+            _youtubeMusic.value = _youtubeMusic.value.copy(
+                openPlaylist = playlist,
+                playlistTracks = emptyList(),
+                loading = true,
+                message = null,
+            )
+            try {
+                val songs = youtubeRepository.getPlaylist(playlist.id)
+                _youtubeMusic.value = _youtubeMusic.value.copy(
+                    playlistTracks = songs,
+                    message = if (songs.isEmpty()) "This playlist has no playable songs." else null,
+                )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _youtubeMusic.value = _youtubeMusic.value.copy(
+                    message = e.message ?: "Couldn't open this playlist.",
+                )
+            } finally {
+                _youtubeMusic.value = _youtubeMusic.value.copy(loading = false)
+            }
+        }
+    }
+
+    fun closeYouTubePlaylist() {
+        _youtubeMusic.value = _youtubeMusic.value.copy(openPlaylist = null, playlistTracks = emptyList(), message = null)
+    }
+
+    @androidx.media3.common.util.UnstableApi
+    fun playYouTubeMusic(songs: List<Song>, startIndex: Int, player: PlayerViewModel) {
+        val startSong = songs.getOrNull(startIndex) ?: return
+        selectSource(Source.YT_MUSIC)
+        if (winding != 0) finishWinding()
+        stopped = false
+        playRequestedAt = SystemClock.elapsedRealtime()
+        player.playQueue(songs, startSong)
+        youtubeBackend.refresh()
+        tick()
     }
 
     private var queueFor: List<LocalTrack>? = null
@@ -537,6 +660,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             keySounds = prefs.getBoolean(KEY_SOUNDS, true),
             haptics = prefs.getBoolean(KEY_HAPTICS, true),
             apple = apple.value,
+            youtubeMusic = _youtubeMusic.value,
         )
     }
 
@@ -573,7 +697,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     override fun onCleared() {
         local.release()
         remotes.values.forEach { it.release() }
-        koda.release()
+        youtubeBackend.release()
         appleKit?.release()
     }
 

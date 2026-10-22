@@ -1,8 +1,7 @@
-package dev.foldman.koda
+package dev.foldman.playback
 
 import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.core.content.ContextCompat
@@ -10,16 +9,17 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaBrowser
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
+import com.ivor.ivormusic.service.MusicService
 import dev.foldman.deck.BackendState
 import dev.foldman.deck.DeckBackend
 import dev.foldman.deck.NowPlaying
 import dev.foldman.deck.QueueEntry
 import dev.foldman.deck.SourceStatus
-import dev.foldman.playback.Artwork
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -28,8 +28,9 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Foldman's transport and queue view over Koda's in-app YouTube Music/podcast player. */
-class KodaBackend(private val context: Context) : DeckBackend {
+/** Foldman's transport and queue view over its bundled YouTube Music playback service. */
+@OptIn(UnstableApi::class)
+class YouTubeMusicBackend(private val context: Context) : DeckBackend {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val _state = kotlinx.coroutines.flow.MutableStateFlow(BackendState(status = SourceStatus.AppNotRunning))
     override val state: kotlinx.coroutines.flow.StateFlow<BackendState> = _state
@@ -46,7 +47,7 @@ class KodaBackend(private val context: Context) : DeckBackend {
 
     override fun refresh() {
         if (future != null) return
-        val token = SessionToken(context, ComponentName(context, "com.ivor.ivormusic.service.MusicService"))
+        val token = SessionToken(context, ComponentName(context, MusicService::class.java))
         val pending = MediaBrowser.Builder(context, token).buildAsync()
         future = pending
         pending.addListener({
@@ -122,16 +123,10 @@ class KodaBackend(private val context: Context) : DeckBackend {
         }
     }
 
-    fun openLibrary() {
-        val intent = Intent().setClassName(context, "com.ivor.ivormusic.MainActivity")
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT)
-        runCatching { context.startActivity(intent) }
-    }
-
     override fun positionMs(): Long = browser?.currentPosition ?: 0L
 
     override fun play() {
-        val player = browser ?: return openLibrary()
+        val player = browser ?: return refresh()
         if (player.playbackState == Player.STATE_IDLE) player.prepare()
         player.play()
     }

@@ -118,16 +118,19 @@ fun LibraryBand(ui: DeckUi, actions: ShelfActions, onPlayQueue: (Long) -> Unit, 
     }
 }
 
-private fun statusLine(ui: DeckUi): String = when (val s = ui.status) {
-    SourceStatus.Ready -> if (ui.source == Source.LOCAL) "${ui.tracks.size} songs" else "Connected"
-    SourceStatus.NeedsFolder -> "Choose a folder"
-    is SourceStatus.Scanning -> "Scanning… ${s.found}"
-    SourceStatus.EmptyFolder -> "No music found"
-    SourceStatus.NeedsAccess -> "Needs notification access"
-    SourceStatus.AppNotRunning -> "Not playing"
-    SourceStatus.NotInstalled -> "Not installed"
-    SourceStatus.NeedsDeveloperToken -> "Needs developer token"
-    SourceStatus.NeedsAppleSignIn -> "Sign in to browse"
+private fun statusLine(ui: DeckUi): String = when {
+    ui.source == Source.YT_MUSIC -> if (ui.youtubeMusic.signedIn) "Signed in" else "Sign in"
+    else -> when (val s = ui.status) {
+        SourceStatus.Ready -> if (ui.source == Source.LOCAL) "${ui.tracks.size} songs" else "Connected"
+        SourceStatus.NeedsFolder -> "Choose a folder"
+        is SourceStatus.Scanning -> "Scanning… ${s.found}"
+        SourceStatus.EmptyFolder -> "No music found"
+        SourceStatus.NeedsAccess -> "Needs notification access"
+        SourceStatus.AppNotRunning -> "Not playing"
+        SourceStatus.NotInstalled -> "Not installed"
+        SourceStatus.NeedsDeveloperToken -> "Needs developer token"
+        SourceStatus.NeedsAppleSignIn -> "Sign in to browse"
+    }
 }
 
 @Composable
@@ -192,16 +195,15 @@ private fun Albums(ui: DeckUi, actions: ShelfActions) {
 @Composable
 private fun RemoteState(ui: DeckUi, actions: ShelfActions, showHeader: Boolean = true) {
     val app = ui.source.label
+    if (ui.source == Source.YT_MUSIC) {
+        YouTubeMusicBrowser(ui.youtubeMusic, actions.youtubeMusic)
+        return
+    }
     if (showHeader) {
         Text(app, style = Header)
         Spacer(Modifier.height(8.dp))
     }
-    val (text, button, action) = if (ui.source == Source.YT_MUSIC) {
-        Triple(
-            "Sign in, browse YouTube Music, or play RSS podcasts in Koda. Playback and the queue return to Foldman.",
-            "Open Koda", actions.openApp,
-        )
-    } else when (ui.status) {
+    val (text, button, action) = when (ui.status) {
         SourceStatus.NeedsAccess -> Triple(
             "Foldman plays $app through its media session, which Android only shares with apps that have notification access. If the switch is greyed out: App info → ⋮ → Allow restricted settings.",
             "Grant access", actions.openAccess,
@@ -229,7 +231,7 @@ private fun QueueList(ui: DeckUi, onPlay: (Long) -> Unit) {
         val empty = when {
             ui.source == Source.LOCAL -> "Nothing loaded"
             ui.source == Source.APPLE_MUSIC && ui.apple.sdkPlayback -> "Pick a playlist to load the queue"
-            ui.source == Source.YT_MUSIC -> "Open Koda to browse music and RSS podcasts"
+            ui.source == Source.YT_MUSIC -> "Find songs in YouTube Music"
             else -> "This app doesn't share its queue"
         }
         Text(empty, style = Sub)

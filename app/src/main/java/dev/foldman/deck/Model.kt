@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 /** Where the tape in the deck comes from. */
 enum class Source(val label: String, val packageName: String?) {
     LOCAL("Local folder", null),
-    YT_MUSIC("Koda", null),
+    YT_MUSIC("YouTube Music", null),
     APPLE_MUSIC("Apple Music", "com.apple.android.music"),
 }
 
@@ -40,6 +40,19 @@ data class AppleUi(
     val playlists: List<dev.foldman.apple.ApplePlaylist> = emptyList(),
     val openPlaylist: dev.foldman.apple.ApplePlaylist? = null,
     val tracks: List<dev.foldman.apple.AppleTrack> = emptyList(),
+    val loading: Boolean = false,
+    val message: String? = null,
+)
+
+data class YouTubeMusicUi(
+    val signedIn: Boolean = false,
+    val accountName: String? = null,
+    val query: String = "",
+    val searchResults: List<com.ivor.ivormusic.data.Song> = emptyList(),
+    val searched: Boolean = false,
+    val playlists: List<com.ivor.ivormusic.data.PlaylistDisplayItem> = emptyList(),
+    val openPlaylist: com.ivor.ivormusic.data.PlaylistDisplayItem? = null,
+    val playlistTracks: List<com.ivor.ivormusic.data.Song> = emptyList(),
     val loading: Boolean = false,
     val message: String? = null,
 )
