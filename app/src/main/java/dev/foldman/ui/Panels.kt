@@ -25,12 +25,17 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -112,6 +117,38 @@ fun LibraryBand(ui: DeckUi, actions: ShelfActions, onPlayQueue: (Long) -> Unit, 
     }
 }
 
+/** Top-left source picker for the unfolded screen: Local folder, YouTube Music and
+ * Podcasts side by side in a single horizontal row. */
+@Composable
+fun SourceRow(ui: DeckUi, actions: ShelfActions, modifier: Modifier = Modifier) {
+    Row(modifier.glassPanel().padding(10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Source.entries.forEach { s ->
+            val selected = s == ui.source
+            Row(
+                Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (selected) Color.White.copy(alpha = 0.09f) else Color.Transparent)
+                    .clickable { actions.selectSource(s) }
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SourceTile(s, Modifier.size(30.dp))
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(s.label, style = Title.copy(fontSize = 13.sp), maxLines = 1)
+                    Text(
+                        if (selected) statusLine(ui) else "Tap to load",
+                        style = Sub.copy(fontSize = 11.sp),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
+
 private fun statusLine(ui: DeckUi): String = when {
     ui.source == Source.YT_MUSIC -> if (ui.youtubeMusic.signedIn) "Signed in" else "Sign in"
     ui.source == Source.PODCASTS -> {
@@ -142,7 +179,7 @@ private fun SourceTile(source: Source, modifier: Modifier) {
 }
 
 @Composable
-private fun Albums(ui: DeckUi, actions: ShelfActions) {
+private fun Albums(ui: DeckUi, actions: ShelfActions, filter: String = "") {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text("Albums", style = Header, modifier = Modifier.weight(1f))
         Text(
@@ -158,10 +195,11 @@ private fun Albums(ui: DeckUi, actions: ShelfActions) {
         SourceStatus.EmptyFolder -> Text("No music in that folder.", style = Sub)
         else -> {
             // Each folder is an album: its first track's index, cover and size.
-            val albums = remember(ui.tracks) {
+            val q = filter.trim()
+            val albums = remember(ui.tracks, q) {
                 ui.tracks.withIndex().groupBy { it.value.folder }.map { (folder, items) ->
                     Triple(folder, items.first(), items.size)
-                }
+                }.filter { (folder, _, _) -> q.isEmpty() || folder.contains(q, ignoreCase = true) }
             }
             LazyColumn {
                 items(albums, key = { it.first }) { (folder, first, count) ->
@@ -208,13 +246,108 @@ private fun QueueList(ui: DeckUi, onPlay: (Long) -> Unit, showArt: Boolean = fal
     }
 }
 
-/** Full-height queue column for the unfolded layout: the live queue, titled Up Next. */
+/** Right-hand column for the unfolded layout: a dual-tab panel. "Up Next" shows the
+ * live queue with album art; "Your Library" shows the current source's browser and
+ * replaces the old top-band browser. The search bar below the toggle filters the
+ * visible tab (live-filter for the queue; the YouTube Music server search for YT). */
 @Composable
-fun UpNextColumn(ui: DeckUi, onPlayQueue: (Long) -> Unit, modifier: Modifier = Modifier) {
+fun LibraryPanel(ui: DeckUi, actions: ShelfActions, onPlayQueue: (Long) -> Unit, modifier: Modifier = Modifier) {
+    var tab by remember { mutableStateOf(0) }
+    var queueQuery by remember { mutableStateOf("") }
+    var libraryQuery by remember { mutableStateOf("") }
     Column(modifier.glassPanel().padding(14.dp)) {
-        Text("Up Next", style = Header)
+        // Segmented toggle header.
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color.Black.copy(alpha = 0.35f))
+                .padding(4.dp),
+        ) {
+            listOf("Up Next", "Your Library").forEachIndexed { i, label ->
+                val selected = tab == i
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(7.dp))
+                        .background(if (selected) Color.White.copy(alpha = 0.14f) else Color.Transparent)
+                        .clickable { tab = i }
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        label,
+                        style = if (selected) Title.copy(fontSize = 13.sp) else Sub.copy(fontSize = 13.sp),
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        // Search sits directly under the toggle and filters whichever tab is visible.
+        if (tab == 0 || ui.source != Source.YT_MUSIC) {
+            val query = if (tab == 0) queueQuery else libraryQuery
+            LibrarySearchBar(
+                query = query,
+                onQueryChange = { if (tab == 0) queueQuery = it else libraryQuery = it },
+                onSearch = {},
+            )
+        } else {
+            LibrarySearchBar(
+                query = ui.youtubeMusic.query,
+                onQueryChange = actions.youtubeMusic.queryChanged,
+                onSearch = actions.youtubeMusic.search,
+            )
+        }
         Spacer(Modifier.height(8.dp))
-        QueueList(ui, onPlayQueue, showArt = true, modifier = Modifier.weight(1f))
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            if (tab == 0) {
+                val q = queueQuery.trim()
+                val queue = if (q.isEmpty()) ui.queue else ui.queue.filter {
+                    it.title.contains(q, ignoreCase = true) ||
+                        (it.subtitle?.contains(q, ignoreCase = true) == true)
+                }
+                QueueList(ui.copy(queue = queue), onPlayQueue, showArt = true, modifier = Modifier.fillMaxSize())
+            } else {
+                when (ui.source) {
+                    Source.LOCAL -> Albums(ui, actions, filter = libraryQuery)
+                    Source.YT_MUSIC -> YouTubeMusicBrowser(
+                        ui.youtubeMusic, actions.youtubeMusic,
+                        Modifier.fillMaxSize(), onPaper = false, hideSearch = true,
+                    )
+                    Source.PODCASTS -> PodcastsBrowser(ui.podcasts, actions.podcasts, Modifier.fillMaxSize(), filter = libraryQuery)
+                }
+            }
+        }
+    }
+}
+
+/** The search field that lives under the right column's tab toggle. */
+@Composable
+private fun LibrarySearchBar(query: String, onQueryChange: (String) -> Unit, onSearch: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier.weight(1f),
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            placeholder = { Text("Search songs", style = Sub) },
+            textStyle = TextStyle(color = Title.color, fontSize = 14.sp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Title.color,
+                unfocusedTextColor = Title.color,
+                focusedBorderColor = Sub.color,
+                unfocusedBorderColor = Sub.color.copy(alpha = 0.5f),
+                cursorColor = DeckColors.Accent,
+                focusedPlaceholderColor = Sub.color,
+                unfocusedPlaceholderColor = Sub.color,
+            ),
+        )
+        Spacer(Modifier.width(6.dp))
+        TextButton(onClick = onSearch) {
+            Text("Search", style = Sub.copy(color = DeckColors.Accent, fontWeight = FontWeight.SemiBold))
+        }
     }
 }
 
@@ -262,10 +395,13 @@ private fun Thumb(bitmap: Bitmap?, uri: Uri?, modifier: Modifier) {
     }
 }
 
-/** Bottom-left band on the unfolded screen: the cover big, and liner notes. */
+/** Bottom-left band on the unfolded screen: the cover big, and liner notes.
+ * Only metadata the pipeline provides is shown: title, artist, album and duration
+ * come from DeckUi. Release year, record label, genre and lyrics are not exposed
+ * by the source, so those mockup lines are omitted rather than invented. */
 @Composable
 fun LinerNotesBand(ui: DeckUi, modifier: Modifier = Modifier) {
-    Row(modifier.glassPanel().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+    Row(modifier.glassPanel().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Box(
             Modifier
                 .fillMaxHeight()
@@ -280,16 +416,27 @@ fun LinerNotesBand(ui: DeckUi, modifier: Modifier = Modifier) {
         Column(Modifier.weight(1f).fillMaxHeight()) {
             Text("Liner notes", style = Header)
             Spacer(Modifier.height(8.dp))
-            Text(ui.title.ifBlank { "No tape playing" }, style = Title.copy(fontSize = 18.sp, fontWeight = FontWeight.SemiBold), maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (ui.artist.isNotBlank()) Text(ui.artist, style = Sub.copy(fontSize = 14.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (ui.album.isNotBlank()) Text(ui.album, style = Sub, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(10.dp))
-            val details = buildList {
-                add(ui.source.label)
-                if (ui.trackCount > 0) add("Track ${ui.trackIndex + 1} of ${ui.trackCount}")
-                add("${formatTime(ui.positionMs)} / ${formatTime(ui.durationMs)}")
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    ui.title.ifBlank { "No tape playing" },
+                    style = Title.copy(fontSize = 20.sp, fontWeight = FontWeight.SemiBold),
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (ui.durationMs > 0) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(formatTime(ui.durationMs), style = Sub, maxLines = 1)
+                }
             }
-            details.forEach { Text(it, style = Sub) }
+            if (ui.artist.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(ui.artist, style = Sub.copy(fontSize = 14.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (ui.album.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(ui.album, style = Sub, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
             Spacer(Modifier.weight(1f))
             // Tape-position hairline.
             Box(Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(Color.White.copy(alpha = 0.1f))) {

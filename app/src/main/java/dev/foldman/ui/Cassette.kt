@@ -251,28 +251,46 @@ private fun DrawScope.drawLabel(ui: DeckUi, palette: LabelPalette, measurer: Tex
     }
     drawPath(labelPath, Color.Black.copy(alpha = 0.18f), style = Stroke(0.2f))
 
-    // The paper strip you write the songs on.
-    val strip = RoundRect(10f, 13.4f, 90f, 19.4f, CornerRadius(0.9f))
-    drawPath(Path().apply { addRoundRect(strip) }, palette.paper.copy(alpha = if (art != null) 0.94f else 1f))
-    drawLine(DeckColors.PaperLine.copy(alpha = 0.7f), Offset(17.5f, 18.4f), Offset(89f, 18.4f), 0.12f)
-    drawCircle(palette.ink, 2.4f, Offset(13.6f, 16.4f), style = Stroke(0.3f))
     val ink = palette.ink
     // Text is laid out in pixels and scaled down into millimetre space with the rest.
-    fun text(s: String, x: Float, y: Float, sizeMm: Float, maxWidthMm: Float, style: TextStyle) {
-        if (s.isBlank()) return
-        val layout = measurer.measure(
+    fun measure(s: String, sizeMm: Float, maxWidthMm: Float, style: TextStyle) =
+        measurer.measure(
             s, style.copy(fontSize = (sizeMm * u).toSp()),
             maxLines = 1, overflow = TextOverflow.Ellipsis,
             constraints = Constraints(maxWidth = (maxWidthMm * u).toInt().coerceAtLeast(1)),
         )
+    fun text(s: String, x: Float, y: Float, sizeMm: Float, maxWidthMm: Float, style: TextStyle) {
+        if (s.isBlank()) return
+        val layout = measure(s, sizeMm, maxWidthMm, style)
         withTransform({ translate(x, y); scale(1f / u, 1f / u, Offset.Zero) }) { drawText(layout) }
     }
     val hand = TextStyle(fontFamily = FontFamily.Cursive, color = ink, fontWeight = FontWeight.Bold)
     val print = TextStyle(fontFamily = FontFamily.SansSerif, color = ink, fontWeight = FontWeight.Bold, letterSpacing = (0.3f * u).toSp())
-    text("A", 12.75f, 14.4f, 3.6f, 5f, print)
+    // The handwritten title straddles the top edge of the visible label, horizontally
+    // centered: the cassette window crops above 12.5mm, so the upper half tucks under it.
     val title = ui.title.ifBlank { placeholderTitle(ui) }
     val line = listOf(title, ui.artist).filter { it.isNotBlank() }.joinToString("  —  ")
-    text(line, 17.5f, 13.0f, 4.6f, 71f, hand)
+    if (line.isNotBlank()) {
+        val edgeY = 12.5f
+        val layout = measure(line, 4.6f, 64f, hand)
+        val lineW = layout.size.width / u
+        val lineH = layout.size.height / u
+        val aR = 2.3f
+        val gap = 2f
+        val startX = 50f - (aR * 2 + gap + lineW) / 2f
+        // Circled side-A marker, part of the centered unit.
+        drawCircle(ink, aR, Offset(startX + aR, edgeY), style = Stroke(0.35f))
+        val aLayout = measure("A", 3.4f, 5f, print)
+        withTransform({
+            translate(startX + aR - aLayout.size.width / u / 2f, edgeY - aLayout.size.height / u / 2f)
+            scale(1f / u, 1f / u, Offset.Zero)
+        }) { drawText(aLayout) }
+        // Script, vertically centered on the edge.
+        withTransform({
+            translate(startX + aR * 2 + gap, edgeY - lineH / 2f)
+            scale(1f / u, 1f / u, Offset.Zero)
+        }) { drawText(layout) }
+    }
 
     val tag = TextStyle(fontFamily = FontFamily.SansSerif, color = if (art != null) Color.White else ink, fontWeight = FontWeight.Black)
     text(when (ui.source) { Source.LOCAL -> "FM 60"; Source.YT_MUSIC -> "YT ∞"; Source.PODCASTS -> "RSS ∞" }, 79f, 44.2f, 2.6f, 14f, tag)

@@ -43,13 +43,14 @@ fun PodcastsBrowser(
     actions: PodcastActions,
     modifier: Modifier = Modifier,
     onPaper: Boolean = false,
+    filter: String = "",
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(bottom = 8.dp),
     ) {
-        podcastItems(ui, actions, onPaper = onPaper)
+        podcastItems(ui, actions, onPaper = onPaper, filter = filter)
     }
 
     if (ui.showAddDialog) {
@@ -65,10 +66,14 @@ fun LazyListScope.podcastItems(
     ui: PodcastsUi,
     actions: PodcastActions,
     onPaper: Boolean = false,
+    filter: String = "",
     wrap: @Composable (@Composable () -> Unit) -> Unit = { content -> content() },
 ) {
     val openFeed = ui.openFeed
-    val episodes = openFeed?.let { ui.episodesByFeed[it.id] } ?: emptyList()
+    val q = filter.trim()
+    val episodes = (openFeed?.let { ui.episodesByFeed[it.id] } ?: emptyList())
+        .filter { q.isEmpty() || it.title.contains(q, ignoreCase = true) }
+    val feeds = ui.feeds.filter { q.isEmpty() || it.title.contains(q, ignoreCase = true) }
 
     // The app's text library, picked per surface — the same tokens the local-files
     // library and the YouTube Music browser use.
@@ -96,7 +101,7 @@ fun LazyListScope.podcastItems(
                 )
                 if (openFeed == null) {
                     Text(
-                        if (ui.feeds.isEmpty()) "NO FEEDS" else "${ui.feeds.size} FEEDS",
+                        if (feeds.isEmpty() && q.isEmpty()) "NO FEEDS" else "${feeds.size} FEEDS",
                         style = subStyle,
                         maxLines = 1,
                         modifier = Modifier.padding(end = 4.dp),
@@ -131,7 +136,7 @@ fun LazyListScope.podcastItems(
             wrap { EpisodeRow(episode, onPaper = onPaper, onPlay = { actions.playEpisode(episode) }) }
         }
     } else {
-        items(ui.feeds, key = { it.id }) { feed ->
+        items(feeds, key = { it.id }) { feed ->
             val count = ui.episodesByFeed[feed.id]?.size ?: 0
             wrap {
                 FeedRow(
@@ -145,11 +150,12 @@ fun LazyListScope.podcastItems(
                 )
             }
         }
-        if (ui.feeds.isEmpty() && !ui.loading) {
+        if (feeds.isEmpty() && !ui.loading) {
             item(key = "pod-empty") {
                 wrap {
                     Text(
-                        "No podcasts yet. Add an RSS feed to load it as a tape.",
+                        if (ui.feeds.isEmpty()) "No podcasts yet. Add an RSS feed to load it as a tape."
+                        else "No podcasts match \"$q\".",
                         style = bodyStyle,
                     )
                 }

@@ -55,13 +55,14 @@ fun YouTubeMusicBrowser(
     actions: YouTubeMusicActions,
     modifier: Modifier = Modifier,
     onPaper: Boolean = false,
+    hideSearch: Boolean = false,
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(bottom = 8.dp),
     ) {
-        youtubeMusicItems(ui, actions, onPaper = onPaper)
+        youtubeMusicItems(ui, actions, onPaper = onPaper, hideSearch = hideSearch)
     }
 }
 
@@ -73,6 +74,7 @@ fun LazyListScope.youtubeMusicItems(
     ui: YouTubeMusicUi,
     actions: YouTubeMusicActions,
     onPaper: Boolean = false,
+    hideSearch: Boolean = false,
     wrap: @Composable (@Composable () -> Unit) -> Unit = { content -> content() },
 ) {
     val openPlaylist = ui.openPlaylist
@@ -157,7 +159,9 @@ fun LazyListScope.youtubeMusicItems(
             }
         }
 
-        item(key = "yt-search") {
+        // The right column's tab header owns the search field; hide the in-list one there.
+        if (!hideSearch) {
+            item(key = "yt-search") {
             wrap {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
@@ -187,6 +191,7 @@ fun LazyListScope.youtubeMusicItems(
                     }
                 }
             }
+        }
         }
 
         if (ui.searched && openPlaylist == null) {

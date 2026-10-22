@@ -187,8 +187,6 @@ fun FoldmanScreen(
                 .background(Brush.radialGradient(listOf(Color(0xFF2A2420), DeckColors.Backdrop), radius = 1800f)),
         ) {
             val density = LocalDensity.current
-            // Held sideways the inner screen is short, so the library gets a bigger share.
-            val landscape = maxWidth > maxHeight
             val posture = when {
                 fold != null && fold.state == FoldingFeature.State.HALF_OPENED && fold.orientation == FoldingFeature.Orientation.HORIZONTAL -> Posture.Tabletop
                 fold != null && fold.orientation == FoldingFeature.Orientation.VERTICAL -> Posture.Unfolded
@@ -202,18 +200,19 @@ fun FoldmanScreen(
                 // The cover screen is the player itself: edge to edge, system bars shown
                 // as transparent overlays.
                 Posture.Cover -> CoverWalkman(ui, anim, deck, onTapes = { shelfOpen = true }, modifier = Modifier.fillMaxSize())
-                // Unfolded: the left two-thirds hold the library, deck and liner notes;
-                // the right third is a full-height Up Next column fed by the live queue.
+                // Unfolded: the left two-thirds hold the source row, deck and liner
+                // notes; the right third is the dual-tab library panel (Up Next /
+                // Your Library) with its own search.
                 Posture.Unfolded -> Row(
                     Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Column(Modifier.weight(2f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        LibraryBand(ui, shelfActions, vm::playQueueItem, Modifier.fillMaxWidth().weight(if (landscape) 0.31f else 0.27f), showQueue = false)
-                        DeckBand(ui, anim, deck, vm, Modifier.fillMaxWidth().weight(if (landscape) 0.44f else 0.46f))
-                        LinerNotesBand(ui, Modifier.fillMaxWidth().weight(if (landscape) 0.25f else 0.27f))
+                        SourceRow(ui, shelfActions, Modifier.fillMaxWidth().height(78.dp))
+                        DeckBand(ui, anim, deck, vm, Modifier.fillMaxWidth().weight(0.45f))
+                        LinerNotesBand(ui, Modifier.fillMaxWidth().weight(0.55f))
                     }
-                    UpNextColumn(ui, vm::playQueueItem, Modifier.weight(1f).fillMaxHeight())
+                    LibraryPanel(ui, shelfActions, vm::playQueueItem, Modifier.weight(1f).fillMaxHeight())
                 }
                 Posture.Tabletop -> {
                     val (topH, gap) = with(density) {
@@ -452,8 +451,6 @@ private fun DeckBand(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, vm: D
             Row(verticalAlignment = Alignment.Bottom) {
                 Text("STEREO", style = Serif.copy(fontSize = 24.sp))
                 Spacer(Modifier.weight(1f))
-                Text("FM-F8 · STEREO CASSETTE PLAYER", style = OnEnamel.copy(fontSize = 8.sp))
-                Spacer(Modifier.width(16.dp))
                 Wordmark("FOLDMAN", 26.sp)
             }
             Spacer(Modifier.height(10.dp))
