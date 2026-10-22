@@ -147,24 +147,23 @@ internal fun MusicQueueItem.toPlaybackMediaItem(): MediaItem {
         .setMediaId(song.id)
         .setMediaMetadata(metadata)
     if (song.source == SongSource.PODCAST) {
-        if (podcastUri != null) {
-            builder.setUri(podcastUri)
-            // Hidden diagnostics: capture the exact URI the tapped episode resolves to.
-            com.ivor.ivormusic.diagnostics.PlaybackDiagnostics.recordPodcastResolvedUri(
-                song.id, podcastUri.toString()
+        // ROOT FIX: Every PODCAST MediaItem must carry its https enclosure URI
+        // from birth. The placeholder is NEVER used for podcasts — it triggers
+        // the YT-resolution path which mints error://resolution_failed and
+        // poisons the queue (NEXT fails). If the URI is missing, fail fast
+        // with a clear diagnostic instead of silently breaking playback.
+        val uri = podcastUri
+            ?: throw IllegalStateException(
+                "PODCAST song ${song.id} has null enclosure URI at MediaItem " +
+                "construction time. The URI must be set by episodeToSong and " +
+                "preserved through to toPlaybackMediaItem. " +
+                "Song.uri=${song.uri}, cache=${com.ivor.ivormusic.data.PodcastRepository.enclosureFor(song.id)}"
             )
-        } else {
-            // PODCAST with null URI: the enclosure was lost between episodeToSong
-            // and item-building. Do NOT use the placeholder (it triggers the
-            // YT-resolution path which mints error://). Log loudly so the
-            // on-device diagnostics show exactly which song lost its URI.
-            com.ivor.ivormusic.diagnostics.PlaybackDiagnostics.log(
-                "podcast",
-                "toPlaybackMediaItem: PODCAST ${song.id} has null uri! " +
-                    "Enclosure lost in item-building. Using placeholder will fail.",
-            )
-            builder.setUri("https://placeholder.ivormusic/${song.id}")
-        }
+        builder.setUri(uri)
+        // Hidden diagnostics: capture the exact URI the episode resolves to.
+        com.ivor.ivormusic.diagnostics.PlaybackDiagnostics.recordPodcastResolvedUri(
+            song.id, uri.toString()
+        )
     } else if (song.source == SongSource.LOCAL && song.uri != null) {
         builder.setUri(song.uri)
     } else {

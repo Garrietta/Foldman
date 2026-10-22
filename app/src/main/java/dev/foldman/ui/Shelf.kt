@@ -173,7 +173,7 @@ fun TapeShelf(
                 ) {
                     Text(
                         label,
-                        style = EngravedCaps.copy(
+                        style = TextStyle(fontFamily = FontFamily.Default, 
                             color = if (selected) Color(0xFFE8DCC8) else Color(0xFF6B5A4A),
                             fontSize = 11.sp,
                             letterSpacing = 2.sp,
@@ -267,14 +267,14 @@ private fun TapeDropdownHeader(
             ) {
                 Text(
                     selected.label,
-                    style = Hand.copy(fontSize = 20.sp),
+                    style = TextStyle(fontFamily = FontFamily.Default, fontSize = 20.sp),
                     maxLines = 1,
                 )
                 Spacer(Modifier.width(8.dp))
                 // Chevron indicates dropdown state.
                 Text(
                     if (open) "▲" else "▼",
-                    style = EngravedCaps.copy(fontSize = 10.sp, color = Color(0xFF6B5A4A)),
+                    style = TextStyle(fontFamily = FontFamily.Default, fontSize = 10.sp, color = Color(0xFF6B5A4A)),
                 )
             }
         }
@@ -293,7 +293,7 @@ private fun TapeDropdownHeader(
                 ) {
                     Text(
                         s.label,
-                        style = Hand.copy(fontSize = 18.sp, color = Color(0xFF4A3F35)),
+                        style = TextStyle(fontFamily = FontFamily.Default, fontSize = 18.sp, color = Color(0xFF4A3F35)),
                         maxLines = 1,
                     )
                 }
@@ -327,12 +327,12 @@ private fun TapeSpine(source: Source, inDeck: Boolean, onClick: () -> Unit) {
                 }
                 .padding(horizontal = 10.dp, vertical = 2.dp),
         ) {
-            Text(source.label, style = Hand.copy(fontSize = 18.sp), maxLines = 1)
+            Text(source.label, style = TextStyle(fontFamily = FontFamily.Default, fontSize = 18.sp), maxLines = 1)
         }
         Spacer(Modifier.width(10.dp))
         Text(
             if (inDeck) "IN DECK" else "LOAD",
-            style = EngravedCaps.copy(color = if (inDeck) DeckColors.Accent else Color.White.copy(alpha = 0.7f), fontSize = 8.sp),
+            style = TextStyle(fontFamily = FontFamily.Default, color = if (inDeck) DeckColors.Accent else Color.White.copy(alpha = 0.7f), fontSize = 8.sp),
         )
     }
 }
@@ -391,10 +391,10 @@ private fun LazyListScope.localItems(
                         )
                         Text(
                             if (ui.shuffleOn) "SHUFFLED" else "SHUFFLE",
-                            style = EngravedCaps.copy(color = if (ui.shuffleOn) DeckColors.AccentDeep else DeckColors.Ink.copy(alpha = 0.55f)),
+                            style = TextStyle(fontFamily = FontFamily.Default, color = if (ui.shuffleOn) DeckColors.AccentDeep else DeckColors.Ink.copy(alpha = 0.55f)),
                             modifier = Modifier.clickable(onClick = actions.toggleShuffle).padding(6.dp),
                         )
-                        Text("CHANGE", style = EngravedCaps.copy(color = DeckColors.AccentDeep), modifier = Modifier.clickable(onClick = actions.pickFolder).padding(6.dp))
+                        Text("CHANGE", style = TextStyle(fontFamily = FontFamily.Default, color = DeckColors.AccentDeep), modifier = Modifier.clickable(onClick = actions.pickFolder).padding(6.dp))
                     }
                 }
             }
@@ -436,7 +436,7 @@ private fun TrackRow(
     ) {
         Text("%02d".format(index + 1), style = Typed.copy(color = DeckColors.Ink.copy(alpha = 0.5f)), modifier = Modifier.width(30.dp))
         Column(Modifier.weight(1f)) {
-            Text(track.title, style = Hand.copy(fontSize = 19.sp, fontWeight = if (current) FontWeight.Bold else FontWeight.Normal), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(track.title, style = TextStyle(fontFamily = FontFamily.Default, fontSize = 19.sp, fontWeight = if (current) FontWeight.Bold else FontWeight.Normal), maxLines = 1, overflow = TextOverflow.Ellipsis)
             val sub = listOfNotNull(track.artist, track.folder.takeIf { it != folderName }).joinToString(" · ")
             if (sub.isNotBlank()) Text(sub, style = Typed.copy(fontSize = 10.sp, color = DeckColors.Ink.copy(alpha = 0.55f)), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
@@ -462,7 +462,7 @@ private fun PaperButton(text: String, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
-        Text(text.uppercase(), style = EngravedCaps.copy(color = DeckColors.Ink, fontSize = 11.sp))
+        Text(text.uppercase(), style = TextStyle(fontFamily = FontFamily.Default, color = DeckColors.Ink, fontSize = 11.sp))
     }
 }
 

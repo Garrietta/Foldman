@@ -120,8 +120,8 @@ class FoldmanWidget : GlanceAppWidget() {
  * derives from that single scale, so the layout fits any launcher rect by
  * construction instead of overflowing fixed-dp content.
  */
-private const val DESIGN_W = 460f
-private const val DESIGN_H = 290f
+private const val DESIGN_W = 440f
+private const val DESIGN_H = 200f
 
 @Composable
 private fun WalkmanContent() {
@@ -197,7 +197,7 @@ private fun WalkmanContent() {
         modifier = GlanceModifier.fillMaxSize()
             .cornerRadius(sd(26))
             .background(ColorProvider(Chrome.root))
-            .padding(sd(10)),
+            .padding(sd(6)),
     ) {
             // Dark top container: 50% of height (cut by 50% per spec).
             // Left half: square track-info (top) + counter/RESET (below).
@@ -224,8 +224,9 @@ private fun WalkmanContent() {
                                     title,
                                     style = TextStyle(
                                         color = ColorProvider(Chrome.titleText),
-                                        fontSize = ss(16),
+                                        fontSize = ss(20),
                                         fontWeight = FontWeight.Medium,
+                                        
                                     ),
                                     maxLines = 2,
                                 )
@@ -310,11 +311,10 @@ private fun WalkmanContent() {
                     }
                 }
             }
-            Spacer(GlanceModifier.height(sd(10)))
-            // Bottom: transport keys + slider cluster. Fixed design height so
-            // the keys always land fully inside the face.
+            // Bottom: transport keys + slider cluster, flush against the dark
+            // container (zero gap per spec).
             Row(
-                modifier = GlanceModifier.fillMaxWidth().height(sd(72)),
+                modifier = GlanceModifier.fillMaxWidth().defaultWeight(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TransportKey(
