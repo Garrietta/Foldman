@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -209,8 +210,8 @@ fun FoldmanScreen(
                 ) {
                     Column(Modifier.weight(2f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         SourceRow(ui, shelfActions, Modifier.fillMaxWidth().height(78.dp))
-                        DeckBand(ui, anim, deck, vm, Modifier.fillMaxWidth().weight(0.45f))
-                        LinerNotesBand(ui, Modifier.fillMaxWidth().weight(0.55f))
+                        DeckBand(ui, anim, deck, vm, Modifier.fillMaxWidth().weight(0.58f))
+                        LinerNotesBand(ui, Modifier.fillMaxWidth().weight(0.42f))
                     }
                     LibraryPanel(ui, shelfActions, vm::playQueueItem, Modifier.weight(1f).fillMaxHeight())
                 }
@@ -447,35 +448,41 @@ private fun SideStrip(ui: DeckUi, deck: DeckControls, modifier: Modifier) {
 @Composable
 private fun DeckBand(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, vm: DeckViewModel, modifier: Modifier) {
     Row(modifier.paintedBody(Enamel, corner = 22.dp)) {
-        Column(Modifier.weight(0.74f).fillMaxHeight().padding(horizontal = 20.dp, vertical = 14.dp)) {
+        // De-cramped: the blue deck takes a wider share from the silver end strip
+        // so the dials and the cassette window can breathe. Top padding reduced
+        // to lift the STEREO / FOLDMAN header slightly higher.
+        Column(Modifier.weight(0.80f).fillMaxHeight().padding(horizontal = 18.dp).padding(top = 8.dp, bottom = 14.dp)) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text("STEREO", style = Serif.copy(fontSize = 24.sp))
                 Spacer(Modifier.weight(1f))
                 Wordmark("FOLDMAN", 26.sp)
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
             Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.width(150.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically)) {
-                    Row(Modifier.fillMaxWidth().weight(1f).bezel().padding(6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                // Widened dial compartment: the VU meters and the counter row stretch naturally.
+                Column(Modifier.width(178.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically)) {
+                    Row(Modifier.fillMaxWidth().weight(1f).bezel().padding(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         VuMeter(ui.transport, ui.source, Modifier.weight(1f).fillMaxHeight(), channel = 0)
                         VuMeter(ui.transport, ui.source, Modifier.weight(1f).fillMaxHeight(), channel = 1)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.bezel().padding(5.dp)) { TapeCounter(anim.reels, digitWidth = 16.dp) }
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(14.dp))
                         MiniButton("RESET", { anim.reels.resetCounter() }, diameter = 20.dp)
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(10.dp))
                         StatusLed(ui.transport)
                     }
                 }
-                Spacer(Modifier.width(16.dp))
+                Spacer(Modifier.width(12.dp))
                 Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                     TapeWindow(ui, anim)
                 }
-                Spacer(Modifier.width(12.dp))
-                EjectArrow({ deck.stop() }, Modifier.size(26.dp, 50.dp))
+                Spacer(Modifier.width(14.dp))
+                // Nudged right so the enlarged tape window keeps its clearance.
+                EjectArrow({ deck.stop() }, Modifier.size(26.dp, 50.dp).offset(x = 6.dp))
             }
-            Spacer(Modifier.height(10.dp))
+            // Pushed down: opens up the visual interior of the cassette module.
+            Spacer(Modifier.height(24.dp))
             // PREV | PLAY | NEXT | PAUSE | STOP·EJECT: the track-skip keys take the
             // FF/REW slots (the small circular AMS buttons are gone on the unfolded deck).
             Row(verticalAlignment = Alignment.Bottom) {
@@ -486,14 +493,14 @@ private fun DeckBand(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, vm: D
                 )
             }
         }
-        // Silver end strip: mic, switches, volume and phones.
+        // Silver end strip: mic, switches, volume and phones (slimmed to fund the deck).
         Row(
             Modifier
-                .weight(0.26f)
+                .weight(0.20f)
                 .fillMaxHeight()
-                .padding(6.dp)
+                .padding(4.dp)
                 .chassis(corner = 18.dp, screws = false)
-                .padding(horizontal = 12.dp, vertical = 14.dp),
+                .padding(horizontal = 10.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Column(Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
