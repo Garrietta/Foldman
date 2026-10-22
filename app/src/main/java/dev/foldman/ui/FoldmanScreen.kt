@@ -290,6 +290,7 @@ private class DeckControls(vm: DeckViewModel) {
     val next = vm::next
     val previous = vm::previous
     val volume = vm::setVolume
+    val toggleShuffle = vm::toggleShuffle
 }
 
 private val Serif = TextStyle(fontFamily = FontFamily.Serif, fontWeight = FontWeight.Black, color = Color(0xFFF1F3F6), letterSpacing = 2.sp)
@@ -415,7 +416,7 @@ private fun DeckBand(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, vm: D
             Row(verticalAlignment = Alignment.Bottom) {
                 MiniButton("AMS", deck.previous, symbol = KeySymbol.PREV, diameter = 30.dp)
                 Spacer(Modifier.width(10.dp))
-                TransportKeys(ui, deck.stop, deck.rewind, deck.play, deck.fastForward, deck.pause, Modifier.weight(1f), keyHeight = 58.dp)
+                TransportKeys(ui, deck.stop, deck.rewind, deck.play, deck.fastForward, deck.pause, modifier = Modifier.weight(1f), keyHeight = 58.dp)
                 Spacer(Modifier.width(10.dp))
                 MiniButton("AMS", deck.next, symbol = KeySymbol.NEXT, diameter = 30.dp, enabled = ui.hasNext)
             }
