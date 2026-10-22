@@ -23,8 +23,10 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -42,8 +44,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
@@ -181,7 +187,6 @@ fun FoldmanScreen(
                 .background(Brush.radialGradient(listOf(Color(0xFF2A2420), DeckColors.Backdrop), radius = 1800f)),
         ) {
             val density = LocalDensity.current
-            val sheetHeight = maxHeight * 0.8f
             // Held sideways the inner screen is short, so the library gets a bigger share.
             val landscape = maxWidth > maxHeight
             val posture = when {
@@ -236,6 +241,37 @@ fun FoldmanScreen(
                     sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
                     containerColor = Color(0xFF1C1510),
                 ) {
+                    // The sheet grows with upward scroll, up to the base of the status bar,
+                    // and shrinks back on downward scroll at the top of the list.
+                    val shelfListState = rememberLazyListState()
+                    val statusBarPx = WindowInsets.statusBars.getTop(density)
+                    val minHpx = with(density) { (maxHeight * 0.8f).toPx() }
+                    val maxHpx = (with(density) { maxHeight.toPx() } - statusBarPx).coerceAtLeast(minHpx)
+                    var sheetHpx by remember { mutableStateOf<Float?>(null) }
+                    val growConnection = remember(minHpx, maxHpx) {
+                        object : NestedScrollConnection {
+                            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                                val cur = sheetHpx ?: minHpx
+                                return when {
+                                    // Drag up: the window grows with the gesture.
+                                    available.y < 0 && cur < maxHpx -> {
+                                        val take = minOf(-available.y, maxHpx - cur)
+                                        sheetHpx = cur + take
+                                        Offset(0f, -take)
+                                    }
+                                    // Drag down at the very top of the list: shrink back down.
+                                    available.y > 0 && cur > minHpx &&
+                                        shelfListState.firstVisibleItemIndex == 0 &&
+                                        shelfListState.firstVisibleItemScrollOffset == 0 -> {
+                                        val take = minOf(available.y, cur - minHpx)
+                                        sheetHpx = cur - take
+                                        Offset(0f, take)
+                                    }
+                                    else -> Offset.Zero
+                                }
+                            }
+                        }
+                    }
                     TapeShelf(
                         ui,
                         ShelfActions(
@@ -246,8 +282,11 @@ fun FoldmanScreen(
                             youtubeMusic = youtubeMusicActions,
                             podcasts = podcastActions,
                         ),
-                        Modifier.fillMaxWidth().height(sheetHeight)
+                        Modifier.fillMaxWidth()
+                            .height(with(density) { (sheetHpx ?: minHpx).toDp() })
+                            .nestedScroll(growConnection)
                             .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)),
+                        listState = shelfListState,
                     )
                 }
             }
