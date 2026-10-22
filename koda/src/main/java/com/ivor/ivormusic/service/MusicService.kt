@@ -1667,6 +1667,19 @@ class MusicService : MediaLibraryService() {
             return
         }
 
+        // Podcast episodes carry their RSS enclosure URL directly, like local
+        // files: pushing them through YouTube stream resolution treats the
+        // "podcast:<id>" media id as a YouTube video id, fails, and skips
+        // through every episode. A failed direct URI is not YouTube-resolvable.
+        val songSource = currentItem.mediaMetadata.extras?.getString(EXTRA_SONG_SOURCE)
+        if (songSource == com.ivor.ivormusic.data.SongSource.PODCAST.name &&
+            uri != null && !isPlaceholder(uri)
+        ) {
+            KLog.e(TAG, "Error: Podcast episode $videoId failed. Skipping (direct URI, not resolvable via YouTube).")
+            skipAfterFailure(currentItem)
+            return
+        }
+
         // 1. If we are already resolving this item, just wait.
         // The validation logic or update logic will handle it when ready.
         if (activeResolutions.contains(videoId)) {

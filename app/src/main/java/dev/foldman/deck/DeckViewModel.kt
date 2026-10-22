@@ -418,13 +418,22 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         )
         try {
             val playlists = withContext(Dispatchers.IO) { youtubeRepository.getUserPlaylists() }
-            withContext(Dispatchers.IO) {
-                metadataCache.saveLibrary(_youtubeMusic.value.accountName, playlists)
+            // Never wipe a good cache with an empty network result: a failed
+            // or session-blipped fetch returns empty, and overwriting then
+            // "decaches" the whole library until the next good fetch.
+            if (playlists.isNotEmpty()) {
+                withContext(Dispatchers.IO) {
+                    metadataCache.saveLibrary(_youtubeMusic.value.accountName, playlists)
+                }
+                _youtubeMusic.value = _youtubeMusic.value.copy(
+                    playlists = playlists,
+                    message = null,
+                )
+            } else if (_youtubeMusic.value.playlists.isEmpty()) {
+                _youtubeMusic.value = _youtubeMusic.value.copy(
+                    message = "No playlists were found in this account.",
+                )
             }
-            _youtubeMusic.value = _youtubeMusic.value.copy(
-                playlists = playlists,
-                message = if (playlists.isEmpty()) "No playlists were found in this account." else null,
-            )
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -478,11 +487,19 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         )
         try {
             val songs = withContext(Dispatchers.IO) { youtubeRepository.getPlaylist(playlist.id) }
-            withContext(Dispatchers.IO) { metadataCache.savePlaylistTracks(playlist.id, songs) }
-            _youtubeMusic.value = _youtubeMusic.value.copy(
-                playlistTracks = songs,
-                message = if (songs.isEmpty()) "This playlist has no playable songs." else null,
-            )
+            // Same guard as the library list: don't let an empty/failed fetch
+            // wipe the cached tracks.
+            if (songs.isNotEmpty()) {
+                withContext(Dispatchers.IO) { metadataCache.savePlaylistTracks(playlist.id, songs) }
+                _youtubeMusic.value = _youtubeMusic.value.copy(
+                    playlistTracks = songs,
+                    message = null,
+                )
+            } else if (_youtubeMusic.value.playlistTracks.isEmpty()) {
+                _youtubeMusic.value = _youtubeMusic.value.copy(
+                    message = "This playlist has no playable songs.",
+                )
+            }
             pendingShufflePlaylist?.takeIf { it.first.id == playlist.id }?.let { (_, player) ->
                 pendingShufflePlaylist = null
                 if (songs.isNotEmpty()) {
