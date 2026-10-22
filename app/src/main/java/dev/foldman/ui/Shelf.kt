@@ -130,19 +130,33 @@ fun TapeShelf(
             Spacer(Modifier.height(8.dp))
         }
     }
+    // Outer: dark brown sheet background (drag handle zone stays dark).
     Column(
         modifier
-            .background(Brush.verticalGradient(listOf(Color(0xFF2A1F17), Color(0xFF1C1510))))
-            .padding(16.dp),
+            .background(Brush.verticalGradient(listOf(Color(0xFF2A1F17), Color(0xFF1C1510)))),
     ) {
-        // Fixed tab switcher below the drag handle: Tapes (sources + browser)
-        // or Queue (the live playing queue).
+        // Breathing room below the drag handle, then the inset cream panel.
+        Spacer(Modifier.height(12.dp))
+        // Inner: cream inset panel containing everything below the drag handle.
+        // Symmetrical inset on left/right/bottom; top corners rounded concentric
+        // with the sheet's own radii.
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(horizontal = 12.dp)
+                .padding(bottom = 12.dp)
+                .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 12.dp, bottomEnd = 12.dp))
+                .background(DeckColors.Paper)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+        ) {
+        // Fixed tab switcher: Tapes (sources + browser) or Queue (live queue).
         var tab by remember { mutableStateOf(0) }
         Row(
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(10.dp))
-                .background(Color.Black.copy(alpha = 0.35f))
+                .background(Color.Black.copy(alpha = 0.12f))
                 .padding(4.dp),
         ) {
             listOf("Tapes", "Queue").forEachIndexed { i, label ->
@@ -151,7 +165,7 @@ fun TapeShelf(
                     Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(7.dp))
-                        .background(if (selected) Color.White.copy(alpha = 0.14f) else Color.Transparent)
+                        .background(if (selected) Color(0xFF2A1F17) else Color.Transparent)
                         .clickable { tab = i }
                         .padding(vertical = 8.dp),
                     contentAlignment = Alignment.Center,
@@ -159,7 +173,7 @@ fun TapeShelf(
                     Text(
                         label,
                         style = EngravedCaps.copy(
-                            color = if (selected) Color(0xFFE8DCC8) else Color(0xFFB59B80),
+                            color = if (selected) Color(0xFFE8DCC8) else Color(0xFF6B5A4A),
                             fontSize = 11.sp,
                             letterSpacing = 2.sp,
                         ),
@@ -208,6 +222,7 @@ fun TapeShelf(
         if (ui.podcasts.showAddDialog) {
             AddFeedDialog(ui.podcasts, actions.podcasts)
         }
+        } // inner cream panel
     }
 }
 

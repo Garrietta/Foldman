@@ -238,8 +238,6 @@ private fun WalkmanContent() {
                             }
                         }
                         Spacer(GlanceModifier.height(sd(6)))
-                            maxLines = 1,
-                        )
                     }
                     Spacer(GlanceModifier.width(sd(10)))
                     // Right: cassette window over counter + RESET (fills the row).
