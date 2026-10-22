@@ -83,7 +83,13 @@ class FoldmanWidget : GlanceAppWidget() {
 
 private fun Preferences.rustic(): RusticColors {
     fun c(key: Preferences.Key<Long>, fallback: Color) =
-        get(key)?.let { Color(it.toULong()) } ?: fallback
+        // The longs are stored as color.toArgb().toLong() (sign-extended ARGB).
+        // Read them back through the Int constructor: Color(ULong) expects a
+        // packed colorspace value in the high bits, and misreading ARGB as
+        // packed crashes Glance's background translation with
+        // ArrayIndexOutOfBoundsException in Color.getColorSpace (seen in the
+        // 2026-10-22 bug report: "Error in Glance App Widget", index=38).
+        get(key)?.let { Color(it.toInt()) } ?: fallback
     val f = RusticColors.Fallback
     return RusticColors(
         background = c(WidgetKeys.BG, f.background),
