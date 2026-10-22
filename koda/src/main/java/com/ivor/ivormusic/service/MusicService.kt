@@ -890,6 +890,12 @@ class MusicService : MediaLibraryService() {
         }
 
         mediaLibrarySession = MediaLibrarySession.Builder(this, engine.active, LibrarySessionCallback())
+            // Foldman embedding: this service runs in Foldman's process next to
+            // Foldman's own PlaybackService, and a process may not hold two
+            // sessions with the same id. Upstream Koda owns the default empty id
+            // here; embedded, it must yield it (same rule as koda_video in
+            // VideoPlaybackService).
+            .setId("koda_music")
             .setSessionActivity(sessionIntent)
             .build()
         refreshMediaButtons()

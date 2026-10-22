@@ -46,7 +46,14 @@ class PlaybackService : MediaSessionService() {
             this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        session = MediaSession.Builder(this, player).setSessionActivity(openApp).build()
+        // Foldman hosts Koda's MusicService in this same process: a process may not
+        // hold two media sessions with the same id, so this one takes an explicit
+        // id instead of the default empty one (see koda_video in Koda's
+        // VideoPlaybackService for the same rule).
+        session = MediaSession.Builder(this, player)
+            .setId("foldman_playback")
+            .setSessionActivity(openApp)
+            .build()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
