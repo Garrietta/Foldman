@@ -168,20 +168,20 @@ private fun WalkmanContent() {
             .background(ColorProvider(Chrome.root))
             .padding(sd(10)),
     ) {
-            // Top: dark slate panel.
+            // Top: dark slate panel (radius echoes the outer 26, concentric).
             Column(
                 modifier = GlanceModifier.fillMaxWidth()
                     .defaultWeight()
-                    .cornerRadius(sd(18))
+                    .cornerRadius(sd(20))
                     .background(ColorProvider(Chrome.panel))
                     .padding(sd(10)),
             ) {
                 Row(verticalAlignment = Alignment.Top) {
-                    // Left: title box over the chrome wordmark.
-                    Column(modifier = GlanceModifier.defaultWeight()) {
+                    // Left: title box over the chrome wordmark (fixed width).
+                    Column(modifier = GlanceModifier.width(sd(150))) {
                         Box(
                             modifier = GlanceModifier.fillMaxWidth()
-                                .cornerRadius(sd(12))
+                                .cornerRadius(sd(14))
                                 .background(ColorProvider(Chrome.titleBox))
                                 .padding(sd(10))
                                 .clickable(openApp),
@@ -227,8 +227,8 @@ private fun WalkmanContent() {
                         )
                     }
                     Spacer(GlanceModifier.width(sd(10)))
-                    // Right: cassette window over counter + RESET.
-                    Column(modifier = GlanceModifier.width(sd(168))) {
+                    // Right: cassette window over counter + RESET (fills the row).
+                    Column(modifier = GlanceModifier.defaultWeight()) {
                         Box(
                             modifier = GlanceModifier.fillMaxWidth()
                                 .clickable(openApp),
@@ -238,14 +238,15 @@ private fun WalkmanContent() {
                                 Image(
                                     provider = BitmapImageProvider(tape),
                                     contentDescription = "Cassette",
-                                    modifier = GlanceModifier.fillMaxWidth(),
+                                    modifier = GlanceModifier.fillMaxWidth()
+                                        .cornerRadius(sd(14)),
                                 )
                             } else {
                                 // Empty dark window until the updater renders the tape.
                                 Box(
                                     modifier = GlanceModifier.fillMaxWidth()
                                         .height(sd(84))
-                                        .cornerRadius(sd(10))
+                                        .cornerRadius(sd(14))
                                         .background(ColorProvider(Chrome.titleBox)),
                                     contentAlignment = Alignment.Center,
                                 ) {}
@@ -255,7 +256,7 @@ private fun WalkmanContent() {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = GlanceModifier
-                                    .cornerRadius(sd(6))
+                                    .cornerRadius(sd(10))
                                     .background(ColorProvider(Chrome.counterBg))
                                     .padding(horizontal = sd(8), vertical = sd(4)),
                                 contentAlignment = Alignment.Center,
@@ -271,7 +272,7 @@ private fun WalkmanContent() {
                             Spacer(GlanceModifier.width(sd(6)))
                             Box(
                                 modifier = GlanceModifier
-                                    .cornerRadius(sd(6))
+                                    .cornerRadius(sd(10))
                                     .background(ColorProvider(Chrome.resetBg))
                                     .padding(horizontal = sd(10), vertical = sd(6))
                                     .clickable(openApp),
