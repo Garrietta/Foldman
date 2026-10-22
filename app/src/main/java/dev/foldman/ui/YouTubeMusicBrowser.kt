@@ -8,9 +8,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -42,15 +44,28 @@ import dev.foldman.deck.YouTubeMusicUi
  */
 @Composable
 fun YouTubeMusicBrowser(ui: YouTubeMusicUi, actions: YouTubeMusicActions, modifier: Modifier = Modifier) {
-    var showSignIn by remember { mutableStateOf(false) }
-    val openPlaylist = ui.openPlaylist
-
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(bottom = 8.dp),
     ) {
-        item {
+        youtubeMusicItems(ui, actions)
+    }
+}
+
+/**
+ * The YouTube Music browser as items of a lazy list, so the TAPES sheet can share one scroll
+ * with a sticky now-playing header. [wrap] lets the sheet put each row on the J-card's paper.
+ */
+fun LazyListScope.youtubeMusicItems(
+    ui: YouTubeMusicUi,
+    actions: YouTubeMusicActions,
+    wrap: @Composable (@Composable () -> Unit) -> Unit = { content -> content() },
+) {
+    val openPlaylist = ui.openPlaylist
+
+    item(key = "yt-title") {
+        wrap {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     openPlaylist?.name ?: "YouTube Music",
@@ -72,25 +87,42 @@ fun YouTubeMusicBrowser(ui: YouTubeMusicUi, actions: YouTubeMusicActions, modifi
                 }
             }
         }
+    }
 
-        if (!ui.signedIn) {
-            item {
-                Text(
-                    "Sign in to browse your YouTube Music library and play songs right in Foldman.",
-                    fontSize = 12.sp,
-                )
-            }
-            item {
-                Button(onClick = { showSignIn = true }) {
-                    Text("Sign in to YouTube Music")
+    if (!ui.signedIn) {
+        item(key = "yt-signin") {
+            wrap {
+                var showSignIn by remember { mutableStateOf(false) }
+                Column {
+                    Text(
+                        "Sign in to browse your YouTube Music library and play songs right in Foldman.",
+                        fontSize = 12.sp,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Button(onClick = { showSignIn = true }) {
+                        Text("Sign in to YouTube Music")
+                    }
+                }
+                if (showSignIn) {
+                    YouTubeAuthDialog(
+                        onDismiss = { showSignIn = false },
+                        onAuthSuccess = {
+                            showSignIn = false
+                            actions.refresh()
+                        },
+                    )
                 }
             }
-        } else {
-            if (openPlaylist != null) {
-                item { TextButton(onClick = actions.closePlaylist) { Text("← Your library") } }
+        }
+    } else {
+        if (openPlaylist != null) {
+            item(key = "yt-back") {
+                wrap { TextButton(onClick = actions.closePlaylist) { Text("← Your library") } }
             }
+        }
 
-            item {
+        item(key = "yt-search") {
+            wrap {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = ui.query,
@@ -106,14 +138,18 @@ fun YouTubeMusicBrowser(ui: YouTubeMusicUi, actions: YouTubeMusicActions, modifi
                     }
                 }
             }
+        }
 
-            if (ui.searched && openPlaylist == null) {
-                item { Text("Search results", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
-                itemsIndexed(ui.searchResults, key = { index, song -> "${song.id}-$index" }) { index, song ->
-                    SongRow(song, onPlay = { actions.playSongs(ui.searchResults, index) })
-                }
-            } else if (openPlaylist != null) {
-                item {
+        if (ui.searched && openPlaylist == null) {
+            item(key = "yt-results-header") {
+                wrap { Text("Search results", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
+            }
+            itemsIndexed(ui.searchResults, key = { index, song -> "${song.id}-$index" }) { index, song ->
+                wrap { SongRow(song, onPlay = { actions.playSongs(ui.searchResults, index) }) }
+            }
+        } else if (openPlaylist != null) {
+            item(key = "yt-tracks-header") {
+                wrap {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Tracks", modifier = Modifier.weight(1f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         if (ui.playlistTracks.isNotEmpty()) {
@@ -124,12 +160,16 @@ fun YouTubeMusicBrowser(ui: YouTubeMusicUi, actions: YouTubeMusicActions, modifi
                         }
                     }
                 }
-                itemsIndexed(ui.playlistTracks, key = { index, song -> "${song.id}-$index" }) { index, song ->
-                    SongRow(song, onPlay = { actions.playSongs(ui.playlistTracks, index) })
-                }
-            } else {
-                item { Text("Your library", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
-                itemsIndexed(ui.playlists, key = { _, playlist -> playlist.id }) { _, playlist ->
+            }
+            itemsIndexed(ui.playlistTracks, key = { index, song -> "${song.id}-$index" }) { index, song ->
+                wrap { SongRow(song, onPlay = { actions.playSongs(ui.playlistTracks, index) }) }
+            }
+        } else {
+            item(key = "yt-library-header") {
+                wrap { Text("Your library", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
+            }
+            itemsIndexed(ui.playlists, key = { _, playlist -> playlist.id }) { _, playlist ->
+                wrap {
                     PlaylistRow(
                         playlist,
                         onOpen = { actions.openPlaylist(playlist) },
@@ -138,23 +178,17 @@ fun YouTubeMusicBrowser(ui: YouTubeMusicUi, actions: YouTubeMusicActions, modifi
                 }
             }
         }
-
-        if (ui.loading) {
-            item { CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp) }
-        }
-        ui.message?.let { message ->
-            item { Text(message, fontSize = 11.sp) }
-        }
     }
 
-    if (showSignIn) {
-        YouTubeAuthDialog(
-            onDismiss = { showSignIn = false },
-            onAuthSuccess = {
-                showSignIn = false
-                actions.refresh()
-            },
-        )
+    if (ui.loading) {
+        item(key = "yt-loading") {
+            wrap { CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp) }
+        }
+    }
+    ui.message?.let { message ->
+        item(key = "yt-message") {
+            wrap { Text(message, fontSize = 11.sp) }
+        }
     }
 }
 

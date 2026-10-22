@@ -5,7 +5,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,12 +17,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.foldman.deck.DeckUi
+import dev.foldman.deck.LocalTrack
 import dev.foldman.deck.Source
 import dev.foldman.deck.SourceStatus
 import com.ivor.ivormusic.data.PlaylistDisplayItem
@@ -85,22 +90,82 @@ class PodcastActions(
 /**
  * The tape shelf: a spine for each source (tap one to load it into the deck) above the J-card of
  * the tape that's in, with its cover and track list.
+ *
+ * One continuous scroll: the source spines scroll up and hide under the fixed TAPES header,
+ * the now-playing card pins as a sticky header once reached, and the browser list scrolls
+ * beneath it.
  */
 @Composable
 fun TapeShelf(ui: DeckUi, actions: ShelfActions, modifier: Modifier = Modifier) {
+    val listState = rememberLazyListState()
+    var lastSource by remember { mutableStateOf(ui.source) }
+    LaunchedEffect(ui.source, ui.trackIndex) {
+        val switched = ui.source != lastSource
+        lastSource = ui.source
+        if (ui.source == Source.LOCAL && ui.trackIndex >= 0) {
+            // Item indices: 0-2 source spines, 3 local header row, 4+i track i
+            // (the stickyHeader takes no index). Mirrors the old inner track list,
+            // which kept the current track visible.
+            listState.animateScrollToItem((ui.trackIndex + 2).coerceAtLeast(0))
+        } else if (switched) {
+            // Switching tapes used to swap in a fresh list; reset scroll the same way.
+            listState.scrollToItem(0)
+        }
+    }
+    // In the sheet the browser rows sit on the J-card's paper, exactly as before.
+    val paperWrap: @Composable (@Composable () -> Unit) -> Unit = { content ->
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .background(DeckColors.Paper)
+                .padding(horizontal = 14.dp)
+        ) {
+            content()
+            Spacer(Modifier.height(8.dp))
+        }
+    }
     Column(
         modifier
             .background(Brush.verticalGradient(listOf(Color(0xFF2A1F17), Color(0xFF1C1510))))
             .padding(16.dp),
     ) {
+        // Fixed header — the ModalBottomSheet's drag handle sits above this.
         Text("TAPES", style = EngravedCaps.copy(color = Color(0xFFB59B80), fontSize = 10.sp, letterSpacing = 3.sp))
         Spacer(Modifier.height(10.dp))
-        Source.entries.forEach { s ->
-            TapeSpine(s, inDeck = s == ui.source, onClick = { actions.selectSource(s) })
-            Spacer(Modifier.height(8.dp))
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+        ) {
+            // (1) The source rows scroll up and hide under the fixed header.
+            Source.entries.forEach { s ->
+                item(key = "source-${s.name}") {
+                    TapeSpine(s, inDeck = s == ui.source, onClick = { actions.selectSource(s) })
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
+            // (2) The now-playing card locks in place as the new header once reached.
+            stickyHeader(key = "now-playing") {
+                NowPlayingCard(ui)
+            }
+            // (3) The browser list scrolls beneath it, on the card's paper.
+            when (ui.source) {
+                Source.LOCAL -> localItems(ui, actions, paperWrap)
+                Source.YT_MUSIC -> youtubeMusicItems(ui.youtubeMusic, actions.youtubeMusic, paperWrap)
+                Source.PODCASTS -> podcastItems(ui.podcasts, actions.podcasts, paperWrap)
+            }
+            // Rounded foot of the paper card.
+            item(key = "paper-foot") {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(14.dp)
+                        .background(DeckColors.Paper, RoundedCornerShape(bottomStart = 3.dp, bottomEnd = 3.dp))
+                )
+            }
         }
-        Spacer(Modifier.height(8.dp))
-        JCard(ui, actions, Modifier.weight(1f).fillMaxWidth())
+        if (ui.podcasts.showAddDialog) {
+            AddFeedDialog(ui.podcasts, actions.podcasts)
+        }
     }
 }
 
@@ -138,12 +203,17 @@ private fun TapeSpine(source: Source, inDeck: Boolean, onClick: () -> Unit) {
     }
 }
 
+/**
+ * The top of the old J-card — cover art, title block, progress and the accent rules —
+ * now the sticky header of the sheet's scroll.
+ */
 @Composable
-private fun JCard(ui: DeckUi, actions: ShelfActions, modifier: Modifier) {
+private fun NowPlayingCard(ui: DeckUi, modifier: Modifier = Modifier) {
     Column(
         modifier
-            .shadow(8.dp, RoundedCornerShape(3.dp))
-            .clip(RoundedCornerShape(3.dp))
+            .fillMaxWidth()
+            .shadow(8.dp, RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
+            .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
             .background(DeckColors.Paper)
             .padding(14.dp),
     ) {
@@ -163,14 +233,6 @@ private fun JCard(ui: DeckUi, actions: ShelfActions, modifier: Modifier) {
         Spacer(Modifier.height(2.dp))
         Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFF2B33D)))
         Spacer(Modifier.height(10.dp))
-        // The browser gets all remaining card space and scrolls within it.
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            when (ui.source) {
-                Source.LOCAL -> LocalCard(ui, actions)
-                Source.YT_MUSIC -> YouTubeMusicBrowser(ui.youtubeMusic, actions.youtubeMusic)
-                Source.PODCASTS -> PodcastsBrowser(ui.podcasts, actions.podcasts)
-            }
-        }
     }
 }
 
@@ -190,65 +252,90 @@ private fun CoverArt(ui: DeckUi, modifier: Modifier) {
     }
 }
 
-@Composable
-private fun LocalCard(ui: DeckUi, actions: ShelfActions) {
-    Column(Modifier.fillMaxSize()) {
-        when (val status = ui.status) {
-            SourceStatus.NeedsFolder -> Prompt(
-                "Pick a folder of music on this phone — MP3, FLAC, M4A, OGG, WAV. Album art comes from the files or a cover.jpg beside them.",
-                "Choose music folder", actions.pickFolder,
-            )
-            is SourceStatus.Scanning -> Text("Winding on… ${status.found} songs found", style = Hand)
-            SourceStatus.EmptyFolder -> Prompt("No music in that folder.", "Choose another folder", actions.pickFolder)
-            else -> {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "${ui.folderName ?: "Folder"} · ${ui.tracks.size} songs",
-                        style = Typed.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        if (ui.shuffleOn) "SHUFFLED" else "SHUFFLE",
-                        style = EngravedCaps.copy(color = if (ui.shuffleOn) DeckColors.AccentDeep else DeckColors.Ink.copy(alpha = 0.55f)),
-                        modifier = Modifier.clickable(onClick = actions.toggleShuffle).padding(6.dp),
-                    )
-                    Text("CHANGE", style = EngravedCaps.copy(color = DeckColors.AccentDeep), modifier = Modifier.clickable(onClick = actions.pickFolder).padding(6.dp))
+/**
+ * The local-folder browser as items of the sheet's shared scroll. The auto-scroll-to-current
+ * behavior moved up to [TapeShelf], which owns the list state now.
+ */
+private fun LazyListScope.localItems(
+    ui: DeckUi,
+    actions: ShelfActions,
+    wrap: @Composable (@Composable () -> Unit) -> Unit = { content -> content() },
+) {
+    when (val status = ui.status) {
+        SourceStatus.NeedsFolder -> item(key = "local-prompt") {
+            wrap {
+                Prompt(
+                    "Pick a folder of music on this phone — MP3, FLAC, M4A, OGG, WAV. Album art comes from the files or a cover.jpg beside them.",
+                    "Choose music folder", actions.pickFolder,
+                )
+            }
+        }
+        is SourceStatus.Scanning -> item(key = "local-scanning") {
+            wrap { Text("Winding on… ${status.found} songs found", style = Hand) }
+        }
+        SourceStatus.EmptyFolder -> item(key = "local-empty") {
+            wrap { Prompt("No music in that folder.", "Choose another folder", actions.pickFolder) }
+        }
+        else -> {
+            item(key = "local-header") {
+                wrap {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "${ui.folderName ?: "Folder"} · ${ui.tracks.size} songs",
+                            style = Typed.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            if (ui.shuffleOn) "SHUFFLED" else "SHUFFLE",
+                            style = EngravedCaps.copy(color = if (ui.shuffleOn) DeckColors.AccentDeep else DeckColors.Ink.copy(alpha = 0.55f)),
+                            modifier = Modifier.clickable(onClick = actions.toggleShuffle).padding(6.dp),
+                        )
+                        Text("CHANGE", style = EngravedCaps.copy(color = DeckColors.AccentDeep), modifier = Modifier.clickable(onClick = actions.pickFolder).padding(6.dp))
+                    }
                 }
-                Spacer(Modifier.height(6.dp))
-                TrackList(ui, actions, Modifier.weight(1f))
+            }
+            itemsIndexed(ui.tracks, key = { _, t -> t.uri.toString() }) { i, track ->
+                wrap {
+                    TrackRow(
+                        index = i,
+                        track = track,
+                        current = i == ui.trackIndex,
+                        stripe = ui.label.stripe,
+                        folderName = ui.folderName,
+                        onPlay = { actions.playTrack(i) },
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun TrackList(ui: DeckUi, actions: ShelfActions, modifier: Modifier = Modifier) {
-    val list = rememberLazyListState()
-    LaunchedEffect(ui.trackIndex) {
-        if (ui.trackIndex >= 0) list.animateScrollToItem((ui.trackIndex - 2).coerceAtLeast(0))
-    }
-    LazyColumn(state = list, modifier = modifier.fillMaxWidth()) {
-        itemsIndexed(ui.tracks, key = { _, t -> t.uri.toString() }) { i, track ->
-            val current = i == ui.trackIndex
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clickable { actions.playTrack(i) }
-                    .drawBehind {
-                        drawLine(DeckColors.PaperLine, Offset(0f, size.height - 1f), Offset(size.width, size.height - 1f), 1f)
-                        if (current) drawRect(ui.label.stripe.copy(alpha = 0.18f))
-                    }
-                    .padding(vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("%02d".format(i + 1), style = Typed.copy(color = DeckColors.Ink.copy(alpha = 0.5f)), modifier = Modifier.width(30.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(track.title, style = Hand.copy(fontSize = 19.sp, fontWeight = if (current) FontWeight.Bold else FontWeight.Normal), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    val sub = listOfNotNull(track.artist, track.folder.takeIf { it != ui.folderName }).joinToString(" · ")
-                    if (sub.isNotBlank()) Text(sub, style = Typed.copy(fontSize = 10.sp, color = DeckColors.Ink.copy(alpha = 0.55f)), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                if (current) Text("◀", style = Typed.copy(color = DeckColors.AccentDeep))
+private fun TrackRow(
+    index: Int,
+    track: LocalTrack,
+    current: Boolean,
+    stripe: Color,
+    folderName: String?,
+    onPlay: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onPlay)
+            .drawBehind {
+                drawLine(DeckColors.PaperLine, Offset(0f, size.height - 1f), Offset(size.width, size.height - 1f), 1f)
+                if (current) drawRect(stripe.copy(alpha = 0.18f))
             }
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("%02d".format(index + 1), style = Typed.copy(color = DeckColors.Ink.copy(alpha = 0.5f)), modifier = Modifier.width(30.dp))
+        Column(Modifier.weight(1f)) {
+            Text(track.title, style = Hand.copy(fontSize = 19.sp, fontWeight = if (current) FontWeight.Bold else FontWeight.Normal), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val sub = listOfNotNull(track.artist, track.folder.takeIf { it != folderName }).joinToString(" · ")
+            if (sub.isNotBlank()) Text(sub, style = Typed.copy(fontSize = 10.sp, color = DeckColors.Ink.copy(alpha = 0.55f)), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
+        if (current) Text("◀", style = Typed.copy(color = DeckColors.AccentDeep))
     }
 }
 

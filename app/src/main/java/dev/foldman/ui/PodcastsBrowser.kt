@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -37,15 +38,33 @@ import java.util.Date
  */
 @Composable
 fun PodcastsBrowser(ui: PodcastsUi, actions: PodcastActions, modifier: Modifier = Modifier) {
-    val openFeed = ui.openFeed
-    val episodes = openFeed?.let { ui.episodesByFeed[it.id] } ?: emptyList()
-
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(bottom = 8.dp),
     ) {
-        item {
+        podcastItems(ui, actions)
+    }
+
+    if (ui.showAddDialog) {
+        AddFeedDialog(ui, actions)
+    }
+}
+
+/**
+ * The podcasts browser as items of a lazy list, so the TAPES sheet can share one scroll
+ * with a sticky now-playing header. [wrap] lets the sheet put each row on the J-card's paper.
+ */
+fun LazyListScope.podcastItems(
+    ui: PodcastsUi,
+    actions: PodcastActions,
+    wrap: @Composable (@Composable () -> Unit) -> Unit = { content -> content() },
+) {
+    val openFeed = ui.openFeed
+    val episodes = openFeed?.let { ui.episodesByFeed[it.id] } ?: emptyList()
+
+    item(key = "pod-title") {
+        wrap {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     openFeed?.title ?: "Podcasts",
@@ -66,10 +85,14 @@ fun PodcastsBrowser(ui: PodcastsUi, actions: PodcastActions, modifier: Modifier 
                 }
             }
         }
+    }
 
-        if (openFeed != null) {
-            item { TextButton(onClick = actions.closeFeed) { Text("← Podcasts") } }
-            item {
+    if (openFeed != null) {
+        item(key = "pod-back") {
+            wrap { TextButton(onClick = actions.closeFeed) { Text("← Podcasts") } }
+        }
+        item(key = "pod-epheader") {
+            wrap {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         "${episodes.size} episodes",
@@ -84,12 +107,14 @@ fun PodcastsBrowser(ui: PodcastsUi, actions: PodcastActions, modifier: Modifier 
                     TextButton(onClick = { actions.removeFeed(openFeed) }) { Text("Remove") }
                 }
             }
-            items(episodes, key = { it.id }) { episode ->
-                EpisodeRow(episode, onPlay = { actions.playEpisode(episode) })
-            }
-        } else {
-            items(ui.feeds, key = { it.id }) { feed ->
-                val count = ui.episodesByFeed[feed.id]?.size ?: 0
+        }
+        items(episodes, key = { it.id }) { episode ->
+            wrap { EpisodeRow(episode, onPlay = { actions.playEpisode(episode) }) }
+        }
+    } else {
+        items(ui.feeds, key = { it.id }) { feed ->
+            val count = ui.episodesByFeed[feed.id]?.size ?: 0
+            wrap {
                 FeedRow(
                     feed = feed,
                     episodeCount = count,
@@ -99,8 +124,10 @@ fun PodcastsBrowser(ui: PodcastsUi, actions: PodcastActions, modifier: Modifier 
                     onRemove = { actions.removeFeed(feed) },
                 )
             }
-            if (ui.feeds.isEmpty() && !ui.loading) {
-                item {
+        }
+        if (ui.feeds.isEmpty() && !ui.loading) {
+            item(key = "pod-empty") {
+                wrap {
                     Text(
                         "No podcasts yet. Add an RSS feed to load it as a tape.",
                         fontSize = 12.sp,
@@ -108,45 +135,50 @@ fun PodcastsBrowser(ui: PodcastsUi, actions: PodcastActions, modifier: Modifier 
                 }
             }
         }
-
-        if (ui.loading) {
-            item { CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp) }
-        }
-        ui.message?.let { message ->
-            item { Text(message, fontSize = 11.sp) }
-        }
     }
 
-    if (ui.showAddDialog) {
-        AlertDialog(
-            onDismissRequest = { actions.showAddDialog(false) },
-            title = { Text("Add podcast", fontSize = 16.sp, fontWeight = FontWeight.SemiBold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Paste the show's RSS feed URL.", fontSize = 12.sp)
-                    OutlinedTextField(
-                        value = ui.addUrl,
-                        onValueChange = actions.addUrlChanged,
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        label = { Text("Feed URL") },
-                        isError = ui.addError != null,
-                    )
-                    ui.addError?.let { Text(it, fontSize = 11.sp) }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = actions.addFeed,
-                    enabled = ui.addUrl.isNotBlank() && !ui.adding,
-                ) { Text(if (ui.adding) "Adding…" else "Add") }
-            },
-            dismissButton = {
-                TextButton(onClick = { actions.showAddDialog(false) }) { Text("Cancel") }
-            },
-        )
+    if (ui.loading) {
+        item(key = "pod-loading") {
+            wrap { CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp) }
+        }
     }
+    ui.message?.let { message ->
+        item(key = "pod-message") {
+            wrap { Text(message, fontSize = 11.sp) }
+        }
+    }
+}
+
+@Composable
+fun AddFeedDialog(ui: PodcastsUi, actions: PodcastActions) {
+    AlertDialog(
+        onDismissRequest = { actions.showAddDialog(false) },
+        title = { Text("Add podcast", fontSize = 16.sp, fontWeight = FontWeight.SemiBold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Paste the show's RSS feed URL.", fontSize = 12.sp)
+                OutlinedTextField(
+                    value = ui.addUrl,
+                    onValueChange = actions.addUrlChanged,
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    label = { Text("Feed URL") },
+                    isError = ui.addError != null,
+                )
+                ui.addError?.let { Text(it, fontSize = 11.sp) }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = actions.addFeed,
+                enabled = ui.addUrl.isNotBlank() && !ui.adding,
+            ) { Text(if (ui.adding) "Adding…" else "Add") }
+        },
+        dismissButton = {
+            TextButton(onClick = { actions.showAddDialog(false) }) { Text("Cancel") }
+        },
+    )
 }
 
 @Composable
