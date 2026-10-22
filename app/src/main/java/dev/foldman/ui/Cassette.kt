@@ -48,7 +48,7 @@ import kotlin.math.roundToInt
 // Cassette geometry in millimetres (a real Compact Cassette is 100.4 × 63.8).
 private val HUB_L = Offset(28.75f, 32f)
 private val HUB_R = Offset(71.25f, 32f)
-private val WINDOW = Rect(15f, 21f, 85f, 43f)
+private val WINDOW = Rect(15f, 21f, 88f, 43f)
 
 /**
  * The part of the cassette the case's window shows: both hubs, the tape packs and the printed
