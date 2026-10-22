@@ -320,11 +320,12 @@ private fun WalkmanContent() {
         Spacer(GlanceModifier.width(sd(6)))
         // Right: vertical cassette spanning the full height.
         // (Glance Box in a Row stretches vertically to fill the Row's height.)
+        // Wider tape with uniform navy margins on all four sides.
         Box(
-            modifier = GlanceModifier.width(sd(96))
+            modifier = GlanceModifier.width(sd(128))
                 .cornerRadius(sd(14))
                 .background(ColorProvider(Chrome.panel))
-                .padding(sd(4))
+                .padding(sd(8))
                 .clickable(openApp),
             contentAlignment = Alignment.Center,
         ) {
