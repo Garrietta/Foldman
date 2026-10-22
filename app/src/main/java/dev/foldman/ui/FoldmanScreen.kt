@@ -189,9 +189,12 @@ fun FoldmanScreen(
                 maxWidth >= 600.dp && maxWidth > maxHeight * 0.7f -> Posture.Unfolded
                 else -> Posture.Cover
             }
-            LaunchedEffect(posture) { view.showSystemBars(posture != Posture.Cover) }
+            // Full screen: the system bars stay visible as transparent overlays over the
+            // deck in every posture — no swipe needed to see them.
+            LaunchedEffect(Unit) { view.showSystemBars(true) }
             when (posture) {
-                // The cover screen is the player itself: edge to edge, system bars hidden.
+                // The cover screen is the player itself: edge to edge, system bars shown
+                // as transparent overlays.
                 Posture.Cover -> CoverWalkman(ui, anim, deck, onTapes = { shelfOpen = true }, modifier = Modifier.fillMaxSize())
                 Posture.Unfolded -> Column(
                     Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(12.dp),
@@ -242,7 +245,8 @@ fun FoldmanScreen(
                             youtubeMusic = youtubeMusicActions,
                             podcasts = podcastActions,
                         ),
-                        Modifier.fillMaxWidth().height(sheetHeight),
+                        Modifier.fillMaxWidth().height(sheetHeight)
+                            .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)),
                     )
                 }
             }
@@ -301,7 +305,8 @@ private fun CoverWalkman(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, o
                 Modifier
                     .weight(0.73f)
                     .fillMaxHeight()
-                    .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Top + WindowInsetsSides.Start))
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
+                    .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Start))
                     .padding(start = 20.dp, end = 14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -345,7 +350,9 @@ private fun SideStrip(ui: DeckUi, deck: DeckControls, modifier: Modifier) {
             Modifier
                 .fillMaxSize()
                 .chassis(corner = 0.dp, screws = false)
-                .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Top + WindowInsetsSides.End))
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
+                .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.End))
+                .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
                 .padding(start = 10.dp, end = 12.dp, top = 28.dp, bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
