@@ -322,7 +322,6 @@ fun VolumeSlider(volume: Float, onVolume: (Float) -> Unit, modifier: Modifier = 
         }
         // No LEFT/RIGHT captions: the words overlapped and added noise.
     }
-    }
 }
 
 /** The orange hotline-style button on top of the case; here it opens the tape shelf. */
