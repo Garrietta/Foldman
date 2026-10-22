@@ -80,23 +80,7 @@ import dev.foldman.deck.Transport
 import com.ivor.ivormusic.ui.player.PlayerViewModel
 import kotlinx.coroutines.launch
 
-/**
- * Queue-only panel for the unfolded portrait layout: the live Up Next list,
- * full width, no library browser (that's in the TAPES sheet).
- */
-@Composable
-private fun QueuePanel(ui: DeckUi, actions: ShelfActions, onPlayQueue: (Long) -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier.glassPanel().padding(14.dp)) {
-        Text(
-            "Up Next",
-            style = Title.copy(fontSize = 15.sp),
-            modifier = Modifier.padding(bottom = 8.dp),
-        )
-        QueueList(ui, onPlayQueue, showArt = true, modifier = Modifier.fillMaxSize())
-    }
-}
-
-private enum class Posture { Cover, Unfolded, UnfoldedPortrait, Tabletop }
+private enum class Posture { Cover, Unfolded, Tabletop }
 
 /** Body enamel: the blue of the first portable cassette players. */
 private val Enamel = Color(0xFF2F6FB5)
@@ -214,25 +198,37 @@ fun FoldmanScreen(
                 .background(Brush.radialGradient(listOf(Color(0xFF2A2420), DeckColors.Backdrop), radius = 1800f)),
         ) {
             val density = LocalDensity.current
-            // Posture lock: the FOLDED phone gets ONE single-column UI (Cover)
-            // regardless of rotation. Rotating the folded phone shows the same
-            // portrait arrangement turned sideways ("just a sideways tape").
-            // The two-pane (Unfolded) and vertical-stack (UnfoldedPortrait)
-            // layouts are for the UNFOLDED phone only, keyed on the
-            // FoldingFeature — not on orientation or width alone.
-            val isUnfolded = fold != null &&
-                fold.orientation == FoldingFeature.Orientation.VERTICAL &&
-                fold.state != FoldingFeature.State.HALF_OPENED
+            // Posture: UNFOLDED phone (any orientation) always gets the
+            // unfolded two-pane UI. FOLDED phone always gets the single-column
+            // Cover UI. Keyed on the FoldingFeature state, not orientation.
+            //
+            // Unfolded = FoldingFeature is FLAT (fully open, any orientation).
+            // The Tabletop case (HALF_OPENED + HORIZONTAL) is handled separately.
+            // Fallback: no folding feature but large screen (>= 600dp) = unfolded
+            // (covers emulators/tablets).
+            val isTabletop = fold != null &&
+                fold.state == FoldingFeature.State.HALF_OPENED &&
+                fold.orientation == FoldingFeature.Orientation.HORIZONTAL
+            val isUnfolded = !isTabletop && (
+                (fold != null && fold.state == FoldingFeature.State.FLAT) ||
+                (fold == null && maxWidth >= 600.dp)
+            )
             val posture = when {
-                fold != null && fold.state == FoldingFeature.State.HALF_OPENED && fold.orientation == FoldingFeature.Orientation.HORIZONTAL -> Posture.Tabletop
-                isUnfolded -> {
-                    // Unfolded: landscape keeps the two-pane layout; portrait gets
-                    // the vertical stack (deck on top, queue below).
-                    if (maxWidth > maxHeight) Posture.Unfolded else Posture.UnfoldedPortrait
-                }
-                // Folded (or no folding feature): always the single-column
-                // Cover UI. Never route the folded screen to the two-pane.
+                isTabletop -> Posture.Tabletop
+                isUnfolded -> Posture.Unfolded
+                // Folded: always the single-column Cover UI, regardless of
+                // rotation. The orientation lock below keeps it portrait.
                 else -> Posture.Cover
+            }
+            // Folded orientation lock: the folded screen stays portrait.
+            // Unfolded allows rotation (two-pane works in both orientations).
+            val activity = view.context as? android.app.Activity
+            if (posture == Posture.Cover) {
+                activity?.requestedOrientation =
+                    android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            } else {
+                activity?.requestedOrientation =
+                    android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             }
             // Full screen: the system bars stay visible as transparent overlays over the
             // deck in every posture — no swipe needed to see them.
@@ -254,21 +250,6 @@ fun FoldmanScreen(
                         LinerNotesBand(ui, Modifier.fillMaxWidth().weight(0.42f))
                     }
                     LibraryPanel(ui, shelfActions, vm::playQueueItem, Modifier.weight(1f).fillMaxHeight())
-                }
-                // Unfolded portrait: deck fills the full width on top (room to breathe),
-                // the queue (Up Next) takes the full width below. No liner-notes panel.
-                Posture.UnfoldedPortrait -> Column(
-                    Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    SourceRow(ui, shelfActions, Modifier.fillMaxWidth().height(78.dp))
-                    DeckBand(
-                        ui, anim, deck, vm,
-                        onShowDiagnostics = { showDiagnostics = true },
-                        Modifier.fillMaxWidth().weight(0.55f),
-                    )
-                    // Queue tab only (Up Next); the library browser stays in the TAPES sheet.
-                    QueuePanel(ui, shelfActions, vm::playQueueItem, Modifier.fillMaxWidth().weight(0.45f))
                 }
                 Posture.Tabletop -> {
                     val (topH, gap) = with(density) {
