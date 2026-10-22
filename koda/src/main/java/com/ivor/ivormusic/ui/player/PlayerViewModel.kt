@@ -946,7 +946,7 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
                 val diag = com.ivor.ivormusic.diagnostics.PlaybackDiagnostics
                 if (diag.lastPodcastAttempt?.episodeMediaId != song.id) {
                     diag.recordPodcastAttempt(
-                        diag.PodcastAttempt(
+                        com.ivor.ivormusic.diagnostics.PlaybackDiagnostics.PodcastAttempt(
                             startedAtMs = System.currentTimeMillis(),
                             episodeTitle = song.title,
                             enclosureUrl = song.uri?.toString().orEmpty(),
