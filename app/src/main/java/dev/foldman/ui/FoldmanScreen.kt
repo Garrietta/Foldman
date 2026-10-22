@@ -242,19 +242,34 @@ fun FoldmanScreen(
             }
             if (shelfOpen && posture == Posture.Cover) {
                 // Hoisted: the sheet's content lambda is a ColumnScope, which loses the
-                // BoxWithConstraints receiver that maxHeight belongs to.
+                // BoxWithConstraints receiver that maxHeight belongs to — and inside the
+                // sheet, WindowInsets.statusBars reads as 0 because ModalBottomSheet
+                // pre-emptively consumes the top insets for its own contentWindowInsets
+                // (BottomSheetDefaults.windowInsets). Captured here, where insets are reliable.
                 val screenH = maxHeight
+                val statusBarPx = WindowInsets.statusBars.getTop(density)
+                val navBarPx = WindowInsets.navigationBars.getBottom(density)
                 ModalBottomSheet(
                     onDismissRequest = { shelfOpen = false },
                     sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
                     containerColor = Color(0xFF1C1510),
+                    // We own inset handling: M3's default contentWindowInsets (safeDrawing
+                    // top+bottom) pads the sheet chrome, which would push the surface
+                    // behind the status bar at full expansion. The nav bar keeps its
+                    // padding on the content below.
+                    contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
                 ) {
-                    // The sheet grows with upward scroll, up to the base of the status bar,
-                    // and shrinks back on downward scroll at the top of the list.
+                    // The sheet grows with upward scroll, stopping right before the
+                    // status bar, and shrinks back on downward scroll at the top.
                     val shelfListState = rememberLazyListState()
-                    val statusBarPx = WindowInsets.statusBars.getTop(density)
+                    // M3's default drag handle (4.dp bar + 2x22.dp padding = 48.dp, per
+                    // material3 1.4.0 tokens) sits above our content inside the sheet
+                    // surface; the cap accounts for it so the surface stops exactly at
+                    // the status bar's bottom edge.
+                    val handlePx = with(density) { 48.dp.toPx() }
                     val minHpx = with(density) { (screenH * 0.8f).toPx() }
-                    val maxHpx = (with(density) { screenH.toPx() } - statusBarPx).coerceAtLeast(minHpx)
+                    val maxHpx = (with(density) { screenH.toPx() } - statusBarPx - handlePx - navBarPx)
+                        .coerceAtLeast(minHpx)
                     var sheetHpx by remember { mutableStateOf<Float?>(null) }
                     val growConnection = remember(minHpx, maxHpx) {
                         object : NestedScrollConnection {
