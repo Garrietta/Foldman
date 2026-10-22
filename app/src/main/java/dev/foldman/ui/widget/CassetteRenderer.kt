@@ -3,90 +3,87 @@ package dev.foldman.ui.widget
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
-import android.graphics.Path
 import android.graphics.RectF
-import androidx.compose.ui.graphics.toArgb
+import android.graphics.Typeface
 import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * Draws the mini cassette window for the home-screen widget onto a bitmap.
+ * Pre-renders the widget's chrome bitmaps with a plain Android [Canvas]
+ * (Glance/RemoteViews has no canvas):
  *
- * Glance (RemoteViews) has no canvas, so the tape — body, label window with
- * the album art, twin reels with spokes, tape path — is pre-rendered here in
- * the app process with a plain Android [Canvas]. The widget shows the bitmap;
- * [FoldmanWidgetUpdater] re-renders it with a new [angleDeg] on every reel
- * tick while playing, which is what animates the reels.
+ * - [renderCassette]: the horizontal dark cassette window with twin metallic
+ *   reels. [angleDeg] rotates the reel spokes; [FoldmanWidgetUpdater]
+ *   re-renders on its 750ms ticker while playing, which animates the reels.
+ * - [renderSliders]: the VOLUME/TONE indicator cluster. The volume thumb
+ *   tracks [volume] (0..1); tone sits at a fixed neutral spot. Visual only —
+ *   taps open the app, per the mockup.
+ *
+ * Fixed brushed-chrome palette (not dynamic, not artwork-derived), matching
+ * Garrett's widget mockup. All inputs are sanitized: bad sizes, NaN angles,
+ * or out-of-range volumes degrade to a blank-but-valid bitmap, never throw
+ * into the updater.
  */
 object CassetteRenderer {
 
-    fun render(colors: RusticColors, artwork: Bitmap?, angleDeg: Float, sizePx: Int): Bitmap {
-        // Never trust the inputs: a zero/negative size or a recycled/empty
-        // bitmap must degrade to a blank tape, never throw into the updater.
-        val size = sizePx.coerceAtLeast(1)
-        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    // Fixed chrome palette.
+    private const val BODY = 0xFF17191D
+    private const val WINDOW = 0xFF22252B
+    private const val REEL_PACK = 0xFF0C0D10
+    private const val METAL = 0xFFC9CDD2
+    private const val METAL_DARK = 0xFF8B9096
+    private const val HUB = 0xFF2A2E34
+    private const val TAPE_LINE = 0xFF3A3F46
+    private const val ACCENT_RED = 0xFFC0392B
+    private const val LABEL_INK = 0xFF3A3F45
+
+    fun renderCassette(angleDeg: Float, widthPx: Int, heightPx: Int): Bitmap {
+        val w = widthPx.coerceAtLeast(1)
+        val h = heightPx.coerceAtLeast(1)
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
-        val s = size.toFloat()
+        val wf = w.toFloat()
+        val hf = h.toFloat()
         val angle = if (angleDeg.isFinite()) angleDeg else 0f
-        val art = artwork?.takeIf { !it.isRecycled && it.width > 0 && it.height > 0 }
 
         // Body.
-        val body = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colors.keycap.toArgb() }
-        canvas.drawRoundRect(RectF(0f, 0f, s, s), s * 0.16f, s * 0.16f, body)
+        val body = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = BODY }
+        canvas.drawRoundRect(RectF(0f, 0f, wf, hf), hf * 0.12f, hf * 0.12f, body)
+        // Inner window.
+        val win = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = WINDOW }
+        val inset = hf * 0.08f
+        canvas.drawRoundRect(
+            RectF(inset, inset, wf - inset, hf - inset),
+            hf * 0.09f, hf * 0.09f, win
+        )
 
-        // Label window: the album art when there is any, else a ♪ glyph.
-        val label = RectF(s * 0.09f, s * 0.08f, s * 0.91f, s * 0.50f)
-        if (art != null) {
-            canvas.save()
-            val clip = Path().apply {
-                addRoundRect(label, s * 0.05f, s * 0.05f, Path.Direction.CW)
-            }
-            canvas.clipPath(clip)
-            // Center-crop the art into the label (art is guaranteed non-empty
-            // here, so the divisions below stay finite).
-            val aw = art.width.toFloat()
-            val ah = art.height.toFloat()
-            val scale = maxOf(label.width() / aw, label.height() / ah)
-            val dw = aw * scale
-            val dh = ah * scale
-            val dst = RectF(
-                label.centerX() - dw / 2f, label.centerY() - dh / 2f,
-                label.centerX() + dw / 2f, label.centerY() + dh / 2f,
-            )
-            canvas.drawBitmap(art, null, dst, Paint(Paint.ANTI_ALIAS_FLAG))
-            canvas.restore()
-            val frame = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = colors.symbol.toArgb()
-                style = Paint.Style.STROKE
-                strokeWidth = s * 0.012f
-            }
-            canvas.drawRoundRect(label, s * 0.05f, s * 0.05f, frame)
-        } else {
-            val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colors.accent.toArgb() }
-            canvas.drawRoundRect(label, s * 0.05f, s * 0.05f, fill)
-            val glyph = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = colors.title.toArgb()
-                textSize = s * 0.24f
-                textAlign = Paint.Align.CENTER
-            }
-            val fm = glyph.fontMetrics
-            canvas.drawText("♪", label.centerX(), label.centerY() - (fm.ascent + fm.descent) / 2f, glyph)
+        // Twin reels + the tape path between them.
+        val reelY = hf * 0.44f
+        val reelR = hf * 0.30f
+        val leftX = wf * 0.30f
+        val rightX = wf * 0.70f
+        val tapePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = TAPE_LINE
+            strokeWidth = hf * 0.022f
         }
+        canvas.drawLine(leftX, reelY, rightX, reelY, tapePaint)
+        drawReel(canvas, leftX, reelY, reelR, angle)
+        drawReel(canvas, rightX, reelY, reelR, angle)
 
-        // Tape path between the reels.
-        val leftX = s * 0.30f
-        val rightX = s * 0.70f
-        val reelY = s * 0.70f
-        val tape = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = colors.symbol.toArgb()
-            strokeWidth = s * 0.02f
-        }
-        canvas.drawLine(leftX, reelY, rightX, reelY, tape)
-
-        // Twin reels; the spokes rotate with the sanitized angle.
-        drawReel(canvas, leftX, reelY, s * 0.115f, angle, colors)
-        drawReel(canvas, rightX, reelY, s * 0.115f, angle, colors)
-
+        // Corner screws + a small red accent tab, like the deck hardware.
+        val screw = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = HUB }
+        val sr = hf * 0.035f
+        val sx = inset * 1.7f
+        val sy = inset * 1.7f
+        canvas.drawCircle(sx, sy, sr, screw)
+        canvas.drawCircle(wf - sx, sy, sr, screw)
+        canvas.drawCircle(sx, hf - sy, sr, screw)
+        canvas.drawCircle(wf - sx, hf - sy, sr, screw)
+        val accent = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ACCENT_RED }
+        canvas.drawRoundRect(
+            RectF(wf * 0.465f, hf * 0.80f, wf * 0.535f, hf * 0.89f),
+            hf * 0.02f, hf * 0.02f, accent
+        )
         return bmp
     }
 
@@ -96,22 +93,27 @@ object CassetteRenderer {
         cy: Float,
         r: Float,
         angleDeg: Float,
-        colors: RusticColors,
     ) {
         // Tape pack.
-        val pack = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colors.background.toArgb() }
+        val pack = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = REEL_PACK }
         canvas.drawCircle(cx, cy, r, pack)
-        // Hub ring.
+        // Metallic ring.
         val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = colors.symbol.toArgb()
+            color = METAL
             style = Paint.Style.STROKE
-            strokeWidth = r * 0.16f
+            strokeWidth = r * 0.14f
         }
-        canvas.drawCircle(cx, cy, r * 0.62f, ring)
+        canvas.drawCircle(cx, cy, r * 0.78f, ring)
+        val ringInner = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = METAL_DARK
+            style = Paint.Style.STROKE
+            strokeWidth = r * 0.06f
+        }
+        canvas.drawCircle(cx, cy, r * 0.60f, ringInner)
         // Spokes, rotated.
         val spoke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = colors.title.toArgb()
-            strokeWidth = r * 0.18f
+            color = METAL
+            strokeWidth = r * 0.16f
             strokeCap = Paint.Cap.ROUND
         }
         canvas.save()
@@ -120,14 +122,67 @@ object CassetteRenderer {
             val a = Math.toRadians((i * 120).toDouble())
             canvas.drawLine(
                 cx, cy,
-                (cx + r * 0.88f * cos(a)).toFloat(),
-                (cy + r * 0.88f * sin(a)).toFloat(),
+                (cx + r * 0.72f * cos(a)).toFloat(),
+                (cy + r * 0.72f * sin(a)).toFloat(),
                 spoke,
             )
         }
         canvas.restore()
         // Hub.
-        val hub = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colors.accent.toArgb() }
-        canvas.drawCircle(cx, cy, r * 0.16f, hub)
+        val hub = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = HUB }
+        canvas.drawCircle(cx, cy, r * 0.18f, hub)
+    }
+
+    fun renderSliders(volume: Float): Bitmap {
+        val w = 360
+        val h = 150
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        drawSliderRow(canvas, "VOLUME", volume.coerceIn(0f, 1f), top = 6f, w = w.toFloat())
+        drawSliderRow(canvas, "TONE", 0.4f, top = 78f, w = w.toFloat())
+        return bmp
+    }
+
+    private fun drawSliderRow(canvas: Canvas, label: String, level: Float, top: Float, w: Float) {
+        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = LABEL_INK
+            textSize = 25f
+            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+        }
+        canvas.drawText(label, 8f, top + 24f, labelPaint)
+        val trackTop = top + 34f
+        val trackH = 26f
+        val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF54595F }
+        canvas.drawRoundRect(
+            RectF(8f, trackTop, w - 8f, trackTop + trackH),
+            trackH / 2f, trackH / 2f, trackPaint
+        )
+        // Center groove.
+        val groove = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFF2E3237
+            style = Paint.Style.STROKE
+            strokeWidth = 4f
+        }
+        canvas.drawLine(
+            18f, trackTop + trackH / 2f,
+            w - 18f, trackTop + trackH / 2f, groove
+        )
+        // Thumb.
+        val thumbW = 48f
+        val thumbH = 42f
+        val x = 8f + level.coerceIn(0f, 1f) * (w - 16f - thumbW)
+        val thumb = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = METAL }
+        canvas.drawRoundRect(
+            RectF(x, trackTop - 8f, x + thumbW, trackTop - 8f + thumbH),
+            9f, 9f, thumb
+        )
+        val ridge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = METAL_DARK
+            strokeWidth = 3f
+        }
+        for (i in 0 until 3) {
+            val rx = x + thumbW * (0.3f + 0.2f * i)
+            canvas.drawLine(rx, trackTop - 2f, rx, trackTop - 2f + thumbH - 12f, ridge)
+        }
     }
 }

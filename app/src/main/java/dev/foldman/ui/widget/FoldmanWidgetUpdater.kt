@@ -3,7 +3,6 @@ package dev.foldman.ui.widget
 import android.content.ComponentName
 import android.content.Context
 import android.graphics.Bitmap
-import androidx.compose.ui.graphics.toArgb
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.updateAppWidgetState
 import java.io.File
@@ -24,18 +23,22 @@ import kotlinx.coroutines.launch
 data class WidgetSnapshot(
     val title: String,
     val artist: String,
+    /** Retained for pipeline compat; the mockup cassette is a fixed-chrome graphic. */
     val artwork: Bitmap?,
     val isPlaying: Boolean,
+    /** Retained for pipeline compat; this widget design has no shuffle key. */
     val shuffleOn: Boolean,
     val activeSource: WidgetSource,
-    /** Reel angle for the cassette window; the ticker advances it while playing. */
+    /** Reel angle for the cassette; the ticker advances it while playing. */
     val reelAngleDeg: Float = 0f,
+    /** 0..1 system music volume; drives the VOLUME slider indicator. */
+    val volume: Float = 0.5f,
 )
 
 /**
- * Pushes a [WidgetSnapshot] to every installed Foldman widget: derives the
- * rustic palette from the artwork, renders the cassette window (label art +
- * reels at [WidgetSnapshot.reelAngleDeg]) to a file the widget reads back in
+ * Pushes a [WidgetSnapshot] to every installed Foldman widget: renders the
+ * horizontal cassette (reels at [WidgetSnapshot.reelAngleDeg]) and the
+ * VOLUME/TONE slider cluster to files the widget reads back in
  * [FoldmanWidget.provideGlance], stores everything in Glance state, and
  * redraws.
  *
@@ -58,8 +61,8 @@ object FoldmanWidgetUpdater {
             stopTicker()
             return
         }
-        val colors = RusticColors.from(snapshot.artwork)
-        val tapePath = writeTape(appContext, colors, snapshot)
+        val tapePath = writeTape(appContext, snapshot)
+        val slidersPath = writeSliders(appContext, snapshot)
         val widget = FoldmanWidget()
         val manager = GlanceAppWidgetManager(appContext)
         for (appWidgetId in ids) {
@@ -70,15 +73,10 @@ object FoldmanWidgetUpdater {
                 state[WidgetKeys.ARTIST] = snapshot.artist
                 if (tapePath != null) state[WidgetKeys.TAPE_PATH] = tapePath
                 else state.remove(WidgetKeys.TAPE_PATH)
+                if (slidersPath != null) state[WidgetKeys.SLIDERS_PATH] = slidersPath
+                else state.remove(WidgetKeys.SLIDERS_PATH)
                 state[WidgetKeys.IS_PLAYING] = snapshot.isPlaying
-                state[WidgetKeys.SHUFFLE] = snapshot.shuffleOn
                 state[WidgetKeys.SOURCE] = snapshot.activeSource.name
-                state[WidgetKeys.BG] = colors.background.toArgb().toLong()
-                state[WidgetKeys.KEYCAP] = colors.keycap.toArgb().toLong()
-                state[WidgetKeys.SYMBOL] = colors.symbol.toArgb().toLong()
-                state[WidgetKeys.ACCENT] = colors.accent.toArgb().toLong()
-                state[WidgetKeys.TITLE_C] = colors.title.toArgb().toLong()
-                state[WidgetKeys.SUBTITLE_C] = colors.subtitle.toArgb().toLong()
             }
             runCatching { widget.update(appContext, glanceId) }
         }
@@ -116,15 +114,27 @@ object FoldmanWidgetUpdater {
 
     private fun writeTape(
         context: Context,
-        colors: RusticColors,
         snapshot: WidgetSnapshot,
     ): String? = runCatching {
-        val tape = CassetteRenderer.render(colors, snapshot.artwork, snapshot.reelAngleDeg, 288)
+        val tape = CassetteRenderer.renderCassette(snapshot.reelAngleDeg, 480, 240)
         val file = File(context.filesDir, "foldman_widget_tape.png")
         FileOutputStream(file).use { out ->
             tape.compress(Bitmap.CompressFormat.PNG, 90, out)
         }
         if (!tape.isRecycled) tape.recycle()
+        file.absolutePath
+    }.getOrNull()
+
+    private fun writeSliders(
+        context: Context,
+        snapshot: WidgetSnapshot,
+    ): String? = runCatching {
+        val sliders = CassetteRenderer.renderSliders(snapshot.volume)
+        val file = File(context.filesDir, "foldman_widget_sliders.png")
+        FileOutputStream(file).use { out ->
+            sliders.compress(Bitmap.CompressFormat.PNG, 90, out)
+        }
+        if (!sliders.isRecycled) sliders.recycle()
         file.absolutePath
     }.getOrNull()
 }

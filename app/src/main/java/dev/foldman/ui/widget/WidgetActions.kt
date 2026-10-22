@@ -102,10 +102,6 @@ internal suspend fun <T> withWidgetController(
     }
 }
 
-/** One-shot read of the session's shuffle mode, for the updater snapshot. */
-suspend fun readShuffleMode(context: Context, source: WidgetSource): Boolean =
-    withWidgetController(context, source) { it.shuffleModeEnabled } ?: false
-
 private fun MediaController.isPlayingNow(): Boolean =
     isPlaying || (playWhenReady && playbackState == Player.STATE_BUFFERING)
 
@@ -130,33 +126,60 @@ internal suspend fun publishLiveState(context: Context, glanceId: GlanceId, cont
 private fun ActionParameters.widgetSource(): WidgetSource? =
     this[SourceParam]?.let { runCatching { WidgetSource.valueOf(it) }.getOrNull() }
 
-class WidgetPlayPauseAction : ActionCallback {
+/**
+ * PLAY key: starts playback. Empty queue is a silent no-op, so this opens the
+ * app where a tape can be loaded instead (the loud fallback).
+ */
+class WidgetPlayAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val source = parameters.widgetSource()
         if (source == null) {
-            Log.w(TAG, "WidgetPlayPauseAction: missing source param; opening app")
+            Log.w(TAG, "WidgetPlayAction: missing source param; opening app")
             openFoldmanApp(context)
             return
         }
         val reached = withWidgetController(context, source) { controller ->
             if (controller.mediaItemCount == 0) {
-                // Nothing loaded: a bare play() would be a silent no-op, so
-                // open the app where a tape can be loaded instead.
-                Log.i(TAG, "WidgetPlayPauseAction: empty queue on $source; opening app")
+                Log.i(TAG, "WidgetPlayAction: empty queue on $source; opening app")
                 openFoldmanApp(context)
-            } else if (controller.playWhenReady || controller.playbackState == Player.STATE_BUFFERING) {
-                // Decide from live state, not the last render: buffering counts
-                // as playing, so a second tap during spin-up stops instead of
-                // queueing a redundant play.
-                controller.pause()
             } else {
                 controller.play()
             }
             publishLiveState(context, glanceId, controller)
         }
         if (reached == null) {
-            Log.w(TAG, "WidgetPlayPauseAction: could not reach $source; opening app")
+            Log.w(TAG, "WidgetPlayAction: could not reach $source; opening app")
             openFoldmanApp(context)
+        }
+    }
+}
+
+/** PAUSE key: pauses whatever is playing. */
+class WidgetPauseAction : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        val source = parameters.widgetSource()
+        if (source == null) {
+            Log.w(TAG, "WidgetPauseAction: missing source param")
+            return
+        }
+        withWidgetController(context, source) { controller ->
+            controller.pause()
+            publishLiveState(context, glanceId, controller)
+        }
+    }
+}
+
+/** STOP key: stops playback. */
+class WidgetStopAction : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        val source = parameters.widgetSource()
+        if (source == null) {
+            Log.w(TAG, "WidgetStopAction: missing source param")
+            return
+        }
+        withWidgetController(context, source) { controller ->
+            controller.stop()
+            publishLiveState(context, glanceId, controller)
         }
     }
 }
@@ -189,17 +212,4 @@ class WidgetNextAction : ActionCallback {
     }
 }
 
-/** Toggles shuffle on whatever queue is currently playing. */
-class WidgetShuffleAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val source = parameters.widgetSource()
-        if (source == null) {
-            Log.w(TAG, "WidgetShuffleAction: missing source param")
-            return
-        }
-        withWidgetController(context, source) { controller ->
-            controller.shuffleModeEnabled = !controller.shuffleModeEnabled
-            publishLiveState(context, glanceId, controller)
-        }
-    }
-}
+

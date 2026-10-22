@@ -1,21 +1,15 @@
 package dev.foldman.ui.widget
 
 import android.content.Context
-import android.content.res.Configuration
 import android.graphics.BitmapFactory
-import android.os.Build
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.BitmapImageProvider
-import androidx.glance.ColorFilter
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
-import androidx.glance.ImageProvider
-import androidx.glance.LocalContext
 import androidx.glance.action.Action
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
@@ -30,10 +24,8 @@ import androidx.glance.currentState
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
-import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
-import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
@@ -46,44 +38,53 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import dev.foldman.MainActivity
-import dev.foldman.R
 
-/** Glance state keys. Colors ride as ARGB longs; the tape is a rendered file. */
+/** Glance state keys. The tape + sliders are rendered files; text rides as strings. */
 internal object WidgetKeys {
     val TITLE = stringPreferencesKey("title")
     val ARTIST = stringPreferencesKey("artist")
     val TAPE_PATH = stringPreferencesKey("tape_path")
+    val SLIDERS_PATH = stringPreferencesKey("sliders_path")
     val IS_PLAYING = booleanPreferencesKey("is_playing")
     val SHUFFLE = booleanPreferencesKey("shuffle")
     val HAS_NEXT = booleanPreferencesKey("has_next")
     val HAS_PREV = booleanPreferencesKey("has_prev")
     val SOURCE = stringPreferencesKey("source")
-    val BG = longPreferencesKey("c_bg")
-    val KEYCAP = longPreferencesKey("c_keycap")
-    val SYMBOL = longPreferencesKey("c_symbol")
-    val ACCENT = longPreferencesKey("c_accent")
-    val TITLE_C = longPreferencesKey("c_title")
-    val SUBTITLE_C = longPreferencesKey("c_subtitle")
+}
+
+/** Fixed brushed-chrome palette, matching Garrett's widget mockup. */
+private object Chrome {
+    val root = Color(0xFFB7BCC2)
+    val panel = Color(0xFF3D4A5E)
+    val titleBox = Color(0xFF101216)
+    val titleText = Color(0xFFFFFFFF)
+    val artistText = Color(0xFF9AA0A8)
+    val brandText = Color(0xFFEDEFF2)
+    val brandSub = Color(0xFF8B95A1)
+    val keycap = Color(0xFFD8DCE0)
+    val keyBorder = Color(0xFF5F666D)
+    val glyph = Color(0xFF2B2F34)
+    val playGreen = Color(0xFF35A852)
+    val pauseOrange = Color(0xFFE8821A)
+    val label = Color(0xFF3A3F45)
+    val counterBg = Color(0xFF0B0C0E)
+    val resetBg = Color(0xFF2A2E34)
+    val resetText = Color(0xFFC9CDD2)
 }
 
 /**
- * Foldman's deck on the home screen, in the Walkman idiom:
+ * Foldman's deck on the home screen, in the Walkman idiom (Garrett's mockup):
  *
- * - Left: the song title and artist pinned to the top, then four icon-only
- *   pill controls (previous, play/pause, next, shuffle).
- * - Right: the cassette window grown to fill the widget's full height — the
- *   visual anchor, its reels turning while a song plays.
+ * - Top: dark slate panel — left has the dark title box (track + artist) over
+ *   the chrome FOLDMAN wordmark; right has the horizontal cassette window
+ *   with twin reels, over the mechanical counter + RESET key.
+ * - Bottom: five square metallic transport keys (PREV / PLAY / NEXT / PAUSE /
+ *   STOP-EJECT) with small labels above each, plus the VOLUME/TONE slider
+ *   cluster rendered as a visual indicator (taps open the app).
  *
- * Theming is Material You: the background and pill containers are read from
- * the system's dynamic color palette (wallpaper-derived, API 31+), with the
- * play/pause pill wearing the contrasting dynamic accent container.
- * Playback glyphs are Material Symbols vectors with one uniform tint, so no
- * emoji-font variance across devices.
- *
- * Everything the updater writes (titles, colors, tape file) is read
+ * Everything the updater writes (titles, tape/slider files) is read
  * defensively: the widget must never throw, because Glance shows
  * "Can't show content" for any exception out of provideContent.
  */
@@ -98,209 +99,253 @@ class FoldmanWidget : GlanceAppWidget() {
     }
 }
 
-/**
- * The widget's Material You palette, read from the system's dynamic colors
- * (wallpaper-derived on API 31+). Below 31 there is no dynamic palette, so it
- * falls back to the static rustic deck tones.
- */
-private data class WidgetPalette(
-    val background: ColorProvider,
-    val onBackground: ColorProvider,
-    val surfaceVariant: ColorProvider,
-    val onSurfaceVariant: ColorProvider,
-    val primaryContainer: ColorProvider,
-    val onSurface: ColorProvider,
-)
-
-@Composable
-private fun dynamicPalette(): WidgetPalette {
-    val context = LocalContext.current
-    return remember {
-        if (Build.VERSION.SDK_INT >= 31) {
-            val dark = (context.resources.configuration.uiMode and
-                Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-            fun sys(id: Int): ColorProvider = ColorProvider(Color(context.getColor(id)))
-            if (dark) {
-                WidgetPalette(
-                    background = sys(android.R.color.system_neutral1_900),
-                    onBackground = sys(android.R.color.system_neutral1_100),
-                    surfaceVariant = sys(android.R.color.system_neutral2_700),
-                    onSurfaceVariant = sys(android.R.color.system_neutral2_200),
-                    primaryContainer = sys(android.R.color.system_accent1_700),
-                    onSurface = sys(android.R.color.system_neutral1_100),
-                )
-            } else {
-                WidgetPalette(
-                    background = sys(android.R.color.system_neutral1_50),
-                    onBackground = sys(android.R.color.system_neutral1_900),
-                    surfaceVariant = sys(android.R.color.system_neutral2_100),
-                    onSurfaceVariant = sys(android.R.color.system_neutral2_700),
-                    primaryContainer = sys(android.R.color.system_accent1_100),
-                    onSurface = sys(android.R.color.system_neutral1_900),
-                )
-            }
-        } else {
-            val f = RusticColors.Fallback
-            WidgetPalette(
-                background = ColorProvider(f.background),
-                onBackground = ColorProvider(f.title),
-                surfaceVariant = ColorProvider(f.keycap),
-                onSurfaceVariant = ColorProvider(f.subtitle),
-                primaryContainer = ColorProvider(f.accent),
-                onSurface = ColorProvider(f.symbol),
-            )
-        }
-    }
-}
-
 @Composable
 private fun WalkmanContent() {
     // The widget must never throw: Glance shows "Can't show content" for any
-    // exception out of provideContent, so every other risky read below
-    // degrades to the idle "No tape loaded" rendering.
-    // Glance always provides the state inside provideContent, so this never
-    // throws in practice. (try/catch and runCatching are illegal around
-    // @Composable invocations.) Empty state still degrades to "No tape loaded".
+    // exception out of provideContent, so every risky read below degrades to
+    // the idle rendering. (try/catch and runCatching are illegal around
+    // @Composable invocations.) Glance always provides the state inside
+    // provideContent, so the nullable read never throws in practice.
     val prefs: Preferences? = currentState()
     val title = prefs?.get(WidgetKeys.TITLE).orEmpty().ifBlank { "Foldman" }
     val artist = prefs?.get(WidgetKeys.ARTIST).orEmpty().ifBlank { "No tape loaded" }
-    val isPlaying = prefs?.get(WidgetKeys.IS_PLAYING) == true
-    val shuffleOn = prefs?.get(WidgetKeys.SHUFFLE) == true
     val sourceName = prefs?.get(WidgetKeys.SOURCE) ?: WidgetSource.LOCAL.name
-    // Deliberately not remembered: the updater re-renders the tape file on
-    // every reel tick while playing, so it must be re-decoded each time. A
-    // partially-written file (ticker rewrite race) decodes to null or a
-    // zero-size bitmap; both fall back to the note glyph, never a crash.
+    // Deliberately not remembered: the updater re-renders these files while
+    // playing (reel ticks) and on volume changes, so they must be re-decoded
+    // each time. A partially-written file decodes to null or zero-size; both
+    // fall back gracefully, never a crash.
     val tape = prefs?.get(WidgetKeys.TAPE_PATH)?.let { path ->
+        runCatching {
+            BitmapFactory.decodeFile(path)?.takeIf { it.width > 0 && it.height > 0 }
+        }.getOrNull()
+    }
+    val sliders = prefs?.get(WidgetKeys.SLIDERS_PATH)?.let { path ->
         runCatching {
             BitmapFactory.decodeFile(path)?.takeIf { it.width > 0 && it.height > 0 }
         }.getOrNull()
     }
     val openApp = actionStartActivity<MainActivity>()
     val params = actionParametersOf(SourceParam to sourceName)
-    val colors = dynamicPalette()
-    // One uniform tint for every playback control icon.
-    val iconTint = colors.onSurface
 
-    Row(
+    Column(
         modifier = GlanceModifier.fillMaxSize()
-            .cornerRadius(28.dp)
-            .background(colors.background)
+            .cornerRadius(26.dp)
+            .background(ColorProvider(Chrome.root))
             .padding(10.dp),
-        verticalAlignment = Alignment.Top,
     ) {
-        // Left column: text block pinned to the top (aligned with the top of
-        // the cassette), icon-only pills along the bottom.
+        // Top: dark slate panel.
         Column(
-            modifier = GlanceModifier.defaultWeight()
-                .fillMaxHeight(),
+            modifier = GlanceModifier.fillMaxWidth()
+                .cornerRadius(18.dp)
+                .background(ColorProvider(Chrome.panel))
+                .padding(10.dp),
         ) {
-            Column(
-                modifier = GlanceModifier.clickable(openApp),
-            ) {
-                Text(
-                    title,
-                    style = TextStyle(
-                        color = colors.onBackground,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Medium,
-                    ),
-                    maxLines = 2,
-                )
-                Spacer(GlanceModifier.height(3.dp))
-                Text(
-                    artist,
-                    style = TextStyle(color = colors.onSurfaceVariant, fontSize = 13.sp),
-                    maxLines = 1,
-                )
-            }
-            Spacer(GlanceModifier.defaultWeight())
-            Row(
-                modifier = GlanceModifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                ControlPill(
-                    GlanceModifier.defaultWeight(), R.drawable.ic_skip_previous,
-                    colors.surfaceVariant, iconTint,
-                    actionRunCallback<WidgetPrevAction>(params),
-                )
-                Spacer(GlanceModifier.width(6.dp))
-                ControlPill(
-                    GlanceModifier.defaultWeight(),
-                    if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play,
-                    colors.primaryContainer, iconTint,
-                    actionRunCallback<WidgetPlayPauseAction>(params),
-                )
-                Spacer(GlanceModifier.width(6.dp))
-                ControlPill(
-                    GlanceModifier.defaultWeight(), R.drawable.ic_skip_next,
-                    colors.surfaceVariant, iconTint,
-                    actionRunCallback<WidgetNextAction>(params),
-                )
-                Spacer(GlanceModifier.width(6.dp))
-                ControlPill(
-                    GlanceModifier.defaultWeight(), R.drawable.ic_shuffle,
-                    if (shuffleOn) colors.primaryContainer else colors.surfaceVariant,
-                    iconTint,
-                    actionRunCallback<WidgetShuffleAction>(params),
-                )
+            Row(verticalAlignment = Alignment.Top) {
+                // Left: title box over the chrome wordmark.
+                Column(modifier = GlanceModifier.defaultWeight()) {
+                    Box(
+                        modifier = GlanceModifier.fillMaxWidth()
+                            .cornerRadius(12.dp)
+                            .background(ColorProvider(Chrome.titleBox))
+                            .padding(10.dp)
+                            .clickable(openApp),
+                    ) {
+                        Column {
+                            Text(
+                                title,
+                                style = TextStyle(
+                                    color = ColorProvider(Chrome.titleText),
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                ),
+                                maxLines = 2,
+                            )
+                            Spacer(GlanceModifier.height(2.dp))
+                            Text(
+                                artist,
+                                style = TextStyle(
+                                    color = ColorProvider(Chrome.artistText),
+                                    fontSize = 12.sp
+                                ),
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                    Spacer(GlanceModifier.height(10.dp))
+                    Text(
+                        "FOLDMAN",
+                        style = TextStyle(
+                            color = ColorProvider(Chrome.brandText),
+                            fontSize = 26.sp,
+                            fontWeight = FontWeight.Bold,
+                        ),
+                        maxLines = 1,
+                    )
+                    Text(
+                        "F-8 STEREO CASSETTE PLAYER",
+                        style = TextStyle(
+                            color = ColorProvider(Chrome.brandSub),
+                            fontSize = 9.sp,
+                        ),
+                        maxLines = 1,
+                    )
+                }
+                Spacer(GlanceModifier.width(10.dp))
+                // Right: cassette window over counter + RESET.
+                Column {
+                    Box(
+                        modifier = GlanceModifier.width(168.dp)
+                            .clickable(openApp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (tape != null) {
+                            Image(
+                                provider = BitmapImageProvider(tape),
+                                contentDescription = "Cassette",
+                                modifier = GlanceModifier.fillMaxWidth(),
+                            )
+                        } else {
+                            // Empty dark window until the updater renders the tape.
+                            Box(
+                                modifier = GlanceModifier.fillMaxWidth()
+                                    .height(84.dp)
+                                    .cornerRadius(10.dp)
+                                    .background(ColorProvider(Chrome.titleBox)),
+                                contentAlignment = Alignment.Center,
+                            ) {}
+                        }
+                    }
+                    Spacer(GlanceModifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = GlanceModifier
+                                .cornerRadius(6.dp)
+                                .background(ColorProvider(Chrome.counterBg))
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                "0 0 0",
+                                style = TextStyle(
+                                    color = ColorProvider(Color.White),
+                                    fontSize = 14.sp,
+                                ),
+                            )
+                        }
+                        Spacer(GlanceModifier.width(6.dp))
+                        Box(
+                            modifier = GlanceModifier
+                                .cornerRadius(6.dp)
+                                .background(ColorProvider(Chrome.resetBg))
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                                .clickable(openApp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                "RESET",
+                                style = TextStyle(
+                                    color = ColorProvider(Chrome.resetText),
+                                    fontSize = 10.sp,
+                                ),
+                            )
+                        }
+                    }
+                }
             }
         }
-        Spacer(GlanceModifier.width(10.dp))
-        // Right: the cassette window, grown to fill the widget's full height.
-        Box(
-            modifier = GlanceModifier.width(92.dp)
-                .fillMaxHeight()
-                .cornerRadius(22.dp)
-                .clickable(openApp),
-            contentAlignment = Alignment.Center,
+        Spacer(GlanceModifier.height(10.dp))
+        // Bottom: transport keys + slider cluster.
+        Row(
+            modifier = GlanceModifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (tape != null) {
-                Image(
-                    provider = BitmapImageProvider(tape),
-                    contentDescription = "Cassette",
-                    modifier = GlanceModifier.fillMaxSize(),
-                    contentScale = ContentScale.Fit,
-                )
-            } else {
-                Image(
-                    provider = ImageProvider(R.drawable.ic_music_note),
-                    contentDescription = "No tape loaded",
-                    modifier = GlanceModifier.size(40.dp),
-                    colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
-                )
+            TransportKey(
+                GlanceModifier.defaultWeight(), "PREV", "◀◀", Chrome.glyph,
+                actionRunCallback<WidgetPrevAction>(params),
+            )
+            TransportKey(
+                GlanceModifier.defaultWeight(), "PLAY", "▶", Chrome.playGreen,
+                actionRunCallback<WidgetPlayAction>(params),
+            )
+            TransportKey(
+                GlanceModifier.defaultWeight(), "NEXT", "▶▶", Chrome.glyph,
+                actionRunCallback<WidgetNextAction>(params),
+            )
+            TransportKey(
+                GlanceModifier.defaultWeight(), "PAUSE", "⏸", Chrome.pauseOrange,
+                actionRunCallback<WidgetPauseAction>(params),
+            )
+            TransportKey(
+                GlanceModifier.defaultWeight(), "STOP-EJECT", "■", Chrome.glyph,
+                actionRunCallback<WidgetStopAction>(params),
+            )
+            Spacer(GlanceModifier.width(8.dp))
+            Box(
+                modifier = GlanceModifier.defaultWeight()
+                    .clickable(openApp),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (sliders != null) {
+                    Image(
+                        provider = BitmapImageProvider(sliders),
+                        contentDescription = "Volume and tone",
+                        modifier = GlanceModifier.fillMaxWidth(),
+                    )
+                }
             }
         }
     }
 }
 
 /**
- * One icon-only pill control: a Material Symbols vector centered vertically
- * and horizontally in a rounded container. The play/pause pill (and a latched
- * shuffle) wear the contrasting dynamic primary-container; the rest sit on
- * surface-variant. Every icon shares one uniform tint.
+ * One square metallic transport key with its small label above: a dark
+ * border box holding the silver cap, glyph centered.
  */
 @Composable
-private fun ControlPill(
+private fun TransportKey(
     modifier: GlanceModifier,
-    iconRes: Int,
-    container: ColorProvider,
-    iconTint: ColorProvider,
+    label: String,
+    glyph: String,
+    glyphColor: Color,
     action: Action,
 ) {
-    Box(
-        modifier = modifier
-            .height(48.dp)
-            .cornerRadius(24.dp)
-            .background(container)
-            .clickable(action),
-        contentAlignment = Alignment.Center,
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Image(
-            provider = ImageProvider(iconRes),
-            contentDescription = null,
-            modifier = GlanceModifier.size(24.dp),
-            colorFilter = ColorFilter.tint(iconTint),
+        Text(
+            label,
+            style = TextStyle(
+                color = ColorProvider(Chrome.label),
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Medium,
+            ),
+            maxLines = 1,
         )
+        Spacer(GlanceModifier.height(3.dp))
+        Box(
+            modifier = GlanceModifier
+                .cornerRadius(12.dp)
+                .background(ColorProvider(Chrome.keyBorder))
+                .padding(2.dp)
+                .clickable(action),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                modifier = GlanceModifier
+                    .size(52.dp)
+                    .cornerRadius(10.dp)
+                    .background(ColorProvider(Chrome.keycap)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    glyph,
+                    style = TextStyle(
+                        color = ColorProvider(glyphColor),
+                        fontSize = 22.sp,
+                    ),
+                )
+            }
+        }
     }
 }

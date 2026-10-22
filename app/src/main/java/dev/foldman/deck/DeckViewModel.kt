@@ -790,8 +790,8 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         // Push now-playing state to the home-screen widget. Gated on track /
-        // transport / artwork / shuffle changes — never on position ticks.
-        val widgetKey = listOf(np.title, np.artist, transport, source, _shuffleOn.value, np.artwork)
+        // transport / artwork / shuffle / volume changes — never on position ticks.
+        val widgetKey = listOf(np.title, np.artist, transport, source, _shuffleOn.value, np.artwork, volume)
         if (widgetKey != lastWidgetKey) {
             lastWidgetKey = widgetKey
             val app = getApplication<Application>()
@@ -803,6 +803,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
                     isPlaying = transport == Transport.PLAYING,
                     shuffleOn = _shuffleOn.value,
                     activeSource = WidgetSource.fromDeckName(source.name),
+                    volume = volume,
                 ))
             }
         }

@@ -1,18 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Foldman deck widget: one compact horizontal row — artwork, title/artist,
-    and prev / play-pause / next / shuffle key caps in the Walkman idiom,
-    tinted by rustic colors derived from the album art.
+    Foldman deck widget: brushed-chrome Walkman — dark title panel + FOLDMAN
+    wordmark beside the horizontal cassette window (twin reels), five square
+    metallic transport keys (prev / play / next / pause / stop-eject), and a
+    VOLUME/TONE indicator cluster.
 
     State is pushed by FoldmanWidgetUpdater whenever the deck publishes;
     updatePeriodMillis stays 0 (no periodic polling).
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
-    android:minHeight="110dp"
+    android:minHeight="190dp"
     android:minResizeWidth="180dp"
     android:targetCellWidth="4"
-    android:targetCellHeight="1"
+    android:targetCellHeight="2"
     android:resizeMode="horizontal"
     android:widgetCategory="home_screen"
     android:initialLayout="@layout/glance_default_loading_layout"
