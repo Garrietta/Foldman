@@ -155,8 +155,8 @@ private fun WalkmanContent() {
         1f
     }
     val scale = if (rawScale.isFinite()) rawScale.coerceIn(0.3f, 3f) else 1f
-    fun sd(v: Float) = (v * scale).dp
-    fun ss(v: Float) = (v * scale).sp
+    fun sd(v: Number) = (v.toFloat() * scale).dp
+    fun ss(v: Number) = (v.toFloat() * scale).sp
 
     Box(
         modifier = GlanceModifier.fillMaxSize(),
@@ -349,8 +349,8 @@ private fun TransportKey(
     scale: Float,
     action: Action,
 ) {
-    fun sd(v: Float) = (v * scale).dp
-    fun ss(v: Float) = (v * scale).sp
+    fun sd(v: Number) = (v.toFloat() * scale).dp
+    fun ss(v: Number) = (v.toFloat() * scale).sp
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
