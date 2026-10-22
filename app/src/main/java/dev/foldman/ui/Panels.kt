@@ -226,7 +226,14 @@ private fun Albums(ui: DeckUi, actions: ShelfActions, filter: String = "") {
 }
 
 @Composable
-internal fun QueueList(ui: DeckUi, onPlay: (Long) -> Unit, showArt: Boolean = false, modifier: Modifier = Modifier) {
+internal fun QueueList(
+    ui: DeckUi,
+    onPlay: (Long) -> Unit,
+    showArt: Boolean = false,
+    modifier: Modifier = Modifier,
+    /** True on the cream sheet: titles render dark for contrast. */
+    onPaper: Boolean = false,
+) {
     if (ui.queue.isEmpty()) {
         val empty = when {
             ui.source == Source.LOCAL -> "Nothing loaded"
@@ -234,7 +241,7 @@ internal fun QueueList(ui: DeckUi, onPlay: (Long) -> Unit, showArt: Boolean = fa
             ui.source == Source.PODCASTS -> "Pick a podcast to load the queue"
             else -> "This app doesn't share its queue"
         }
-        Text(empty, style = Sub)
+        Text(empty, style = if (onPaper) Sub.copy(color = DeckColors.Ink) else Sub)
         return
     }
     val list = rememberLazyListState()
@@ -242,7 +249,7 @@ internal fun QueueList(ui: DeckUi, onPlay: (Long) -> Unit, showArt: Boolean = fa
     LaunchedEffect(currentIndex) { if (currentIndex >= 0) list.animateScrollToItem(currentIndex) }
     LazyColumn(state = list, modifier = modifier) {
         itemsIndexed(ui.queue, key = { _, q -> q.id }) { _, q ->
-            QueueRow(q, current = q.id == ui.currentQueueId, onClick = { onPlay(q.id) }, showArt = showArt)
+            QueueRow(q, current = q.id == ui.currentQueueId, onClick = { onPlay(q.id) }, showArt = showArt, onPaper = onPaper)
         }
     }
 }
@@ -353,14 +360,15 @@ private fun LibrarySearchBar(query: String, onQueryChange: (String) -> Unit, onS
 }
 
 @Composable
-private fun QueueRow(q: QueueEntry, current: Boolean, onClick: () -> Unit, showArt: Boolean = false) {
+private fun QueueRow(q: QueueEntry, current: Boolean, onClick: () -> Unit, showArt: Boolean = false, onPaper: Boolean = false) {
     Row(
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .drawWithCache {
                 onDrawBehind {
-                    drawLine(Color.White.copy(alpha = 0.07f), Offset(0f, size.height), Offset(size.width, size.height), 1f)
+                    val line = if (onPaper) Color.Black.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.07f)
+                    drawLine(line, Offset(0f, size.height), Offset(size.width, size.height), 1f)
                 }
             }
             .padding(vertical = 6.dp),
@@ -371,8 +379,24 @@ private fun QueueRow(q: QueueEntry, current: Boolean, onClick: () -> Unit, showA
             Spacer(Modifier.width(10.dp))
         }
         Column(Modifier.weight(1f)) {
-            Text(q.title, style = Title.copy(color = if (current) DeckColors.Accent else Title.color), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            q.subtitle?.let { Text(it, style = Sub, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            Text(
+                q.title,
+                style = Title.copy(
+                    color = if (current) DeckColors.Accent
+                    else if (onPaper) DeckColors.Ink
+                    else Title.color
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            q.subtitle?.let {
+                Text(
+                    it,
+                    style = if (onPaper) Sub.copy(color = DeckColors.Ink.copy(alpha = 0.65f)) else Sub,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         if (current) Text("▶", style = Sub.copy(color = DeckColors.Accent))
     }

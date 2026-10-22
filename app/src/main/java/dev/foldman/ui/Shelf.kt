@@ -228,6 +228,7 @@ fun TapeShelf(
             QueueList(
                 ui, onPlay = actions.playQueueItem, showArt = true,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
+                onPaper = true,
             )
         }
         if (ui.podcasts.showAddDialog) {
