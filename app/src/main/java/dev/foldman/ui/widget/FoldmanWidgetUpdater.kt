@@ -29,12 +29,19 @@ data class WidgetSnapshot(
     /** Retained for pipeline compat; this widget design has no shuffle key. */
     val shuffleOn: Boolean,
     val activeSource: WidgetSource,
-    /** Reel angle for the cassette; the ticker advances it while playing. */
+    /** Reel angle for the cassette. Owned by the updater: callers leave the
+     * default; the ticker advances it while playing. */
     val reelAngleDeg: Float = 0f,
     /** 0..1 system music volume; drives the VOLUME slider indicator. */
     val volume: Float = 0.5f,
     /** 0-based index of the now-playing track in the queue; drives the counter. */
     val queueIndex: Int = 0,
+    /**
+     * Stable identity of the now-playing queue entry (BackendState.currentQueueId).
+     * The updater resets the reel angle to 0 only when this changes — a
+     * pause/resume keeps the frozen angle.
+     */
+    val trackId: Long = -1,
 )
 
 /**
@@ -49,23 +56,39 @@ data class WidgetSnapshot(
  * revolution takes ~27s), which animates the cassette's reels. The ticker
  * stops on pause (reels freeze at current angle) and whenever a fresh snapshot
  * arrives with [WidgetSnapshot.isPlaying] false.
+ *
+ * The angle is owned here, not by the caller: a fresh snapshot's default 0
+ * must never clobber the running angle, so pause/resume keeps the frozen
+ * position. The angle resets to 0 only when [WidgetSnapshot.trackId] changes
+ * (a new song/audio file starts).
  */
 object FoldmanWidgetUpdater {
 
     private val tickerScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var tickerJob: Job? = null
     private var lastSnapshot: WidgetSnapshot? = null
+    /** Running reel angle; survives pause/resume, resets only on track change. */
+    private var currentAngle = 0f
+    private var lastTrackId: Long? = null
 
     suspend fun update(context: Context, snapshot: WidgetSnapshot) {
         val appContext = context.applicationContext
+        if (snapshot.trackId != lastTrackId) {
+            // New song/audio file: the spinners restart from 0.
+            lastTrackId = snapshot.trackId
+            currentAngle = 0f
+        }
+        // Freeze-frame on pause: carry the running angle forward; the
+        // snapshot's default 0 must never reset the reels.
+        val effective = snapshot.copy(reelAngleDeg = currentAngle)
         val ids = appWidgetIds(appContext)
-        lastSnapshot = snapshot
+        lastSnapshot = effective
         if (ids.isEmpty()) {
             stopTicker()
             return
         }
-        val tapePath = writeTape(appContext, snapshot)
-        val artworkPath = writeArtwork(appContext, snapshot)
+        val tapePath = writeTape(appContext, effective)
+        val artworkPath = writeArtwork(appContext, effective)
         val keyPaths = writeKeys(appContext)
         val widget = FoldmanWidget()
         val manager = GlanceAppWidgetManager(appContext)
@@ -73,22 +96,22 @@ object FoldmanWidgetUpdater {
             val glanceId = runCatching { manager.getGlanceIdBy(appWidgetId) }.getOrNull()
                 ?: continue
             updateAppWidgetState(appContext, glanceId) { state ->
-                state[WidgetKeys.TITLE] = snapshot.title
-                state[WidgetKeys.ARTIST] = snapshot.artist
+                state[WidgetKeys.TITLE] = effective.title
+                state[WidgetKeys.ARTIST] = effective.artist
                 if (tapePath != null) state[WidgetKeys.TAPE_PATH] = tapePath
                 else state.remove(WidgetKeys.TAPE_PATH)
                 if (artworkPath != null) state[WidgetKeys.ARTWORK_PATH] = artworkPath
                 else state.remove(WidgetKeys.ARTWORK_PATH)
                 if (keyPaths != null) state[WidgetKeys.KEY_PATHS] = keyPaths
                 else state.remove(WidgetKeys.KEY_PATHS)
-                state[WidgetKeys.IS_PLAYING] = snapshot.isPlaying
-                state[WidgetKeys.SOURCE] = snapshot.activeSource.name
-                state[WidgetKeys.QUEUE_INDEX] = snapshot.queueIndex
-                state[WidgetKeys.REEL_ANGLE] = snapshot.reelAngleDeg
+                state[WidgetKeys.IS_PLAYING] = effective.isPlaying
+                state[WidgetKeys.SOURCE] = effective.activeSource.name
+                state[WidgetKeys.QUEUE_INDEX] = effective.queueIndex
+                state[WidgetKeys.REEL_ANGLE] = effective.reelAngleDeg
             }
             runCatching { widget.update(appContext, glanceId) }
         }
-        if (snapshot.isPlaying) startTicker(appContext) else stopTicker()
+        if (effective.isPlaying) startTicker(appContext) else stopTicker()
     }
 
     /** Stops the reel ticker, e.g. when the app is backgrounded for good. */
@@ -105,7 +128,8 @@ object FoldmanWidgetUpdater {
                 try {
                     val snap = lastSnapshot ?: break
                     if (!snap.isPlaying) break
-                    update(context, snap.copy(reelAngleDeg = (snap.reelAngleDeg + 10f) % 360f))
+                    currentAngle = (currentAngle + 10f) % 360f
+                    update(context, snap.copy(reelAngleDeg = currentAngle))
                 } catch (e: Exception) {
                     // Keep the ticker alive; a transient failure shouldn't kill rotation.
                     continue

@@ -968,6 +968,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
                     activeSource = WidgetSource.fromDeckName(source.name),
                     volume = volume,
                     queueIndex = qIndex,
+                    trackId = state.currentQueueId,
                 ))
             }
         }
