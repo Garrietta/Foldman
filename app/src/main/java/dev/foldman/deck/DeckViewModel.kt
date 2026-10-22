@@ -25,6 +25,8 @@ import com.ivor.ivormusic.data.Song
 import com.ivor.ivormusic.data.YouTubeRepository
 import com.ivor.ivormusic.service.MusicService
 import com.ivor.ivormusic.ui.player.PlayerViewModel
+import dev.foldman.playback.Artwork
+import dev.foldman.playback.ArtworkCache
 import dev.foldman.playback.LocalBackend
 import dev.foldman.playback.LocalLibrary
 import dev.foldman.playback.YouTubeMusicBackend
@@ -144,6 +146,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     private var artBitmap: ImageBitmap? = null
     private var artSource: Any? = null
     private var lastWidgetKey: Any? = null
+    private var lastPrefetchKey: Any? = null
 
     init {
         prefs.getString(KEY_FOLDER, null)?.let { loadFolder(Uri.parse(it), firstLoad = true) }
@@ -762,6 +765,30 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             podcasts = _podcasts.value,
             youtubeMusic = _youtubeMusic.value,
         )
+        // Warm the art cache for what's coming next, so hitting NEXT finds the cover
+        // already cached instead of flashing the default background while it loads.
+        val trackKey = listOf(source, np.title, np.artist)
+        if (trackKey != lastPrefetchKey) {
+            lastPrefetchKey = trackKey
+            val upcomingUris = if (source == Source.LOCAL) {
+                tracks.drop(state.trackIndex + 1).take(3).mapNotNull { it.coverUri }
+            } else {
+                val queue = state.queue
+                val pos = queue.indexOfFirst { it.id == state.currentQueueId }.takeIf { it >= 0 } ?: -1
+                queue.drop(pos + 1).take(3).mapNotNull { it.artworkUri }
+            }
+            if (upcomingUris.isNotEmpty()) {
+                val app = getApplication<Application>()
+                viewModelScope.launch(Dispatchers.IO) {
+                    for (uri in upcomingUris) {
+                        val key = ArtworkCache.stableKey(uri) ?: continue
+                        if (ArtworkCache.get(app, key) == null) {
+                            Artwork.load(app, uri)?.let { ArtworkCache.put(app, key, it) }
+                        }
+                    }
+                }
+            }
+        }
         // Push now-playing state to the home-screen widget. Gated on track /
         // transport / artwork / shuffle changes — never on position ticks.
         val widgetKey = listOf(np.title, np.artist, transport, source, _shuffleOn.value, np.artwork)
@@ -784,6 +811,9 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     private fun updateLabel(np: NowPlaying) {
         val bitmap = np.artwork
         if (bitmap == null) {
+            // A new track's cover is still loading: hold the previous art/label instead of
+            // flashing the default background. Only fall back when a track genuinely has no art.
+            if (np.artworkLoading) return
             artBitmap = null
             artSource = null
             paletteKey = null
