@@ -421,7 +421,13 @@ private fun android.view.View.showSystemBars(show: Boolean) {
     var ctx = context
     while (ctx is android.content.ContextWrapper && ctx !is android.app.Activity) ctx = ctx.baseContext
     val window = (ctx as? android.app.Activity)?.window ?: return
+    // Dark surfaces: force light status-bar icons/text and a dark nav bar
+    // with light buttons (never white).
+    window.statusBarColor = android.graphics.Color.TRANSPARENT
+    window.navigationBarColor = android.graphics.Color(0xFF141210) // DeckColors.Backdrop
     WindowCompat.getInsetsController(window, this).run {
+        isAppearanceLightStatusBars = false
+        isAppearanceLightNavigationBars = false
         if (show) {
             show(WindowInsetsCompat.Type.systemBars())
         } else {
