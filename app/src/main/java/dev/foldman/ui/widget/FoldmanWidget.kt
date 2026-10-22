@@ -34,7 +34,7 @@ import androidx.glance.layout.padding
 import androidx.glance.layout.size
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.glance.session.currentState
+import androidx.glance.currentState
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.glance.text.FontWeight
