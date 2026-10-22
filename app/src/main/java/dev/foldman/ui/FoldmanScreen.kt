@@ -86,12 +86,10 @@ fun FoldmanScreen(
     vm: DeckViewModel,
     windowLayout: WindowLayoutInfo?,
     onPickFolder: () -> Unit,
-    onInstallApp: (Source) -> Unit,
-    onAppleSignIn: () -> Unit,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val applicationContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
-    val youtubePlayer = if (ui.source == Source.YT_MUSIC) {
+    val youtubePlayer = if (ui.source == Source.YT_MUSIC || ui.source == Source.PODCASTS) {
         viewModel<PlayerViewModel>(factory = remember(applicationContext) { YouTubePlayerViewModelFactory(applicationContext) })
     } else {
         null
@@ -127,17 +125,6 @@ fun FoldmanScreen(
         }
     }
 
-    val appleActions = remember(vm) {
-        AppleActions(
-            signIn = onAppleSignIn,
-            signOut = vm::signOutOfApple,
-            setDeveloperToken = vm::setAppleDeveloperToken,
-            refresh = vm::loadApplePlaylists,
-            openPlaylist = vm::openApplePlaylist,
-            closePlaylist = vm::closeApplePlaylist,
-            play = vm::playApplePlaylist,
-        )
-    }
     val youtubeMusicActions = remember(vm, youtubePlayer) {
         YouTubeMusicActions(
             queryChanged = vm::setYouTubeMusicQuery,
@@ -147,19 +134,37 @@ fun FoldmanScreen(
             playSongs = { songs, index ->
                 youtubePlayer?.let { vm.playYouTubeMusic(songs, index, it) }
             },
+            shufflePlaylist = { playlist ->
+                youtubePlayer?.let { vm.playYouTubePlaylistShuffled(playlist, it) }
+            },
             refresh = vm::refreshYouTubeMusic,
         )
     }
-    val shelfActions = remember(vm, appleActions, youtubeMusicActions) {
+    val podcastActions = remember(vm, youtubePlayer) {
+        PodcastActions(
+            openFeed = vm::openPodcastFeed,
+            closeFeed = { vm.openPodcastFeed(null) },
+            playEpisode = { episode ->
+                youtubePlayer?.let { vm.playPodcastEpisode(episode, it) }
+            },
+            shuffleFeed = { feed ->
+                youtubePlayer?.let { vm.playPodcastFeedShuffled(feed, it) }
+            },
+            refreshFeed = vm::refreshPodcastFeed,
+            removeFeed = vm::removePodcastFeed,
+            addUrlChanged = vm::setPodcastAddUrl,
+            addFeed = vm::addPodcastFeed,
+            showAddDialog = vm::showAddPodcastDialog,
+        )
+    }
+    val shelfActions = remember(vm, youtubeMusicActions, podcastActions) {
         ShelfActions(
             selectSource = vm::selectSource,
             pickFolder = onPickFolder,
             playTrack = vm::playTrack,
-            openAccess = vm::openAccessSettings,
-            openApp = vm::openSourceApp,
-            installApp = onInstallApp,
-            apple = appleActions,
+            toggleShuffle = vm::toggleShuffle,
             youtubeMusic = youtubeMusicActions,
+            podcasts = podcastActions,
         )
     }
     val deck = remember(vm) { DeckControls(vm) }
@@ -233,11 +238,9 @@ fun FoldmanScreen(
                             selectSource = { vm.selectSource(it) },
                             pickFolder = onPickFolder,
                             playTrack = { vm.playTrack(it); shelfOpen = false },
-                            openAccess = vm::openAccessSettings,
-                            openApp = vm::openSourceApp,
-                            installApp = onInstallApp,
-                            apple = appleActions,
+                            toggleShuffle = vm::toggleShuffle,
                             youtubeMusic = youtubeMusicActions,
+                            podcasts = podcastActions,
                         ),
                         Modifier.fillMaxWidth().height(sheetHeight),
                     )

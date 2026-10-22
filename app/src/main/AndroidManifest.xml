@@ -7,17 +7,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Apple Music remains an external media-session source. -->
-    <queries>
-        <package android:name="com.apple.android.music" />
-    </queries>
-
-    <!-- allowBackup / dataExtractionRules: the settings include the Apple Music user token, so
-         nothing is backed up or copied to a new phone. (MusicKit's auth AAR asks for allowBackup="true";
-         tools:replace keeps Foldman's choice.)
-         allowNativeHeapPointerTagging: Apple's MusicKit native library (2021, built for apps
-         targeting Android 9) predates Android's tagged heap pointers, and crashed freeing memory
-         while setting up a stream's DRM on an Android 17 Fold. -->
+    <!-- allowBackup / dataExtractionRules: nothing is backed up or copied to a new phone. -->
     <application
         android:allowNativeHeapPointerTagging="false"
         android:allowBackup="false"
@@ -53,6 +43,21 @@
         <activity-alias android:name="com.ivor.ivormusic.MainActivityMonochrome" tools:node="remove" />
         <activity-alias android:name="com.ivor.ivormusic.MainActivitySolar" tools:node="remove" />
 
+        <!-- Foldman embeds Koda's playback engine and data layer only. None of Koda's
+             user-visible surfaces may come along: no Koda widgets in the picker, no Koda
+             activity (its share-sheet and YouTube-link filters would open Koda's full UI),
+             no Koda quick-settings tile. -->
+        <activity android:name="com.ivor.ivormusic.MainActivity" tools:node="remove" />
+        <receiver android:name="com.ivor.ivormusic.widget.PulseWidgetReceiver" tools:node="remove" />
+        <receiver android:name="com.ivor.ivormusic.widget.ConsoleWidgetReceiver" tools:node="remove" />
+        <receiver android:name="com.ivor.ivormusic.widget.DeckWidgetReceiver" tools:node="remove" />
+        <receiver android:name="com.ivor.ivormusic.widget.LineupWidgetReceiver" tools:node="remove" />
+        <receiver android:name="com.ivor.ivormusic.widget.BloomWidgetReceiver" tools:node="remove" />
+        <receiver android:name="com.ivor.ivormusic.widget.VinylWidgetReceiver" tools:node="remove" />
+        <receiver android:name="com.ivor.ivormusic.widget.PixelWidgetReceiver" tools:node="remove" />
+        <receiver android:name="com.ivor.ivormusic.widget.OrbitWidgetReceiver" tools:node="remove" />
+        <service android:name="com.ivor.ivormusic.service.PlaybackTileService" tools:node="remove" />
+
         <service
             android:name=".playback.PlaybackService"
             android:exported="true"
@@ -61,32 +66,17 @@
                 <action android:name="androidx.media3.session.MediaSessionService" />
             </intent-filter>
         </service>
-
-        <!-- MusicKit's player, kept in its own process so a crash in Apple's native code only
-             stops the music; Foldman restarts it and carries on. -->
-        <service
-            android:name=".apple.ApplePlayerService"
+        <!-- Foldman's own home-screen widget: a Material 3 Expressive horizontal Walkman. -->
+        <receiver
+            android:name=".ui.widget.FoldmanWidgetReceiver"
             android:exported="false"
-            android:process=":apple" />
-
-        <!-- MusicKit's sign-in callback (musicsdk://dev.foldman/authenticateresult…), opened by the
-             Apple Music app when sign-in finishes. The 2021 SDK predates Android 12's exported rule.
-             Only takes effect when the MusicKit AARs are in app/libs. -->
-        <activity
-            android:name="com.apple.android.sdk.authentication.SDKUriHandlerActivity"
-            android:exported="true"
-            tools:ignore="MissingClass"
-            tools:node="merge" />
-
-        <!-- Notification access is only needed for Apple Music's external media session. -->
-        <service
-            android:name=".remote.MediaListenerService"
-            android:exported="true"
-            android:label="@string/app_name"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            android:label="@string/foldman_widget_label">
             <intent-filter>
-                <action android:name="android.service.notification.NotificationListenerService" />
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
-        </service>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/foldman_widget_info" />
+        </receiver>
     </application>
 </manifest>

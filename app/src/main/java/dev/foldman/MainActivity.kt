@@ -3,7 +3,6 @@ package dev.foldman
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -22,7 +21,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.window.layout.WindowInfoTracker
 import androidx.window.layout.WindowLayoutInfo
 import dev.foldman.deck.DeckViewModel
-import dev.foldman.deck.Source
 import dev.foldman.ui.FoldmanScreen
 
 class MainActivity : ComponentActivity() {
@@ -40,9 +38,6 @@ class MainActivity : ComponentActivity() {
                     vm.setFolder(uri)
                 }
             }
-            val appleSignIn = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-                vm.onAppleSignInResult(result.data)
-            }
             // Only for the media notification; playback works without it.
             val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
             LaunchedEffect(Unit) {
@@ -54,8 +49,6 @@ class MainActivity : ComponentActivity() {
                 FoldmanScreen(
                     vm, windowLayout,
                     onPickFolder = { folderPicker.launch(null) },
-                    onInstallApp = ::openStoreListing,
-                    onAppleSignIn = { vm.appleSignInIntent()?.let(appleSignIn::launch) },
                 )
             }
         }
@@ -63,15 +56,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Notification access may have just been granted in Settings, or the streaming app started.
+        // The streaming backend may have started while Foldman was away.
         vm.refresh()
-    }
-
-    private fun openStoreListing(source: Source) {
-        val pkg = source.packageName ?: return
-        val market = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$pkg"))
-        runCatching { startActivity(market) }.onFailure {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$pkg")))
-        }
     }
 }

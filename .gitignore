@@ -5,9 +5,7 @@ local.properties
 *.iml
 .kotlin/
 *.p8
-# Apple Music IDs, key path and developer token (see apple-music.properties.example)
-apple-music.properties
-# MusicKit SDK binaries are Apple's; each developer downloads their own
+# Local SDK binaries, if any
 app/libs/*.aar
 # Release signing passwords and keystore path
 signing.properties

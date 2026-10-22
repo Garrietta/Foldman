@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 enum class Source(val label: String, val packageName: String?) {
     LOCAL("Local folder", null),
     YT_MUSIC("YouTube Music", null),
-    APPLE_MUSIC("Apple Music", "com.apple.android.music"),
+    PODCASTS("Podcasts", null),
 }
 
 /**
@@ -22,26 +22,21 @@ sealed interface SourceStatus {
     data object NeedsFolder : SourceStatus
     data class Scanning(val found: Int) : SourceStatus
     data object EmptyFolder : SourceStatus
-    data object NeedsAccess : SourceStatus
     data object AppNotRunning : SourceStatus
-    data object NotInstalled : SourceStatus
-    data object NeedsDeveloperToken : SourceStatus
-    data object NeedsAppleSignIn : SourceStatus
 }
 
-/** What the tape shelf knows about the user's Apple Music library (MusicKit sign-in + Apple Music API). */
-data class AppleUi(
-    /** MusicKit's auth AAR is in the build, so Foldman can sign in and browse. */
-    val sdkAuth: Boolean = false,
-    /** MusicKit's playback AAR is in the build, so Foldman streams in-app instead of driving the Apple Music app. */
-    val sdkPlayback: Boolean = false,
-    val hasDeveloperToken: Boolean = false,
-    val signedIn: Boolean = false,
-    val playlists: List<dev.foldman.apple.ApplePlaylist> = emptyList(),
-    val openPlaylist: dev.foldman.apple.ApplePlaylist? = null,
-    val tracks: List<dev.foldman.apple.AppleTrack> = emptyList(),
+/** What the tape shelf knows about the user's podcast subscriptions (RSS feeds via Koda's PodcastRepository). */
+data class PodcastsUi(
+    val feeds: List<com.ivor.ivormusic.data.PodcastFeed> = emptyList(),
+    val episodesByFeed: Map<String, List<com.ivor.ivormusic.data.PodcastEpisode>> = emptyMap(),
+    val openFeed: com.ivor.ivormusic.data.PodcastFeed? = null,
     val loading: Boolean = false,
     val message: String? = null,
+    /** Add-feed dialog state. */
+    val showAddDialog: Boolean = false,
+    val addUrl: String = "",
+    val adding: Boolean = false,
+    val addError: String? = null,
 )
 
 data class YouTubeMusicUi(

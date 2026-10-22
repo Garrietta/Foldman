@@ -3,11 +3,11 @@ package dev.foldman.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -35,83 +35,116 @@ import com.ivor.ivormusic.data.Song
 import com.ivor.ivormusic.ui.auth.YouTubeAuthDialog
 import dev.foldman.deck.YouTubeMusicUi
 
+/**
+ * The YouTube Music shelf: sign-in, search, your playlists and their tracks.
+ * One scrollable list that fills whatever space the layout gives it, so nothing
+ * is ever clipped below the fold.
+ */
 @Composable
-fun YouTubeMusicBrowser(ui: YouTubeMusicUi, actions: YouTubeMusicActions) {
+fun YouTubeMusicBrowser(ui: YouTubeMusicUi, actions: YouTubeMusicActions, modifier: Modifier = Modifier) {
     var showSignIn by remember { mutableStateOf(false) }
+    val openPlaylist = ui.openPlaylist
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                ui.openPlaylist?.name ?: "YouTube Music",
-                modifier = Modifier.weight(1f),
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (ui.signedIn) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(bottom = 8.dp),
+    ) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    ui.accountName ?: "SIGNED IN",
-                    modifier = Modifier.weight(0.7f),
-                    fontSize = 9.sp,
+                    openPlaylist?.name ?: "YouTube Music",
+                    modifier = Modifier.weight(1f),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                TextButton(onClick = actions.refresh) { Text("Refresh") }
+                if (ui.signedIn) {
+                    Text(
+                        ui.accountName ?: "SIGNED IN",
+                        modifier = Modifier.weight(0.7f),
+                        fontSize = 9.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    TextButton(onClick = actions.refresh) { Text("Refresh") }
+                }
             }
         }
 
         if (!ui.signedIn) {
-            Text(
-                "Sign in to browse your YouTube Music library and play songs right in Foldman.",
-                fontSize = 12.sp,
-            )
-            Button(onClick = { showSignIn = true }) {
-                Text("Sign in to YouTube Music")
+            item {
+                Text(
+                    "Sign in to browse your YouTube Music library and play songs right in Foldman.",
+                    fontSize = 12.sp,
+                )
+            }
+            item {
+                Button(onClick = { showSignIn = true }) {
+                    Text("Sign in to YouTube Music")
+                }
             }
         } else {
-            if (ui.openPlaylist != null) {
-                TextButton(onClick = actions.closePlaylist) { Text("← Your library") }
+            if (openPlaylist != null) {
+                item { TextButton(onClick = actions.closePlaylist) { Text("← Your library") } }
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = ui.query,
-                    onValueChange = actions.queryChanged,
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    label = { Text("Search songs") },
-                )
-                Spacer(Modifier.size(6.dp))
-                Button(onClick = actions.search, enabled = ui.query.isNotBlank() && !ui.loading) {
-                    Text("Search")
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = ui.query,
+                        onValueChange = actions.queryChanged,
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        label = { Text("Search songs") },
+                    )
+                    Spacer(Modifier.size(6.dp))
+                    Button(onClick = actions.search, enabled = ui.query.isNotBlank() && !ui.loading) {
+                        Text("Search")
+                    }
                 }
             }
 
-            if (ui.searched && ui.openPlaylist == null) {
-                Text("Search results", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                SongList(ui.searchResults, actions.playSongs)
-            } else if (ui.openPlaylist != null) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Tracks", modifier = Modifier.weight(1f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    if (ui.playlistTracks.isNotEmpty()) {
-                        TextButton(onClick = { actions.playSongs(ui.playlistTracks, 0) }) {
-                            Text("Play all")
+            if (ui.searched && openPlaylist == null) {
+                item { Text("Search results", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
+                itemsIndexed(ui.searchResults, key = { index, song -> "${song.id}-$index" }) { index, song ->
+                    SongRow(song, onPlay = { actions.playSongs(ui.searchResults, index) })
+                }
+            } else if (openPlaylist != null) {
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Tracks", modifier = Modifier.weight(1f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        if (ui.playlistTracks.isNotEmpty()) {
+                            ShuffleButton(onClick = { openPlaylist?.let(actions.shufflePlaylist) })
+                            TextButton(onClick = { actions.playSongs(ui.playlistTracks, 0) }) {
+                                Text("Play all")
+                            }
                         }
                     }
                 }
-                SongList(ui.playlistTracks, actions.playSongs)
+                itemsIndexed(ui.playlistTracks, key = { index, song -> "${song.id}-$index" }) { index, song ->
+                    SongRow(song, onPlay = { actions.playSongs(ui.playlistTracks, index) })
+                }
             } else {
-                Text("Your library", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                PlaylistList(ui.playlists, actions.openPlaylist)
+                item { Text("Your library", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
+                itemsIndexed(ui.playlists, key = { _, playlist -> playlist.id }) { _, playlist ->
+                    PlaylistRow(
+                        playlist,
+                        onOpen = { actions.openPlaylist(playlist) },
+                        onShuffle = { actions.shufflePlaylist(playlist) },
+                    )
+                }
             }
         }
 
         if (ui.loading) {
-            CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+            item { CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp) }
         }
-        ui.message?.let { Text(it, fontSize = 11.sp) }
+        ui.message?.let { message ->
+            item { Text(message, fontSize = 11.sp) }
+        }
     }
 
     if (showSignIn) {
@@ -125,62 +158,53 @@ fun YouTubeMusicBrowser(ui: YouTubeMusicUi, actions: YouTubeMusicActions) {
     }
 }
 
+/** Quiet shuffle affordance in the Foldman idiom: small engraved caps, no chrome. */
 @Composable
-private fun PlaylistList(
-    playlists: List<PlaylistDisplayItem>,
-    onOpen: (PlaylistDisplayItem) -> Unit,
-) {
-    if (playlists.isEmpty()) return
-    LazyColumn(
-        modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        itemsIndexed(playlists, key = { _, playlist -> playlist.id }) { _, playlist ->
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { onOpen(playlist) }
-                    .padding(horizontal = 6.dp, vertical = 5.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                UrlThumb(playlist.thumbnailUrl, Modifier.size(38.dp))
-                Column(Modifier.weight(1f).padding(start = 8.dp)) {
-                    Text(playlist.name, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(playlist.uploaderName, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                Text("›", fontSize = 20.sp)
-            }
-        }
+fun ShuffleButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    TextButton(onClick = onClick, modifier = modifier, contentPadding = PaddingValues(horizontal = 8.dp)) {
+        Text("SHUFFLE", fontSize = 10.sp, fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
-private fun SongList(
-    songs: List<Song>,
-    onPlay: (List<Song>, Int) -> Unit,
+private fun PlaylistRow(
+    playlist: PlaylistDisplayItem,
+    onOpen: () -> Unit,
+    onShuffle: () -> Unit,
 ) {
-    if (songs.isEmpty()) return
-    LazyColumn(
-        modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onOpen)
+            .padding(horizontal = 6.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        itemsIndexed(songs, key = { index, song -> "${song.id}-$index" }) { index, song ->
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { onPlay(songs, index) }
-                    .padding(horizontal = 6.dp, vertical = 5.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                UrlThumb(song.thumbnailUrl, Modifier.size(38.dp))
-                Column(Modifier.weight(1f).padding(start = 8.dp)) {
-                    Text(song.title, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(song.artist, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                Text("▶", fontSize = 11.sp)
-            }
+        UrlThumb(playlist.thumbnailUrl, Modifier.size(38.dp))
+        Column(Modifier.weight(1f).padding(start = 8.dp)) {
+            Text(playlist.name, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(playlist.uploaderName, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
+        ShuffleButton(onClick = onShuffle)
+        Text("›", fontSize = 20.sp)
+    }
+}
+
+@Composable
+private fun SongRow(song: Song, onPlay: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onPlay)
+            .padding(horizontal = 6.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        UrlThumb(song.thumbnailUrl, Modifier.size(38.dp))
+        Column(Modifier.weight(1f).padding(start = 8.dp)) {
+            Text(song.title, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(song.artist, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Text("▶", fontSize = 11.sp)
     }
 }

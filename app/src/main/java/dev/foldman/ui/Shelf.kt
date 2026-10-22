@@ -43,8 +43,9 @@ import androidx.compose.ui.unit.sp
 import dev.foldman.deck.DeckUi
 import dev.foldman.deck.Source
 import dev.foldman.deck.SourceStatus
-import dev.foldman.deck.YouTubeMusicUi
 import com.ivor.ivormusic.data.PlaylistDisplayItem
+import com.ivor.ivormusic.data.PodcastEpisode
+import com.ivor.ivormusic.data.PodcastFeed
 import com.ivor.ivormusic.data.Song
 
 private val Hand = TextStyle(fontFamily = FontFamily.Cursive, color = DeckColors.Ink, fontSize = 20.sp)
@@ -54,11 +55,9 @@ class ShelfActions(
     val selectSource: (Source) -> Unit,
     val pickFolder: () -> Unit,
     val playTrack: (Int) -> Unit,
-    val openAccess: () -> Unit,
-    val openApp: () -> Unit,
-    val installApp: (Source) -> Unit,
-    val apple: AppleActions,
+    val toggleShuffle: () -> Unit,
     val youtubeMusic: YouTubeMusicActions,
+    val podcasts: PodcastActions,
 )
 
 class YouTubeMusicActions(
@@ -67,7 +66,20 @@ class YouTubeMusicActions(
     val openPlaylist: (PlaylistDisplayItem) -> Unit,
     val closePlaylist: () -> Unit,
     val playSongs: (List<Song>, Int) -> Unit,
+    val shufflePlaylist: (PlaylistDisplayItem) -> Unit,
     val refresh: () -> Unit,
+)
+
+class PodcastActions(
+    val openFeed: (PodcastFeed) -> Unit,
+    val closeFeed: () -> Unit,
+    val playEpisode: (PodcastEpisode) -> Unit,
+    val shuffleFeed: (PodcastFeed) -> Unit,
+    val refreshFeed: (PodcastFeed) -> Unit,
+    val removeFeed: (PodcastFeed) -> Unit,
+    val addUrlChanged: (String) -> Unit,
+    val addFeed: () -> Unit,
+    val showAddDialog: (Boolean) -> Unit,
 )
 
 /**
@@ -151,10 +163,13 @@ private fun JCard(ui: DeckUi, actions: ShelfActions, modifier: Modifier) {
         Spacer(Modifier.height(2.dp))
         Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFF2B33D)))
         Spacer(Modifier.height(10.dp))
-        when (ui.source) {
-            Source.LOCAL -> LocalCard(ui, actions)
-            Source.APPLE_MUSIC -> AppleBrowser(ui.apple, actions.apple, fallback = { RemoteCard(ui, actions) }, light = true)
-            else -> RemoteCard(ui, actions)
+        // The browser gets all remaining card space and scrolls within it.
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            when (ui.source) {
+                Source.LOCAL -> LocalCard(ui, actions)
+                Source.YT_MUSIC -> YouTubeMusicBrowser(ui.youtubeMusic, actions.youtubeMusic)
+                Source.PODCASTS -> PodcastsBrowser(ui.podcasts, actions.podcasts)
+            }
         }
     }
 }
@@ -177,34 +192,41 @@ private fun CoverArt(ui: DeckUi, modifier: Modifier) {
 
 @Composable
 private fun LocalCard(ui: DeckUi, actions: ShelfActions) {
-    when (val status = ui.status) {
-        SourceStatus.NeedsFolder -> Prompt(
-            "Pick a folder of music on this phone — MP3, FLAC, M4A, OGG, WAV. Album art comes from the files or a cover.jpg beside them.",
-            "Choose music folder", actions.pickFolder,
-        )
-        is SourceStatus.Scanning -> Text("Winding on… ${status.found} songs found", style = Hand)
-        SourceStatus.EmptyFolder -> Prompt("No music in that folder.", "Choose another folder", actions.pickFolder)
-        else -> {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "${ui.folderName ?: "Folder"} · ${ui.tracks.size} songs",
-                    style = Typed.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-                Text("CHANGE", style = EngravedCaps.copy(color = DeckColors.AccentDeep), modifier = Modifier.clickable(onClick = actions.pickFolder).padding(6.dp))
+    Column(Modifier.fillMaxSize()) {
+        when (val status = ui.status) {
+            SourceStatus.NeedsFolder -> Prompt(
+                "Pick a folder of music on this phone — MP3, FLAC, M4A, OGG, WAV. Album art comes from the files or a cover.jpg beside them.",
+                "Choose music folder", actions.pickFolder,
+            )
+            is SourceStatus.Scanning -> Text("Winding on… ${status.found} songs found", style = Hand)
+            SourceStatus.EmptyFolder -> Prompt("No music in that folder.", "Choose another folder", actions.pickFolder)
+            else -> {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "${ui.folderName ?: "Folder"} · ${ui.tracks.size} songs",
+                        style = Typed.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        if (ui.shuffleOn) "SHUFFLED" else "SHUFFLE",
+                        style = EngravedCaps.copy(color = if (ui.shuffleOn) DeckColors.AccentDeep else DeckColors.Ink.copy(alpha = 0.55f)),
+                        modifier = Modifier.clickable(onClick = actions.toggleShuffle).padding(6.dp),
+                    )
+                    Text("CHANGE", style = EngravedCaps.copy(color = DeckColors.AccentDeep), modifier = Modifier.clickable(onClick = actions.pickFolder).padding(6.dp))
+                }
+                Spacer(Modifier.height(6.dp))
+                TrackList(ui, actions, Modifier.weight(1f))
             }
-            Spacer(Modifier.height(6.dp))
-            TrackList(ui, actions)
         }
     }
 }
 
 @Composable
-private fun TrackList(ui: DeckUi, actions: ShelfActions) {
+private fun TrackList(ui: DeckUi, actions: ShelfActions, modifier: Modifier = Modifier) {
     val list = rememberLazyListState()
     LaunchedEffect(ui.trackIndex) {
         if (ui.trackIndex >= 0) list.animateScrollToItem((ui.trackIndex - 2).coerceAtLeast(0))
     }
-    LazyColumn(state = list, modifier = Modifier.fillMaxWidth()) {
+    LazyColumn(state = list, modifier = modifier.fillMaxWidth()) {
         itemsIndexed(ui.tracks, key = { _, t -> t.uri.toString() }) { i, track ->
             val current = i == ui.trackIndex
             Row(
@@ -231,41 +253,6 @@ private fun TrackList(ui: DeckUi, actions: ShelfActions) {
 }
 
 @Composable
-private fun RemoteCard(ui: DeckUi, actions: ShelfActions) {
-    val app = ui.source.label
-    if (ui.source == Source.YT_MUSIC) {
-        YouTubeMusicBrowser(ui.youtubeMusic, actions.youtubeMusic)
-        return
-    }
-    when (ui.status) {
-        SourceStatus.NeedsAccess -> Column {
-            Prompt(
-                "Foldman plays $app by driving its media session, which Android only shares with apps that have notification access. Turn on Foldman in the list that opens.",
-                "Grant notification access", actions.openAccess,
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "Installed the APK yourself? Android may grey the switch out: open App info → ⋮ → Allow restricted settings first.",
-                style = Typed.copy(fontSize = 10.sp, color = DeckColors.Ink.copy(alpha = 0.6f)),
-            )
-        }
-        SourceStatus.NotInstalled -> Prompt("$app isn't installed on this phone.", "Get $app", { actions.installApp(ui.source) })
-        SourceStatus.AppNotRunning -> Prompt(
-            "$app isn't playing anything yet. Press PLAY to resume its last queue, or open it and pick something.",
-            "Open $app", actions.openApp,
-        )
-        else -> Column {
-            Text("Playing through $app.", style = Hand)
-            Text(
-                "Keys, REW/FF and the counter work here; pick songs and playlists in $app.",
-                style = Typed.copy(fontSize = 11.sp, color = DeckColors.Ink.copy(alpha = 0.65f)),
-            )
-            Spacer(Modifier.height(10.dp))
-            PaperButton("Open $app", actions.openApp)
-        }
-    }
-}
-
 @Composable
 private fun Prompt(text: String, button: String, onClick: () -> Unit) {
     Column {

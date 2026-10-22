@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Nothing of Foldman's leaves the phone: not in cloud backups, and not when moving to a new phone.
-     Its settings hold the Apple Music user token, which shouldn't be copied anywhere. -->
+     Its settings hold streaming sign-in tokens, which shouldn't be copied anywhere. -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="root" />

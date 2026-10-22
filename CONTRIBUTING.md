@@ -7,7 +7,7 @@ Thanks for wanting to help. Bug reports, ideas and pull requests are all welcome
 Open an [issue](https://github.com/deveshrai/Foldman/issues/new/choose) using the bug template. The most useful details are:
 - your phone model and Android version;
 - the Foldman version (Android Settings → Apps → Foldman);
-- which source you were using (local folder, YouTube Music in Foldman, Koda/RSS podcasts, Apple Music via MusicKit, or Apple Music via media session);
+- which source you were using (local folder, YouTube Music, or podcasts);
 - the posture (folded, unfolded, half-open);
 - a screenshot or screen recording.
 
@@ -19,7 +19,7 @@ adb logcat -d -b crash > crash.txt
 
 ## Building
 
-See [Building from source](https://github.com/deveshrai/Foldman/wiki/Building-from-source) in the wiki. In short, `./gradlew :app:assembleDebug` builds without any Apple setup; MusicKit is optional. The build fetches Koda's dependencies from Maven Central and JitPack.
+See [Building from source](https://github.com/deveshrai/Foldman/wiki/Building-from-source) in the wiki. In short, `./gradlew :app:assembleDebug`. The build fetches Koda's dependencies from Maven Central and JitPack.
 
 ## GitHub Actions APKs
 
@@ -36,7 +36,7 @@ Add them under **Settings → Secrets and variables → Actions → New reposito
 
 - Keep each change focused, and describe what you tested and on which device or emulator. A foldable emulator, such as the Pixel 9 Pro Fold AVD, covers all three postures.
 - Match the surrounding code: Kotlin and Jetpack Compose, comments that explain *why*, and no new dependencies without a reason.
-- Never commit secrets or Apple's files. `apple-music.properties`, `signing.properties`, `*.p8`, `*.jks` and `app/libs/*.aar` are git-ignored; keep them that way.
+- Never commit secrets. `signing.properties`, `*.p8`, `*.jks` and `app/libs/*.aar` are git-ignored; keep them that way.
 - UI changes: include before and after screenshots.
 - The launcher icon is generated. Edit `art/icon.svg` and run `python3 tools/svg_to_icon.py`.
 

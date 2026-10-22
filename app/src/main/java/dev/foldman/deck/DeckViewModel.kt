@@ -1,34 +1,36 @@
 package dev.foldman.deck
 
 import android.app.Application
+import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
 import android.media.AudioManager
 import android.net.Uri
 import android.os.SystemClock
-import android.provider.Settings
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import androidx.palette.graphics.Palette
 import com.ivor.ivormusic.data.PlaylistDisplayItem
+import com.ivor.ivormusic.data.PodcastEpisode
+import com.ivor.ivormusic.data.PodcastFeed
+import com.ivor.ivormusic.data.PodcastRepository
 import com.ivor.ivormusic.data.SessionManager
 import com.ivor.ivormusic.data.Song
 import com.ivor.ivormusic.data.YouTubeRepository
+import com.ivor.ivormusic.service.MusicService
 import com.ivor.ivormusic.ui.player.PlayerViewModel
-import dev.foldman.BuildConfig
-import dev.foldman.apple.AppleAuthExpired
-import dev.foldman.apple.AppleKitBackend
-import dev.foldman.apple.AppleMusicApi
-import dev.foldman.apple.ApplePlaylist
-import dev.foldman.apple.MusicKit
 import dev.foldman.playback.LocalBackend
 import dev.foldman.playback.LocalLibrary
 import dev.foldman.playback.YouTubeMusicBackend
-import dev.foldman.remote.RemoteBackend
+import dev.foldman.ui.widget.FoldmanWidgetUpdater
+import dev.foldman.ui.widget.WidgetSnapshot
+import dev.foldman.ui.widget.WidgetSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -70,7 +72,8 @@ data class DeckUi(
     val currentQueueId: Long = -1,
     val keySounds: Boolean = true,
     val haptics: Boolean = true,
-    val apple: AppleUi = AppleUi(),
+    val shuffleOn: Boolean = false,
+    val podcasts: PodcastsUi = PodcastsUi(),
     val youtubeMusic: YouTubeMusicUi = YouTubeMusicUi(),
 ) {
     /** How far through the tape we are: the left reel empties into the right one as this grows. */
@@ -89,19 +92,21 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     private val audio = app.getSystemService(AudioManager::class.java)
     private val library = LocalLibrary(app)
     private val local = LocalBackend(app).also { it.connect() }
-    /** In-app Apple Music, when MusicKit's playback AAR is in the build; otherwise the Apple Music app is driven remotely. */
-    private val appleKit = if (MusicKit.hasPlayback) AppleKitBackend(app) else null
-    private val apple = MutableStateFlow(AppleUi(sdkAuth = MusicKit.hasAuth, sdkPlayback = appleKit != null))
-    private var appleJob: Job? = null
     private val youtubeBackend = YouTubeMusicBackend(app)
     private val youtubeSession = SessionManager(app)
     private val youtubeRepository = YouTubeRepository(app)
     private val _youtubeMusic = MutableStateFlow(YouTubeMusicUi())
     val youtubeMusic: StateFlow<YouTubeMusicUi> = _youtubeMusic.asStateFlow()
     private var youtubeJob: Job? = null
-    private val remotes = mapOf(
-        Source.APPLE_MUSIC to RemoteBackend(app, Source.APPLE_MUSIC),
-    )
+    private val podcastRepository = PodcastRepository(app)
+    private val _podcasts = MutableStateFlow(PodcastsUi())
+    val podcasts: StateFlow<PodcastsUi> = _podcasts.asStateFlow()
+    private var podcastJob: Job? = null
+    private val _shuffleOn = MutableStateFlow(false)
+
+    /** Toggles shuffle on the queue that's in the deck. */
+    @androidx.media3.common.util.UnstableApi
+    fun toggleShuffle() = setShuffleEnabled(!_shuffleOn.value)
 
     private val _ui = MutableStateFlow(DeckUi())
     val ui: StateFlow<DeckUi> = _ui.asStateFlow()
@@ -112,8 +117,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     private val backend: DeckBackend
         get() = when (source) {
             Source.LOCAL -> local
-            Source.APPLE_MUSIC -> appleKit ?: remotes.getValue(source)
-            Source.YT_MUSIC -> youtubeBackend
+            Source.YT_MUSIC, Source.PODCASTS -> youtubeBackend
         }
 
     private var tracks: List<LocalTrack> = emptyList()
@@ -135,18 +139,17 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     private var label = LabelPalette.Default
     private var artBitmap: ImageBitmap? = null
     private var artSource: Any? = null
+    private var lastWidgetKey: Any? = null
 
     init {
         prefs.getString(KEY_FOLDER, null)?.let { loadFolder(Uri.parse(it), firstLoad = true) }
-        syncAppleTokens()
-        if (apple.value.signedIn) loadApplePlaylists()
-        appleKit?.let { kit ->
-            viewModelScope.launch {
-                kit.messages.collect { m -> if (m != null) apple.value = apple.value.copy(message = m) }
-            }
-        }
         backend.refresh()
         refreshYouTubeMusic()
+        viewModelScope.launch {
+            podcastRepository.ensureLoaded()
+            launch { podcastRepository.feeds.collect { feeds -> _podcasts.value = _podcasts.value.copy(feeds = feeds) } }
+            launch { podcastRepository.episodesByFeed.collect { map -> _podcasts.value = _podcasts.value.copy(episodesByFeed = map) } }
+        }
         viewModelScope.launch {
             while (true) {
                 tick()
@@ -328,16 +331,6 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         tick()
     }
 
-    fun openAccessSettings() {
-        val app = getApplication<Application>()
-        val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        runCatching { app.startActivity(intent) }
-    }
-
-    fun openSourceApp() {
-        if (source != Source.YT_MUSIC) remotes[source]?.openApp()
-    }
-
     fun refreshYouTubeMusic() {
         val signedIn = youtubeSession.isLoggedIn()
         _youtubeMusic.value = _youtubeMusic.value.copy(
@@ -408,6 +401,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openYouTubePlaylist(playlist: PlaylistDisplayItem) {
         youtubeJob?.cancel()
+        if (pendingShufflePlaylist?.first?.id != playlist.id) pendingShufflePlaylist = null
         youtubeJob = viewModelScope.launch {
             _youtubeMusic.value = _youtubeMusic.value.copy(
                 openPlaylist = playlist,
@@ -421,6 +415,14 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
                     playlistTracks = songs,
                     message = if (songs.isEmpty()) "This playlist has no playable songs." else null,
                 )
+                pendingShufflePlaylist?.takeIf { it.first.id == playlist.id }?.let { (_, player) ->
+                    pendingShufflePlaylist = null
+                    if (songs.isNotEmpty()) {
+                        selectSource(Source.YT_MUSIC)
+                        setShuffleEnabled(true)
+                        playKodaSongs(songs, 0, player, Source.YT_MUSIC)
+                    }
+                }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -439,14 +441,92 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
 
     @androidx.media3.common.util.UnstableApi
     fun playYouTubeMusic(songs: List<Song>, startIndex: Int, player: PlayerViewModel) {
+        playKodaSongs(songs, startIndex, player, Source.YT_MUSIC)
+    }
+
+    /**
+     * Plays Koda [Song]s (YouTube Music tracks or podcast episodes) through Koda's
+     * PlayerViewModel, which drives Koda's MusicService. The deck's transport then
+     * follows that service via [youtubeBackend].
+     */
+    @androidx.media3.common.util.UnstableApi
+    fun playKodaSongs(songs: List<Song>, startIndex: Int, player: PlayerViewModel, forSource: Source) {
         val startSong = songs.getOrNull(startIndex) ?: return
-        selectSource(Source.YT_MUSIC)
+        selectSource(forSource)
         if (winding != 0) finishWinding()
         stopped = false
         playRequestedAt = SystemClock.elapsedRealtime()
         player.playQueue(songs, startSong)
         youtubeBackend.refresh()
         tick()
+    }
+
+    /** Plays a podcast feed's episodes from the top, shuffled (first episode plays, the rest shuffle). */
+    @androidx.media3.common.util.UnstableApi
+    fun playPodcastFeedShuffled(feed: PodcastFeed, player: PlayerViewModel) {
+        val songs = podcastSongs(feed.id)
+        if (songs.isEmpty()) return
+        selectSource(Source.PODCASTS)
+        setShuffleEnabled(true)
+        playKodaSongs(songs, 0, player, Source.PODCASTS)
+    }
+
+    /** Plays a YouTube Music playlist from the top, shuffled. */
+    @androidx.media3.common.util.UnstableApi
+    fun playYouTubePlaylistShuffled(playlist: PlaylistDisplayItem, player: PlayerViewModel) {
+        val songs = _youtubeMusic.value.playlistTracks.takeIf { _youtubeMusic.value.openPlaylist?.id == playlist.id }
+        if (songs.isNullOrEmpty()) {
+            // Tracks aren't loaded yet: open the playlist first, then shuffle-play once they arrive.
+            openYouTubePlaylist(playlist)
+            pendingShufflePlaylist = playlist to player
+            return
+        }
+        selectSource(Source.YT_MUSIC)
+        setShuffleEnabled(true)
+        playKodaSongs(songs, 0, player, Source.YT_MUSIC)
+    }
+
+    private var pendingShufflePlaylist: Pair<PlaylistDisplayItem, PlayerViewModel>? = null
+
+    /** Plays one episode inside its feed's episode list. */
+    @androidx.media3.common.util.UnstableApi
+    fun playPodcastEpisode(episode: PodcastEpisode, player: PlayerViewModel) {
+        val songs = podcastSongs(episode.feedId)
+        val index = songs.indexOfFirst { it.id == "podcast:${episode.id}" }.coerceAtLeast(0)
+        playKodaSongs(songs, index, player, Source.PODCASTS)
+    }
+
+    private fun podcastSongs(feedId: String): List<Song> {
+        val ui = _podcasts.value
+        val feed = ui.feeds.firstOrNull { it.id == feedId }
+        return (ui.episodesByFeed[feedId] ?: emptyList()).map { podcastRepository.episodeToSong(it, feed) }
+    }
+
+    /**
+     * Shuffles the active source's queue. Local goes straight to Foldman's player;
+     * YouTube Music and Podcasts go through Koda's MusicService via a throwaway
+     * MediaController (released right after the flag lands).
+     */
+    @androidx.media3.common.util.UnstableApi
+    fun setShuffleEnabled(enabled: Boolean) {
+        _shuffleOn.value = enabled
+        when (source) {
+            Source.LOCAL -> local.setShuffleEnabled(enabled)
+            Source.YT_MUSIC, Source.PODCASTS -> {
+                val app = getApplication<Application>()
+                val token = SessionToken(app, ComponentName(app, MusicService::class.java))
+                val future = MediaController.Builder(app, token).buildAsync()
+                future.addListener({
+                    val controller = runCatching { future.get() }.getOrNull()
+                    if (controller == null) {
+                        MediaController.releaseFuture(future)
+                        return@addListener
+                    }
+                    controller.shuffleModeEnabled = enabled
+                    controller.release()
+                }, ContextCompat.getMainExecutor(app))
+            }
+        }
     }
 
     private var queueFor: List<LocalTrack>? = null
@@ -480,128 +560,69 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         tick()
     }
 
-    // region Apple Music
+    // region Podcasts (RSS)
 
-    private val developerToken: String?
-        get() = prefs.getString(KEY_APPLE_DEV, null)?.takeIf { it.isNotBlank() }
-            ?: BuildConfig.APPLE_DEVELOPER_TOKEN.takeIf { it.isNotBlank() }
-    private val musicUserToken: String? get() = prefs.getString(KEY_APPLE_USER, null)
-
-    private fun syncAppleTokens() {
-        appleKit?.setTokens(developerToken, musicUserToken)
-        apple.value = apple.value.copy(hasDeveloperToken = developerToken != null, signedIn = musicUserToken != null)
+    fun setPodcastAddUrl(url: String) {
+        _podcasts.value = _podcasts.value.copy(addUrl = url, addError = null)
     }
 
-    fun setAppleDeveloperToken(token: String) {
-        prefs.edit { putString(KEY_APPLE_DEV, token.trim()) }
-        syncAppleTokens()
-        tick()
+    fun showAddPodcastDialog(show: Boolean) {
+        _podcasts.value = _podcasts.value.copy(showAddDialog = show, addUrl = "", addError = null, adding = false)
     }
 
-    /** Apple's sign-in screen, or null when it can't be shown (no SDK or no developer token). */
-    fun appleSignInIntent(): Intent? {
-        val dev = developerToken ?: return null
-        return MusicKit.signInIntent(getApplication(), dev).also {
-            if (it == null) apple.value = apple.value.copy(message = "MusicKit couldn't start sign-in.")
+    fun addPodcastFeed() {
+        val url = _podcasts.value.addUrl.trim()
+        if (url.isEmpty() || _podcasts.value.adding) return
+        podcastJob?.cancel()
+        podcastJob = viewModelScope.launch {
+            _podcasts.value = _podcasts.value.copy(adding = true, addError = null)
+            podcastRepository.addFeed(url)
+                .onSuccess { feed ->
+                    _podcasts.value = _podcasts.value.copy(
+                        adding = false, showAddDialog = false, addUrl = "", addError = null, message = null,
+                        openFeed = feed,
+                    )
+                }
+                .onFailure { e ->
+                    _podcasts.value = _podcasts.value.copy(
+                        adding = false, addError = e.message ?: "Couldn't add that feed. Check the URL.",
+                    )
+                }
         }
     }
 
-    fun onAppleSignInResult(data: Intent?) {
-        MusicKit.readSignInResult(getApplication(), data)
-            .onSuccess { token ->
-                prefs.edit { putString(KEY_APPLE_USER, token) }
-                apple.value = apple.value.copy(message = null)
-                syncAppleTokens()
-                loadApplePlaylists()
-            }
-            .onFailure { e -> apple.value = apple.value.copy(message = "Sign-in didn't finish (${e.message}).") }
-        tick()
+    fun openPodcastFeed(feed: PodcastFeed?) {
+        _podcasts.value = _podcasts.value.copy(openFeed = feed, message = null)
+        if (feed != null) refreshPodcastFeed(feed)
     }
 
-    fun signOutOfApple() {
-        prefs.edit { remove(KEY_APPLE_USER) }
-        apple.value = apple.value.copy(playlists = emptyList(), openPlaylist = null, tracks = emptyList())
-        syncAppleTokens()
-        tick()
-    }
-
-    fun loadApplePlaylists() = appleCall { api ->
-        apple.value = apple.value.copy(playlists = api.playlists())
-    }
-
-    fun openApplePlaylist(playlist: ApplePlaylist) {
-        apple.value = apple.value.copy(openPlaylist = playlist, tracks = emptyList())
-        appleCall { api ->
-            val tracks = api.tracks(playlist.id)
-            if (apple.value.openPlaylist?.id == playlist.id) apple.value = apple.value.copy(tracks = tracks)
-        }
-    }
-
-    fun closeApplePlaylist() {
-        apple.value = apple.value.copy(openPlaylist = null, tracks = emptyList())
-        tick()
-    }
-
-    /** Plays the open playlist from [trackIndex]: in-app with MusicKit, otherwise handed to the Apple Music app. */
-    fun playApplePlaylist(trackIndex: Int = 0) {
-        val ui = apple.value
-        val playlist = ui.openPlaylist ?: return
-        selectSource(Source.APPLE_MUSIC)
-        val kit = appleKit
-        if (kit == null) {
-            openInAppleMusic(playlist)
-            return
-        }
-        // Uploaded songs have no catalog id and can't be streamed; skip them, keeping the start song.
-        val playable = ui.tracks.withIndex().filter { it.value.catalogId != null }
-        if (playable.isEmpty()) {
-            apple.value = ui.copy(message = "Nothing in this playlist can be streamed.")
-            return
-        }
-        val start = playable.indexOfFirst { it.index >= trackIndex }.coerceAtLeast(0)
-        if (winding != 0) finishWinding()
-        stopped = false
-        playRequestedAt = SystemClock.elapsedRealtime()
-        kit.messages.value = null
-        apple.value = apple.value.copy(message = null)
-        kit.playSongs(playable.map { it.value.catalogId!! }, start)
-        tick()
-    }
-
-    private fun openInAppleMusic(playlist: ApplePlaylist) {
-        val url = playlist.globalId?.let { "https://music.apple.com/playlist/$it" }
-            ?: "https://music.apple.com/library/playlist/${playlist.id}"
-        val base = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT)
-        val app = getApplication<Application>()
-        runCatching { app.startActivity(Intent(base).setPackage(Source.APPLE_MUSIC.packageName)) }
-            .recoverCatching { app.startActivity(base) }
-    }
-
-    private fun appleCall(block: suspend (AppleMusicApi) -> Unit) {
-        val dev = developerToken ?: return
-        val user = musicUserToken ?: return
-        appleJob?.cancel()
-        appleJob = viewModelScope.launch {
-            apple.value = apple.value.copy(loading = true, message = null)
+    fun refreshPodcastFeed(feed: PodcastFeed) {
+        podcastJob?.cancel()
+        podcastJob = viewModelScope.launch {
+            _podcasts.value = _podcasts.value.copy(loading = true, message = null)
             try {
-                block(AppleMusicApi(dev, user))
-            } catch (e: AppleAuthExpired) {
-                prefs.edit { remove(KEY_APPLE_USER) }
-                syncAppleTokens()
-                apple.value = apple.value.copy(message = "Apple Music sign-in expired or the developer token was rejected. Sign in again.")
+                val count = podcastRepository.refreshFeed(feed.id).getOrThrow()
+                _podcasts.value = _podcasts.value.copy(message = if (count == 0) "Feed is up to date." else null)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                apple.value = apple.value.copy(message = e.message ?: "Couldn't reach Apple Music.")
+                _podcasts.value = _podcasts.value.copy(message = e.message ?: "Couldn't refresh this feed.")
             } finally {
-                apple.value = apple.value.copy(loading = false)
-                tick()
+                _podcasts.value = _podcasts.value.copy(loading = false)
             }
+        }
+    }
+
+    fun removePodcastFeed(feed: PodcastFeed) {
+        podcastJob?.cancel()
+        podcastJob = viewModelScope.launch {
+            podcastRepository.removeFeed(feed.id)
+            if (_podcasts.value.openFeed?.id == feed.id) _podcasts.value = _podcasts.value.copy(openFeed = null)
         }
     }
 
     // endregion
+
 
     fun setVolume(fraction: Float) {
         val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
@@ -659,9 +680,27 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             currentQueueId = if (source == Source.LOCAL) state.trackIndex.toLong() else state.currentQueueId,
             keySounds = prefs.getBoolean(KEY_SOUNDS, true),
             haptics = prefs.getBoolean(KEY_HAPTICS, true),
-            apple = apple.value,
+            shuffleOn = _shuffleOn.value,
+            podcasts = _podcasts.value,
             youtubeMusic = _youtubeMusic.value,
         )
+        // Push now-playing state to the home-screen widget. Gated on track /
+        // transport / artwork / shuffle changes — never on position ticks.
+        val widgetKey = listOf(np.title, np.artist, transport, source, _shuffleOn.value, np.artwork)
+        if (widgetKey != lastWidgetKey) {
+            lastWidgetKey = widgetKey
+            val app = getApplication<Application>()
+            viewModelScope.launch {
+                FoldmanWidgetUpdater.update(app, WidgetSnapshot(
+                    title = np.title.orEmpty().ifBlank { "Foldman" },
+                    artist = np.artist.orEmpty(),
+                    artwork = np.artwork,
+                    isPlaying = transport == Transport.PLAYING,
+                    shuffleOn = _shuffleOn.value,
+                    activeSource = WidgetSource.fromDeckName(source.name),
+                ))
+            }
+        }
     }
 
     private fun updateLabel(np: NowPlaying) {
@@ -696,9 +735,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         local.release()
-        remotes.values.forEach { it.release() }
         youtubeBackend.release()
-        appleKit?.release()
     }
 
     companion object {
@@ -706,8 +743,6 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         private const val KEY_FOLDER = "folder"
         private const val KEY_SOUNDS = "key_sounds"
         private const val KEY_HAPTICS = "haptics"
-        private const val KEY_APPLE_DEV = "apple_developer_token"
-        private const val KEY_APPLE_USER = "apple_music_user_token"
         /** Winding speed relative to play: a four-minute song winds through in about 20 s. */
         const val WIND_SPEED = 12L
 

@@ -47,7 +47,7 @@ object DeckColors {
     fun shell(source: Source) = when (source) {
         Source.LOCAL -> Color(0xFF3A3D44)
         Source.YT_MUSIC -> Color(0xFFB8322A)
-        Source.APPLE_MUSIC -> Color(0xFFE9E5DF)
+        Source.PODCASTS -> Color(0xFF7A5C2E)
     }
 }
 

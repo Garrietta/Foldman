@@ -108,6 +108,8 @@ class LocalBackend(private val context: Context) : DeckBackend {
         c.play()
     }
 
+    fun setShuffleEnabled(enabled: Boolean) = withController { c -> c.shuffleModeEnabled = enabled }
+
     private fun toMediaItem(t: LocalTrack) = MediaItem.Builder()
         .setMediaId(t.uri.toString())
         .setUri(t.uri)

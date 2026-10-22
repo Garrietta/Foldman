@@ -102,12 +102,8 @@ fun LibraryBand(ui: DeckUi, actions: ShelfActions, onPlayQueue: (Long) -> Unit, 
         Column(Modifier.weight(0.36f).fillMaxHeight()) {
             when (ui.source) {
                 Source.LOCAL -> Albums(ui, actions)
-                Source.APPLE_MUSIC -> {
-                    Text(ui.apple.openPlaylist?.let { "Playlist" } ?: "Playlists", style = Header)
-                    Spacer(Modifier.height(8.dp))
-                    AppleBrowser(ui.apple, actions.apple, fallback = { RemoteState(ui, actions, showHeader = false) })
-                }
-                else -> RemoteState(ui, actions)
+                Source.YT_MUSIC -> YouTubeMusicBrowser(ui.youtubeMusic, actions.youtubeMusic, Modifier.fillMaxSize())
+                Source.PODCASTS -> PodcastsBrowser(ui.podcasts, actions.podcasts, Modifier.fillMaxSize())
             }
         }
         Column(Modifier.weight(0.34f).fillMaxHeight()) {
@@ -120,16 +116,16 @@ fun LibraryBand(ui: DeckUi, actions: ShelfActions, onPlayQueue: (Long) -> Unit, 
 
 private fun statusLine(ui: DeckUi): String = when {
     ui.source == Source.YT_MUSIC -> if (ui.youtubeMusic.signedIn) "Signed in" else "Sign in"
+    ui.source == Source.PODCASTS -> {
+        val n = ui.podcasts.feeds.size
+        if (n == 0) "No feeds" else if (n == 1) "1 feed" else "$n feeds"
+    }
     else -> when (val s = ui.status) {
         SourceStatus.Ready -> if (ui.source == Source.LOCAL) "${ui.tracks.size} songs" else "Connected"
         SourceStatus.NeedsFolder -> "Choose a folder"
         is SourceStatus.Scanning -> "Scanning… ${s.found}"
         SourceStatus.EmptyFolder -> "No music found"
-        SourceStatus.NeedsAccess -> "Needs notification access"
         SourceStatus.AppNotRunning -> "Not playing"
-        SourceStatus.NotInstalled -> "Not installed"
-        SourceStatus.NeedsDeveloperToken -> "Needs developer token"
-        SourceStatus.NeedsAppleSignIn -> "Sign in to browse"
     }
 }
 
@@ -193,45 +189,13 @@ private fun Albums(ui: DeckUi, actions: ShelfActions) {
 }
 
 @Composable
-private fun RemoteState(ui: DeckUi, actions: ShelfActions, showHeader: Boolean = true) {
-    val app = ui.source.label
-    if (ui.source == Source.YT_MUSIC) {
-        YouTubeMusicBrowser(ui.youtubeMusic, actions.youtubeMusic)
-        return
-    }
-    if (showHeader) {
-        Text(app, style = Header)
-        Spacer(Modifier.height(8.dp))
-    }
-    val (text, button, action) = when (ui.status) {
-        SourceStatus.NeedsAccess -> Triple(
-            "Foldman plays $app through its media session, which Android only shares with apps that have notification access. If the switch is greyed out: App info → ⋮ → Allow restricted settings.",
-            "Grant access", actions.openAccess,
-        )
-        SourceStatus.NotInstalled -> Triple("$app isn't installed.", "Get $app", { actions.installApp(ui.source) })
-        SourceStatus.AppNotRunning -> Triple("Press PLAY to resume your last $app queue, or open it and pick something.", "Open $app", actions.openApp)
-        else -> Triple("Choose playlists and albums in $app; the deck follows along with art, queue and transport.", "Open $app", actions.openApp)
-    }
-    Text(text, style = Sub.copy(lineHeight = 16.sp))
-    Spacer(Modifier.height(10.dp))
-    Text(
-        button.uppercase(),
-        style = Sub.copy(color = Color(0xFF1E1916), fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(DeckColors.Accent)
-            .clickable(onClick = action)
-            .padding(horizontal = 14.dp, vertical = 7.dp),
-    )
-}
-
 @Composable
 private fun QueueList(ui: DeckUi, onPlay: (Long) -> Unit) {
     if (ui.queue.isEmpty()) {
         val empty = when {
             ui.source == Source.LOCAL -> "Nothing loaded"
-            ui.source == Source.APPLE_MUSIC && ui.apple.sdkPlayback -> "Pick a playlist to load the queue"
             ui.source == Source.YT_MUSIC -> "Find songs in YouTube Music"
+            ui.source == Source.PODCASTS -> "Pick a podcast to load the queue"
             else -> "This app doesn't share its queue"
         }
         Text(empty, style = Sub)

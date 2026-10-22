@@ -1,9 +1,0 @@
-# Copy to apple-music.properties (git-ignored) and fill in from developer.apple.com →
-# Certificates, IDs & Profiles. Then run: python3 tools/make_apple_token.py
-apple.teamId=YOUR_TEAM_ID
-apple.keyId=YOUR_KEY_ID
-apple.mediaId=media.your.app
-# The MusicKit private key (.p8). Keep it outside the repo.
-apple.keyPath=/path/to/AuthKey_YOUR_KEY_ID.p8
-# Filled in by tools/make_apple_token.py.
-apple.developerToken=

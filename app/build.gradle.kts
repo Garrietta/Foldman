@@ -5,13 +5,6 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-// Apple Music developer token (a JWT made by tools/make_apple_token.py), read from the
-// git-ignored apple-music.properties; without it the token can be pasted in the app.
-val appleProps = Properties().apply {
-    rootProject.file("apple-music.properties").takeIf { it.exists() }?.inputStream()?.use(::load)
-}
-val appleDeveloperToken: String = appleProps.getProperty("apple.developerToken", "").trim()
-
 // Release signing, from the git-ignored signing.properties (storeFile, storePassword, keyAlias,
 // keyPassword). Without it, release builds fall back to the debug key.
 val signingProps = Properties().apply {
@@ -36,7 +29,6 @@ android {
         targetSdk = 36
         versionCode = appVersionCode
         versionName = appVersionName
-        buildConfigField("String", "APPLE_DEVELOPER_TOKEN", "\"$appleDeveloperToken\"")
         // Every current foldable is 64-bit ARM; leaving out the rest halves the APK.
         ndk {
             abiFilters += "arm64-v8a"
@@ -95,9 +87,10 @@ dependencies {
     implementation("androidx.window:window:1.5.1")
     implementation("androidx.palette:palette-ktx:1.0.0")
 
-    // Apple's MusicKit for Android AARs (musickitauth-release-*.aar, mediaplayback-release-*.aar),
-    // downloaded from developer.apple.com. Optional: the app finds them at runtime.
+    // Home-screen widget (Glance) and ListenableFuture await() for its media-controller actions.
+    implementation("androidx.glance:glance-appwidget:1.1.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.10.1")
+
+    // Local binary dependencies, if any.
     implementation(fileTree("libs") { include("*.aar", "*.jar") })
-    // MusicKit's sign-in screen uses an AppCompat theme.
-    implementation("androidx.appcompat:appcompat:1.8.0")
 }

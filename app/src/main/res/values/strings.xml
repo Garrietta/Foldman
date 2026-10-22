@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Foldman</string>
+    <string name="foldman_widget_label">Foldman Deck</string>
+    <string name="foldman_widget_description">Walkman-style transport for Foldman: previous, play/pause, next and shuffle keys, tinted by rustic colors from the album art.</string>
 </resources>
