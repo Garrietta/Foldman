@@ -27,15 +27,15 @@ import kotlin.math.sin
 object CassetteRenderer {
 
     // Fixed chrome palette.
-    private const val BODY = 0xFF17191D
-    private const val WINDOW = 0xFF22252B
-    private const val REEL_PACK = 0xFF0C0D10
-    private const val METAL = 0xFFC9CDD2
-    private const val METAL_DARK = 0xFF8B9096
-    private const val HUB = 0xFF2A2E34
-    private const val TAPE_LINE = 0xFF3A3F46
-    private const val ACCENT_RED = 0xFFC0392B
-    private const val LABEL_INK = 0xFF3A3F45
+    private val BODY = 0xFF17191D.toInt()
+    private val WINDOW = 0xFF22252B.toInt()
+    private val REEL_PACK = 0xFF0C0D10.toInt()
+    private val METAL = 0xFFC9CDD2.toInt()
+    private val METAL_DARK = 0xFF8B9096.toInt()
+    private val HUB = 0xFF2A2E34.toInt()
+    private val TAPE_LINE = 0xFF3A3F46.toInt()
+    private val ACCENT_RED = 0xFFC0392B.toInt()
+    private val LABEL_INK = 0xFF3A3F45.toInt()
 
     fun renderCassette(angleDeg: Float, widthPx: Int, heightPx: Int): Bitmap {
         val w = widthPx.coerceAtLeast(1)
@@ -152,14 +152,14 @@ object CassetteRenderer {
         canvas.drawText(label, 8f, top + 24f, labelPaint)
         val trackTop = top + 34f
         val trackH = 26f
-        val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF54595F }
+        val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF54595F.toInt() }
         canvas.drawRoundRect(
             RectF(8f, trackTop, w - 8f, trackTop + trackH),
             trackH / 2f, trackH / 2f, trackPaint
         )
         // Center groove.
         val groove = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0xFF2E3237
+            color = 0xFF2E3237.toInt()
             style = Paint.Style.STROKE
             strokeWidth = 4f
         }
