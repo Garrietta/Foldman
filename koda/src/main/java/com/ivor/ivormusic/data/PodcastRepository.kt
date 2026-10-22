@@ -197,9 +197,22 @@ class PodcastRepository(context: Context) {
      * the normal music pipeline (queue, notification, Auto) with the show as
      * artist/album and its artwork.
      */
+    /** Cache of podcast song ID -> enclosure URL, populated by [episodeToSong].
+     *  Belt-and-braces for the item builder: if [Song.uri] is lost in transit,
+     *  [toPlaybackMediaItem] can recover the enclosure here. */
+    companion object {
+        private val enclosureCache = mutableMapOf<String, String>()
+        fun enclosureFor(songId: String): String? = enclosureCache[songId]
+    }
+
     fun episodeToSong(episode: PodcastEpisode, feed: PodcastFeed?): Song {
+        val songId = "podcast:${episode.id}"
+        // Populate the cache: the enclosure URL for this song ID.
+        if (episode.audioUrl.isNotBlank()) {
+            enclosureCache[songId] = episode.audioUrl
+        }
         return Song(
-            id = "podcast:${episode.id}",
+            id = songId,
             title = episode.title,
             artist = feed?.title ?: "Podcast",
             album = feed?.title ?: "Podcast",

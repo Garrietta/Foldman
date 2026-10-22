@@ -93,11 +93,23 @@ internal fun MusicQueueItem.toPlaybackMediaItem(): MediaItem {
     // the item would be pushed through YouTube stream resolution and fail.
     // Resolve the playback URI up front so it can also be stashed in extras
     // as a backup carrier before the metadata is built.
-    val podcastUri = song.uri.takeIf { song.source == SongSource.PODCAST }
+    // For PODCAST: prefer song.uri, fallback to the enclosure cache (populated
+    // by episodeToSong). The cache is belt-and-braces: if the URI was lost in
+    // transit between mapping and item-building, recover it here.
+    val podcastUri = if (song.source == SongSource.PODCAST) {
+        song.uri ?: com.ivor.ivormusic.data.PodcastRepository.enclosureFor(song.id)
+            ?.let { android.net.Uri.parse(it) }
+            ?.also {
+                com.ivor.ivormusic.diagnostics.PlaybackDiagnostics.log(
+                    "podcast",
+                    "toPlaybackMediaItem: recovered enclosure from cache for ${song.id}",
+                )
+            }
+    } else null
     if (song.source == SongSource.PODCAST && podcastUri == null) {
         com.ivor.ivormusic.diagnostics.PlaybackDiagnostics.log(
             "podcast",
-            "toPlaybackMediaItem: PODCAST song ${song.id} has null uri; placeholder used",
+            "toPlaybackMediaItem: PODCAST song ${song.id} has null uri and no cache entry; placeholder used",
         )
     }
     val extras = Bundle().apply {
@@ -142,6 +154,15 @@ internal fun MusicQueueItem.toPlaybackMediaItem(): MediaItem {
                 song.id, podcastUri.toString()
             )
         } else {
+            // PODCAST with null URI: the enclosure was lost between episodeToSong
+            // and item-building. Do NOT use the placeholder (it triggers the
+            // YT-resolution path which mints error://). Log loudly so the
+            // on-device diagnostics show exactly which song lost its URI.
+            com.ivor.ivormusic.diagnostics.PlaybackDiagnostics.log(
+                "podcast",
+                "toPlaybackMediaItem: PODCAST ${song.id} has null uri! " +
+                    "Enclosure lost in item-building. Using placeholder will fail.",
+            )
             builder.setUri("https://placeholder.ivormusic/${song.id}")
         }
     } else if (song.source == SongSource.LOCAL && song.uri != null) {
