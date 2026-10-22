@@ -206,15 +206,16 @@ private fun WalkmanContent() {
                     .defaultWeight()
                     .cornerRadius(sd(20))
                     .background(ColorProvider(Chrome.panel))
-                    .padding(horizontal = sd(8), vertical = sd(12)),
+                    .padding(sd(10)),
             ) {
                     // Title box: expanded to fill the width (tape is vertical now).
+                    // Expanded vertically for uniform margins.
                     Column(modifier = GlanceModifier.fillMaxWidth()) {
                         Box(
                             modifier = GlanceModifier.fillMaxWidth()
                                 .cornerRadius(sd(14))
                                 .background(ColorProvider(Chrome.titleBox))
-                                .padding(sd(10))
+                                .padding(horizontal = sd(10), vertical = sd(14))
                                 .clickable(openApp),
                         ) {
                             Column {
@@ -317,7 +318,7 @@ private fun WalkmanContent() {
             modifier = GlanceModifier.width(sd(96))
                 .cornerRadius(sd(14))
                 .background(ColorProvider(Chrome.panel))
-                .padding(sd(6))
+                .padding(sd(4))
                 .clickable(openApp),
             contentAlignment = Alignment.Center,
         ) {
