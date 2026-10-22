@@ -140,7 +140,25 @@ fun FoldmanScreen(
     // currentQueueId is the stable per-track identity (unlike the index, it does
     // not move when the queue is shuffled), and it changes with the source too,
     // so source switches still fire exactly once.
+    // Directional: NEXT brings the new tape from the top, PREVIOUS from the bottom.
+    var lastDirSource by remember { mutableStateOf<Source?>(null) }
+    var lastQueuePos by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(ui.source, ui.currentQueueId) {
+        val pos = ui.queue.indexOfFirst { it.id == ui.currentQueueId }
+        val n = ui.queue.size
+        anim.insertDir = if (ui.source != lastDirSource || lastQueuePos == null || pos < 0 || n <= 1) {
+            1f // First load or source switch: the default drop from the top.
+        } else {
+            val prev = lastQueuePos!!
+            when {
+                prev == n - 1 && pos == 0 -> 1f // Wrapped NEXT (last -> first).
+                prev == 0 && pos == n - 1 -> -1f // Wrapped PREVIOUS (first -> last).
+                pos >= prev -> 1f // NEXT: queue index grew.
+                else -> -1f // PREVIOUS: queue index shrank.
+            }
+        }
+        lastDirSource = ui.source
+        lastQueuePos = pos
         anim.insert.snapTo(1f)
         anim.insert.animateTo(0f, spring(dampingRatio = 0.62f, stiffness = 220f))
         if (feel.keySounds) sounds.autoStop()

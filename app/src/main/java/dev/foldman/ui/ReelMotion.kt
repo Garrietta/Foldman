@@ -110,6 +110,11 @@ class DeckAnimations {
     val reels = ReelMotion()
     /** 1 = cassette out of the bay, 0 = seated. */
     val insert = Animatable(1f)
+    /**
+     * Insert direction: +1 = the new tape drops in from the top (NEXT),
+     * -1 = it floats up from the bottom (PREVIOUS).
+     */
+    var insertDir by mutableFloatStateOf(1f)
     /** Short hop when STOP/EJECT is pressed with the tape already stopped. */
     val pop = Animatable(0f)
     var ejectCount by mutableStateOf(0)

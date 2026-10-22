@@ -87,10 +87,13 @@ fun TapeWindow(ui: DeckUi, anim: DeckAnimations, modifier: Modifier = Modifier, 
         drawPath(innerPath, Color(0xFF0C0C0D))
         val slide = anim.insert.value
         val pop = anim.pop.value
+        // Directional insert: NEXT drops the new tape from the top, PREVIOUS
+        // floats it up from the bottom. (On the stood-on-end canvas, +x is up.)
+        val dir = anim.insertDir
         clipPath(innerPath) {
-            // In and out through the top of the case (the left of the canvas when stood on end).
-            val dx = if (vertical) slide * size.width * 1.1f + pop * u * 5f else 0f
-            val dy = if (vertical) 0f else -slide * size.height * 1.3f - pop * u * 5f
+            // In and out through the ends of the case (the left/right of the canvas when stood on end).
+            val dx = if (vertical) dir * slide * size.width * 1.1f + pop * u * 5f else 0f
+            val dy = if (vertical) 0f else -dir * slide * size.height * 1.3f - pop * u * 5f
             translate(dx, dy) {
                 withTransform({
                     translate(-CROP.left * u, -CROP.top * u)
