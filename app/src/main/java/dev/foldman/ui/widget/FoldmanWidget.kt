@@ -1,6 +1,7 @@
 package dev.foldman.ui.widget
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
@@ -406,7 +407,7 @@ private fun TransportKey(
             ) {
                 if (icon != null) {
                     Image(
-                        provider = ImageProvider(icon),
+                        provider = BitmapImageProvider(icon),
                         contentDescription = label,
                         modifier = GlanceModifier.size(sd(52)),
                     )

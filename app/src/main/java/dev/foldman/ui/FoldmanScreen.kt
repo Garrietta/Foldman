@@ -7,7 +7,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -429,7 +432,30 @@ private fun CoverWalkman(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, o
                     .fillMaxHeight()
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
                     .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Start))
-                    .padding(start = 20.dp, end = 14.dp),
+                    .padding(start = 20.dp, end = 14.dp)
+                    // Blue-face swipe up: opens the TAPES sheet. The cassette's own
+                    // gesture detector consumes touches starting inside the tape, so
+                    // this only fires for swipes beginning on the blue face.
+                    .pointerInput(onTapes) {
+                        var totalY = 0f
+                        var triggered = false
+                        detectDragGestures(
+                            onDragStart = { totalY = 0f; triggered = false },
+                            onDragEnd = { totalY = 0f; triggered = false },
+                            onDragCancel = { totalY = 0f; triggered = false },
+                            onDrag = { change, dragAmount ->
+                                if (!triggered) {
+                                    totalY += dragAmount.y
+                                    // Upward swipe of 60px: open tapes.
+                                    if (totalY < -60f) {
+                                        triggered = true
+                                        change.consume()
+                                        onTapes()
+                                    }
+                                }
+                            }
+                        )
+                    },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box(Modifier.fillMaxWidth().height(capH)) {
@@ -441,7 +467,45 @@ private fun CoverWalkman(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, o
                 Text("STEREO", style = Serif.copy(fontSize = 30.sp))
                 Spacer(Modifier.height(18.dp))
                 Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            // Cassette gestures: tap = play/pause, swipe up = next,
+                            // swipe down = previous. Consumes the gesture so the
+                            // blue-face swipe doesn't fire.
+                            .pointerInput(ui.isPlaying, deck) {
+                                detectTapGestures(
+                                    onTap = {
+                                        if (ui.isPlaying) deck.pause() else deck.play()
+                                    }
+                                )
+                            }
+                            .pointerInput(deck) {
+                                var totalY = 0f
+                                var triggered = false
+                                detectDragGestures(
+                                    onDragStart = { totalY = 0f; triggered = false },
+                                    onDragEnd = { totalY = 0f; triggered = false },
+                                    onDragCancel = { totalY = 0f; triggered = false },
+                                    onDrag = { change, dragAmount ->
+                                        if (!triggered) {
+                                            totalY += dragAmount.y
+                                            if (totalY < -60f) {
+                                                triggered = true
+                                                change.consume()
+                                                deck.next()
+                                            } else if (totalY > 60f) {
+                                                triggered = true
+                                                change.consume()
+                                                deck.previous()
+                                            }
+                                        }
+                                    }
+                                )
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
                         TapeWindow(ui, anim, vertical = true)
                     }
                     Spacer(Modifier.width(12.dp))
