@@ -1,8 +1,12 @@
 package dev.foldman.ui.widget
 
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.BitmapFactory
+import android.os.Build
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.BitmapImageProvider
@@ -11,6 +15,7 @@ import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
+import androidx.glance.LocalContext
 import androidx.glance.action.Action
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
@@ -35,7 +40,6 @@ import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.size
 import androidx.glance.layout.width
-import androidx.glance.material3.GlanceTheme
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
@@ -73,8 +77,9 @@ internal object WidgetKeys {
  * - Right: the cassette window grown to fill the widget's full height — the
  *   visual anchor, its reels turning while a song plays.
  *
- * Theming is Material You: the background is the dynamic scheme background,
- * and the play/pause pill wears the contrasting dynamic primary-container.
+ * Theming is Material You: the background and pill containers are read from
+ * the system's dynamic color palette (wallpaper-derived, API 31+), with the
+ * play/pause pill wearing the contrasting dynamic accent container.
  * Playback glyphs are Material Symbols vectors with one uniform tint, so no
  * emoji-font variance across devices.
  *
@@ -88,9 +93,62 @@ class FoldmanWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
-            GlanceTheme {
-                WalkmanContent()
+            WalkmanContent()
+        }
+    }
+}
+
+/**
+ * The widget's Material You palette, read from the system's dynamic colors
+ * (wallpaper-derived on API 31+). Below 31 there is no dynamic palette, so it
+ * falls back to the static rustic deck tones.
+ */
+private data class WidgetPalette(
+    val background: ColorProvider,
+    val onBackground: ColorProvider,
+    val surfaceVariant: ColorProvider,
+    val onSurfaceVariant: ColorProvider,
+    val primaryContainer: ColorProvider,
+    val onSurface: ColorProvider,
+)
+
+@Composable
+private fun dynamicPalette(): WidgetPalette {
+    val context = LocalContext.current
+    return remember {
+        if (Build.VERSION.SDK_INT >= 31) {
+            val dark = (context.resources.configuration.uiMode and
+                Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+            fun sys(id: Int): ColorProvider = ColorProvider(Color(context.getColor(id)))
+            if (dark) {
+                WidgetPalette(
+                    background = sys(android.R.color.system_neutral1_900),
+                    onBackground = sys(android.R.color.system_neutral1_100),
+                    surfaceVariant = sys(android.R.color.system_neutral_variant_700),
+                    onSurfaceVariant = sys(android.R.color.system_neutral_variant_200),
+                    primaryContainer = sys(android.R.color.system_accent1_700),
+                    onSurface = sys(android.R.color.system_neutral1_100),
+                )
+            } else {
+                WidgetPalette(
+                    background = sys(android.R.color.system_neutral1_50),
+                    onBackground = sys(android.R.color.system_neutral1_900),
+                    surfaceVariant = sys(android.R.color.system_neutral_variant_100),
+                    onSurfaceVariant = sys(android.R.color.system_neutral_variant_700),
+                    primaryContainer = sys(android.R.color.system_accent1_100),
+                    onSurface = sys(android.R.color.system_neutral1_900),
+                )
             }
+        } else {
+            val f = RusticColors.Fallback
+            WidgetPalette(
+                background = ColorProvider(f.background),
+                onBackground = ColorProvider(f.title),
+                surfaceVariant = ColorProvider(f.keycap),
+                onSurfaceVariant = ColorProvider(f.subtitle),
+                primaryContainer = ColorProvider(f.accent),
+                onSurface = ColorProvider(f.symbol),
+            )
         }
     }
 }
@@ -120,7 +178,7 @@ private fun WalkmanContent() {
     }
     val openApp = actionStartActivity<MainActivity>()
     val params = actionParametersOf(SourceParam to sourceName)
-    val colors = GlanceTheme.colors
+    val colors = dynamicPalette()
     // One uniform tint for every playback control icon.
     val iconTint = colors.onSurface
 
