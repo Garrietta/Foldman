@@ -56,10 +56,6 @@ import dev.foldman.deck.Source
 import dev.foldman.deck.SourceStatus
 import dev.foldman.playback.Artwork
 
-private val Title = TextStyle(color = Color(0xFFF4EFE9), fontSize = 15.sp, fontWeight = FontWeight.Medium)
-private val Sub = TextStyle(color = Color(0xFFA79C92), fontSize = 12.sp)
-private val Header = TextStyle(color = Color(0xFFF4EFE9), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-
 /** Smoked dark glass the library and now-playing sit behind on the unfolded screen. */
 fun Modifier.glassPanel(corner: Dp = 18.dp): Modifier = drawWithCache {
     val r = CornerRadius(corner.toPx())

@@ -16,8 +16,10 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -28,6 +30,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,15 +45,23 @@ import dev.foldman.deck.YouTubeMusicUi
  * The YouTube Music shelf: sign-in, search, your playlists and their tracks.
  * One scrollable list that fills whatever space the layout gives it, so nothing
  * is ever clipped below the fold.
+ *
+ * [onPaper] selects the ink: false for the unfolded dark-glass library (light text),
+ * true for the folded TAPES sheet's J-card paper (dark ink, like the local library).
  */
 @Composable
-fun YouTubeMusicBrowser(ui: YouTubeMusicUi, actions: YouTubeMusicActions, modifier: Modifier = Modifier) {
+fun YouTubeMusicBrowser(
+    ui: YouTubeMusicUi,
+    actions: YouTubeMusicActions,
+    modifier: Modifier = Modifier,
+    onPaper: Boolean = false,
+) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(bottom = 8.dp),
     ) {
-        youtubeMusicItems(ui, actions)
+        youtubeMusicItems(ui, actions, onPaper = onPaper)
     }
 }
 
@@ -60,30 +72,45 @@ fun YouTubeMusicBrowser(ui: YouTubeMusicUi, actions: YouTubeMusicActions, modifi
 fun LazyListScope.youtubeMusicItems(
     ui: YouTubeMusicUi,
     actions: YouTubeMusicActions,
+    onPaper: Boolean = false,
     wrap: @Composable (@Composable () -> Unit) -> Unit = { content -> content() },
 ) {
     val openPlaylist = ui.openPlaylist
 
+    // The app's text library, picked per surface — the same tokens the local-files
+    // library uses, so YouTube Music reads as the same instrument.
+    val titleStyle = if (onPaper) Typed.copy(fontWeight = FontWeight.Bold) else Header
+    val accountStyle = if (onPaper) Typed.copy(fontSize = 10.sp, color = DeckColors.Ink.copy(alpha = 0.55f))
+        else Sub
+    val sectionStyle = if (onPaper) Typed.copy(fontWeight = FontWeight.Bold) else Header
+    val linkStyle = if (onPaper) EngravedCaps.copy(color = DeckColors.AccentDeep)
+        else Sub.copy(color = DeckColors.Accent, fontWeight = FontWeight.SemiBold)
+    val bodyStyle = if (onPaper) Typed.copy(fontSize = 12.sp) else Sub
+    val accent = if (onPaper) DeckColors.AccentDeep else DeckColors.Accent
+    val ink = if (onPaper) DeckColors.Ink else Title.color
+
     item(key = "yt-title") {
         wrap {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    openPlaylist?.name ?: "YouTube Music",
-                    modifier = Modifier.weight(1f),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (ui.signedIn) {
+                Column(Modifier.weight(1f)) {
                     Text(
-                        ui.accountName ?: "SIGNED IN",
-                        modifier = Modifier.weight(0.7f),
-                        fontSize = 9.sp,
+                        openPlaylist?.name ?: "YouTube Music",
+                        style = titleStyle,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    TextButton(onClick = actions.refresh) { Text("Refresh") }
+                    if (ui.signedIn) {
+                        ui.accountName?.let { name ->
+                            Text(name, style = accountStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+                if (ui.signedIn) {
+                    Text(
+                        "Refresh",
+                        style = linkStyle,
+                        modifier = Modifier.clickable(onClick = actions.refresh).padding(4.dp),
+                    )
                 }
             }
         }
@@ -96,10 +123,13 @@ fun LazyListScope.youtubeMusicItems(
                 Column {
                     Text(
                         "Sign in to browse your YouTube Music library and play songs right in Foldman.",
-                        fontSize = 12.sp,
+                        style = bodyStyle,
                     )
                     Spacer(Modifier.height(8.dp))
-                    Button(onClick = { showSignIn = true }) {
+                    Button(
+                        onClick = { showSignIn = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color.White),
+                    ) {
                         Text("Sign in to YouTube Music")
                     }
                 }
@@ -117,7 +147,13 @@ fun LazyListScope.youtubeMusicItems(
     } else {
         if (openPlaylist != null) {
             item(key = "yt-back") {
-                wrap { TextButton(onClick = actions.closePlaylist) { Text("← Your library") } }
+                wrap {
+                    Text(
+                        "← Your library",
+                        style = linkStyle,
+                        modifier = Modifier.clickable(onClick = actions.closePlaylist).padding(vertical = 4.dp),
+                    )
+                }
             }
         }
 
@@ -130,10 +166,24 @@ fun LazyListScope.youtubeMusicItems(
                         modifier = Modifier.weight(1f),
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
-                        label = { Text("Search songs") },
+                        label = { Text("Search songs", style = accountStyle) },
+                        textStyle = TextStyle(color = ink, fontSize = 14.sp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = ink,
+                            unfocusedTextColor = ink,
+                            focusedBorderColor = if (onPaper) DeckColors.Ink.copy(alpha = 0.7f) else Sub.color,
+                            unfocusedBorderColor = if (onPaper) DeckColors.Ink.copy(alpha = 0.4f) else Sub.color.copy(alpha = 0.5f),
+                            cursorColor = accent,
+                            focusedLabelColor = accountStyle.color,
+                            unfocusedLabelColor = accountStyle.color,
+                        ),
                     )
                     Spacer(Modifier.size(6.dp))
-                    Button(onClick = actions.search, enabled = ui.query.isNotBlank() && !ui.loading) {
+                    Button(
+                        onClick = actions.search,
+                        enabled = ui.query.isNotBlank() && !ui.loading,
+                        colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color.White),
+                    ) {
                         Text("Search")
                     }
                 }
@@ -142,36 +192,39 @@ fun LazyListScope.youtubeMusicItems(
 
         if (ui.searched && openPlaylist == null) {
             item(key = "yt-results-header") {
-                wrap { Text("Search results", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
+                wrap { Text("Search results", style = sectionStyle) }
             }
             itemsIndexed(ui.searchResults, key = { index, song -> "${song.id}-$index" }) { index, song ->
-                wrap { SongRow(song, onPlay = { actions.playSongs(ui.searchResults, index) }) }
+                wrap { SongRow(song, onPaper = onPaper, onPlay = { actions.playSongs(ui.searchResults, index) }) }
             }
         } else if (openPlaylist != null) {
             item(key = "yt-tracks-header") {
                 wrap {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Tracks", modifier = Modifier.weight(1f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Tracks", modifier = Modifier.weight(1f), style = sectionStyle)
                         if (ui.playlistTracks.isNotEmpty()) {
-                            ShuffleButton(onClick = { openPlaylist?.let(actions.shufflePlaylist) })
-                            TextButton(onClick = { actions.playSongs(ui.playlistTracks, 0) }) {
-                                Text("Play all")
-                            }
+                            ShuffleButton(onClick = { openPlaylist?.let(actions.shufflePlaylist) }, onPaper = onPaper)
+                            Text(
+                                "Play all",
+                                style = linkStyle,
+                                modifier = Modifier.clickable(onClick = { actions.playSongs(ui.playlistTracks, 0) }).padding(4.dp),
+                            )
                         }
                     }
                 }
             }
             itemsIndexed(ui.playlistTracks, key = { index, song -> "${song.id}-$index" }) { index, song ->
-                wrap { SongRow(song, onPlay = { actions.playSongs(ui.playlistTracks, index) }) }
+                wrap { SongRow(song, onPaper = onPaper, onPlay = { actions.playSongs(ui.playlistTracks, index) }) }
             }
         } else {
             item(key = "yt-library-header") {
-                wrap { Text("Your library", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
+                wrap { Text("Your library", style = sectionStyle) }
             }
             itemsIndexed(ui.playlists, key = { _, playlist -> playlist.id }) { _, playlist ->
                 wrap {
                     PlaylistRow(
                         playlist,
+                        onPaper = onPaper,
                         onOpen = { actions.openPlaylist(playlist) },
                         onShuffle = { actions.shufflePlaylist(playlist) },
                     )
@@ -182,30 +235,37 @@ fun LazyListScope.youtubeMusicItems(
 
     if (ui.loading) {
         item(key = "yt-loading") {
-            wrap { CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp) }
+            wrap { CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp, color = accent) }
         }
     }
     ui.message?.let { message ->
         item(key = "yt-message") {
-            wrap { Text(message, fontSize = 11.sp) }
+            wrap { Text(message, style = bodyStyle.copy(fontSize = 11.sp)) }
         }
     }
 }
 
 /** Quiet shuffle affordance in the Foldman idiom: small engraved caps, no chrome. */
 @Composable
-fun ShuffleButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun ShuffleButton(onClick: () -> Unit, modifier: Modifier = Modifier, onPaper: Boolean = false) {
+    val style = if (onPaper) EngravedCaps.copy(color = DeckColors.AccentDeep)
+        else Sub.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold, color = DeckColors.Accent)
     TextButton(onClick = onClick, modifier = modifier, contentPadding = PaddingValues(horizontal = 8.dp)) {
-        Text("SHUFFLE", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text("SHUFFLE", style = style)
     }
 }
 
 @Composable
 private fun PlaylistRow(
     playlist: PlaylistDisplayItem,
+    onPaper: Boolean,
     onOpen: () -> Unit,
     onShuffle: () -> Unit,
 ) {
+    val itemStyle = if (onPaper) Hand.copy(fontSize = 19.sp) else Title.copy(fontSize = 12.sp)
+    val itemSubStyle = if (onPaper) Typed.copy(fontSize = 10.sp, color = DeckColors.Ink.copy(alpha = 0.55f))
+        else Sub.copy(fontSize = 10.sp)
+    val glyphStyle = if (onPaper) Typed.copy(color = DeckColors.Ink.copy(alpha = 0.5f)) else Sub
     Row(
         Modifier
             .fillMaxWidth()
@@ -216,16 +276,20 @@ private fun PlaylistRow(
     ) {
         UrlThumb(playlist.thumbnailUrl, Modifier.size(38.dp))
         Column(Modifier.weight(1f).padding(start = 8.dp)) {
-            Text(playlist.name, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(playlist.uploaderName, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(playlist.name, style = itemStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(playlist.uploaderName, style = itemSubStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        ShuffleButton(onClick = onShuffle)
-        Text("›", fontSize = 20.sp)
+        ShuffleButton(onClick = onShuffle, onPaper = onPaper)
+        Text("›", style = glyphStyle.copy(fontSize = 20.sp))
     }
 }
 
 @Composable
-private fun SongRow(song: Song, onPlay: () -> Unit) {
+private fun SongRow(song: Song, onPaper: Boolean, onPlay: () -> Unit) {
+    val itemStyle = if (onPaper) Hand.copy(fontSize = 19.sp) else Title.copy(fontSize = 12.sp)
+    val itemSubStyle = if (onPaper) Typed.copy(fontSize = 10.sp, color = DeckColors.Ink.copy(alpha = 0.55f))
+        else Sub.copy(fontSize = 10.sp)
+    val glyphStyle = if (onPaper) Typed.copy(color = DeckColors.Ink.copy(alpha = 0.5f)) else Sub
     Row(
         Modifier
             .fillMaxWidth()
@@ -236,9 +300,9 @@ private fun SongRow(song: Song, onPlay: () -> Unit) {
     ) {
         UrlThumb(song.thumbnailUrl, Modifier.size(38.dp))
         Column(Modifier.weight(1f).padding(start = 8.dp)) {
-            Text(song.title, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(song.artist, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(song.title, style = itemStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(song.artist, style = itemSubStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Text("▶", fontSize = 11.sp)
+        Text("▶", style = glyphStyle.copy(fontSize = 11.sp))
     }
 }
