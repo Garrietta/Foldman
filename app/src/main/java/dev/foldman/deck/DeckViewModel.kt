@@ -951,11 +951,14 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         }
         // Push now-playing state to the home-screen widget. Gated on track /
         // transport / artwork / shuffle / volume changes — never on position ticks.
-        val widgetKey = listOf(np.title, np.artist, transport, source, _shuffleOn.value, np.artwork, volume)
+        val widgetKey = listOf(np.title, np.artist, transport, source, _shuffleOn.value, np.artwork, volume, state.currentQueueId)
         if (widgetKey != lastWidgetKey) {
             lastWidgetKey = widgetKey
             val app = getApplication<Application>()
             viewModelScope.launch {
+                // Queue index for the widget counter (1-based for display: track 357 -> "0357").
+                val qIndex = state.queue.indexOfFirst { it.id == state.currentQueueId }
+                    .takeIf { it >= 0 } ?: 0
                 FoldmanWidgetUpdater.update(app, WidgetSnapshot(
                     title = np.title.orEmpty().ifBlank { "Foldman" },
                     artist = np.artist.orEmpty(),
@@ -964,6 +967,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
                     shuffleOn = _shuffleOn.value,
                     activeSource = WidgetSource.fromDeckName(source.name),
                     volume = volume,
+                    queueIndex = qIndex,
                 ))
             }
         }

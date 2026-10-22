@@ -132,6 +132,7 @@ private fun ActionParameters.widgetSource(): WidgetSource? =
  */
 class WidgetPlayAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        animateKeyPress(context, glanceId, "play")
         val source = parameters.widgetSource()
         if (source == null) {
             Log.w(TAG, "WidgetPlayAction: missing source param; opening app")
@@ -157,6 +158,7 @@ class WidgetPlayAction : ActionCallback {
 /** PAUSE key: pauses whatever is playing. */
 class WidgetPauseAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        animateKeyPress(context, glanceId, "pause")
         val source = parameters.widgetSource()
         if (source == null) {
             Log.w(TAG, "WidgetPauseAction: missing source param")
@@ -172,6 +174,7 @@ class WidgetPauseAction : ActionCallback {
 /** STOP key: stops playback. */
 class WidgetStopAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        animateKeyPress(context, glanceId, "stop")
         val source = parameters.widgetSource()
         if (source == null) {
             Log.w(TAG, "WidgetStopAction: missing source param")
@@ -184,8 +187,26 @@ class WidgetStopAction : ActionCallback {
     }
 }
 
+/**
+ * Shows a press-in animation on a widget transport key: sets the pressed state,
+ * redraws, waits 150ms, clears. The key renders darker/inset while pressed.
+ */
+suspend fun animateKeyPress(context: Context, glanceId: GlanceId, key: String) {
+    val widget = FoldmanWidget()
+    updateAppWidgetState(context, glanceId) { state ->
+        state[WidgetKeys.PRESSED_KEY] = key
+    }
+    runCatching { widget.update(context, glanceId) }
+    delay(150)
+    updateAppWidgetState(context, glanceId) { state ->
+        state.remove(WidgetKeys.PRESSED_KEY)
+    }
+    runCatching { widget.update(context, glanceId) }
+}
+
 class WidgetPrevAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        animateKeyPress(context, glanceId, "prev")
         val source = parameters.widgetSource()
         if (source == null) {
             Log.w(TAG, "WidgetPrevAction: missing source param")
@@ -200,6 +221,7 @@ class WidgetPrevAction : ActionCallback {
 
 class WidgetNextAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        animateKeyPress(context, glanceId, "next")
         val source = parameters.widgetSource()
         if (source == null) {
             Log.w(TAG, "WidgetNextAction: missing source param")

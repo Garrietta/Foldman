@@ -76,7 +76,23 @@ import dev.foldman.deck.Source
 import com.ivor.ivormusic.ui.player.PlayerViewModel
 import kotlinx.coroutines.launch
 
-private enum class Posture { Cover, Unfolded, Tabletop }
+/**
+ * Queue-only panel for the unfolded portrait layout: the live Up Next list,
+ * full width, no library browser (that's in the TAPES sheet).
+ */
+@Composable
+private fun QueuePanel(ui: DeckUi, actions: ShelfActions, onPlayQueue: (Long) -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier.glassPanel().padding(14.dp)) {
+        Text(
+            "Up Next",
+            style = Title.copy(fontSize = 15.sp),
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+        QueueList(ui, onPlayQueue, showArt = true, modifier = Modifier.fillMaxSize())
+    }
+}
+
+private enum class Posture { Cover, Unfolded, UnfoldedPortrait, Tabletop }
 
 /** Body enamel: the blue of the first portable cassette players. */
 private val Enamel = Color(0xFF2F6FB5)
@@ -196,8 +212,13 @@ fun FoldmanScreen(
             val density = LocalDensity.current
             val posture = when {
                 fold != null && fold.state == FoldingFeature.State.HALF_OPENED && fold.orientation == FoldingFeature.Orientation.HORIZONTAL -> Posture.Tabletop
-                fold != null && fold.orientation == FoldingFeature.Orientation.VERTICAL -> Posture.Unfolded
-                maxWidth >= 600.dp && maxWidth > maxHeight * 0.7f -> Posture.Unfolded
+                fold != null && fold.orientation == FoldingFeature.Orientation.VERTICAL -> {
+                    // Unfolded: landscape keeps the two-pane layout; portrait gets
+                    // the vertical stack (deck on top, queue below).
+                    if (maxWidth > maxHeight) Posture.Unfolded else Posture.UnfoldedPortrait
+                }
+                maxWidth >= 600.dp && maxWidth > maxHeight -> Posture.Unfolded
+                maxWidth >= 600.dp -> Posture.UnfoldedPortrait
                 else -> Posture.Cover
             }
             // Full screen: the system bars stay visible as transparent overlays over the
@@ -220,6 +241,21 @@ fun FoldmanScreen(
                         LinerNotesBand(ui, Modifier.fillMaxWidth().weight(0.42f))
                     }
                     LibraryPanel(ui, shelfActions, vm::playQueueItem, Modifier.weight(1f).fillMaxHeight())
+                }
+                // Unfolded portrait: deck fills the full width on top (room to breathe),
+                // the queue (Up Next) takes the full width below. No liner-notes panel.
+                Posture.UnfoldedPortrait -> Column(
+                    Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    SourceRow(ui, shelfActions, Modifier.fillMaxWidth().height(78.dp))
+                    DeckBand(
+                        ui, anim, deck, vm,
+                        onShowDiagnostics = { showDiagnostics = true },
+                        Modifier.fillMaxWidth().weight(0.55f),
+                    )
+                    // Queue tab only (Up Next); the library browser stays in the TAPES sheet.
+                    QueuePanel(ui, shelfActions, vm::playQueueItem, Modifier.fillMaxWidth().weight(0.45f))
                 }
                 Posture.Tabletop -> {
                     val (topH, gap) = with(density) {

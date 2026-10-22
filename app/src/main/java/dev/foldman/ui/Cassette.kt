@@ -268,8 +268,9 @@ private fun DrawScope.drawLabel(ui: DeckUi, palette: LabelPalette, measurer: Tex
         val layout = measure(s, sizeMm, maxWidthMm, style)
         withTransform({ translate(x, y); scale(1f / u, 1f / u, Offset.Zero) }) { drawText(layout) }
     }
-    val hand = TextStyle(fontFamily = FontFamily.Cursive, color = ink, fontWeight = FontWeight.Bold)
-    val print = TextStyle(fontFamily = FontFamily.SansSerif, color = ink, fontWeight = FontWeight.Bold, letterSpacing = (0.3f * u).toSp())
+    val handColor = if (art != null) Color.White else ink
+    val hand = TextStyle(fontFamily = FontFamily.Cursive, color = handColor, fontWeight = FontWeight.Bold)
+    val print = TextStyle(fontFamily = FontFamily.SansSerif, color = handColor, fontWeight = FontWeight.Bold, letterSpacing = (0.3f * u).toSp())
     // The handwritten title straddles the top edge of the visible label, horizontally
     // centered: the cassette window crops above 12.5mm, so the upper half tucks under it.
     val title = ui.title.ifBlank { placeholderTitle(ui) }
@@ -282,22 +283,68 @@ private fun DrawScope.drawLabel(ui: DeckUi, palette: LabelPalette, measurer: Tex
         val aR = 2.3f
         val gap = 2f
         val startX = 50f - (aR * 2 + gap + lineW) / 2f
+        if (art != null) {
+            // Light scrim behind the title for legibility over busy art.
+            val scrimW = aR * 2 + gap + lineW + 4f
+            drawRoundRect(
+                color = Color.Black.copy(alpha = 0.35f),
+                topLeft = Offset(50f - scrimW / 2f, edgeY - lineH / 2f - 1f),
+                size = Size(scrimW, lineH + 2f),
+                cornerRadius = CornerRadius(1f, 1f),
+            )
+        }
         // Circled side-A marker, part of the centered unit.
-        drawCircle(ink, aR, Offset(startX + aR, edgeY), style = Stroke(0.35f))
+        drawCircle(handColor, aR, Offset(startX + aR, edgeY), style = Stroke(0.35f))
         val aLayout = measure("A", 3.4f, 5f, print)
         withTransform({
             translate(startX + aR - aLayout.size.width / u / 2f, edgeY - aLayout.size.height / u / 2f)
             scale(1f / u, 1f / u, Offset.Zero)
         }) { drawText(aLayout) }
         // Script, vertically centered on the edge.
+        // White stroke underlay for legibility when over art.
+        if (art != null) {
+            val strokeHand = hand.copy(
+                color = Color.Black.copy(alpha = 0.6f),
+                drawStyle = Stroke(width = 0.5f),
+            )
+            val strokeLayout = measure(line, 4.6f, 64f, strokeHand)
+            withTransform({
+                translate(startX + aR * 2 + gap, edgeY - lineH / 2f)
+                scale(1f / u, 1f / u, Offset.Zero)
+            }) { drawText(strokeLayout) }
+        }
         withTransform({
             translate(startX + aR * 2 + gap, edgeY - lineH / 2f)
             scale(1f / u, 1f / u, Offset.Zero)
         }) { drawText(layout) }
     }
 
-    val tag = TextStyle(fontFamily = FontFamily.SansSerif, color = if (art != null) Color.White else ink, fontWeight = FontWeight.Black)
-    text(when (ui.source) { Source.LOCAL -> "FM 60"; Source.YT_MUSIC -> "YT ∞"; Source.PODCASTS -> "RSS ∞" }, 79f, 44.2f, 2.6f, 14f, tag)
+    // Bottom labels: scrim + stroke guarantee legibility over any art.
+    if (art != null) {
+        // Dark scrim band behind the bottom label row.
+        drawRoundRect(
+            color = Color.Black.copy(alpha = 0.45f),
+            topLeft = Offset(8f, 41.5f),
+            size = Size(84f, 5.5f),
+            cornerRadius = CornerRadius(1.5f, 1.5f),
+        )
+    }
+    val tagBase = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Black)
+    val tagColor = if (art != null) Color.White else ink
+    // Stroke (outline) for the labels when over art.
+    val tagStroke = if (art != null) {
+        tagBase.copy(
+            color = Color.Black.copy(alpha = 0.7f),
+            drawStyle = Stroke(width = 0.6f),
+        )
+    } else tagBase.copy(color = ink)
+    val tag = tagBase.copy(color = tagColor)
+    val srcLabel = when (ui.source) { Source.LOCAL -> "FM 60"; Source.YT_MUSIC -> "YT ∞"; Source.PODCASTS -> "RSS ∞" }
+    if (art != null) {
+        text(srcLabel, 79f, 44.2f, 2.6f, 14f, tagStroke)
+        text("TYPE I  NORMAL", 12f, 44.6f, 2.2f, 30f, tagStroke.copy(fontWeight = FontWeight.Bold))
+    }
+    text(srcLabel, 79f, 44.2f, 2.6f, 14f, tag)
     text("TYPE I  NORMAL", 12f, 44.6f, 2.2f, 30f, tag.copy(fontWeight = FontWeight.Bold))
 }
 

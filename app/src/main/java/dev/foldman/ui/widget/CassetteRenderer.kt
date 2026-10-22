@@ -2,6 +2,8 @@ package dev.foldman.ui.widget
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.LinearGradient
+import android.graphics.Shader
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
@@ -184,5 +186,67 @@ object CassetteRenderer {
             val rx = x + thumbW * (0.3f + 0.2f * i)
             canvas.drawLine(rx, trackTop - 2f, rx, trackTop - 2f + thumbH - 12f, ridge)
         }
+    }
+
+    /**
+     * Renders a metallic transport key cap with a vector-drawn symbol.
+     * @param symbol one of "prev", "play", "next", "pause", "stop"
+     */
+    fun renderTransportKey(symbol: String, sizePx: Int): Bitmap {
+        val s = sizePx.coerceAtLeast(1)
+        val bmp = Bitmap.createBitmap(s, s, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val sf = s.toFloat()
+        val cx = sf / 2f
+        val cy = sf / 2f
+
+        // Metallic cap: rounded rect with vertical gradient.
+        val capPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(
+                0f, 0f, 0f, sf,
+                intArrayOf(0xFFE8E8E8.toInt(), 0xFFB0B0B0.toInt(), 0xFFD0D0D0.toInt()),
+                floatArrayOf(0f, 0.5f, 1f),
+                Shader.TileMode.CLAMP
+            )
+        }
+        val radius = sf * 0.18f
+        canvas.drawRoundRect(RectF(0f, 0f, sf, sf), radius, radius, capPaint)
+        // Subtle inner shadow at bottom.
+        val shadow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x40000000
+        }
+        canvas.drawRoundRect(RectF(0f, sf * 0.7f, sf, sf), radius, radius, shadow)
+
+        // Symbol in dark engraved tone.
+        val ink = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFF2A2A2A.toInt()
+            style = Paint.Style.FILL
+        }
+        val u = sf * 0.22f  // symbol unit size
+        fun tri(cx0: Float, dir: Float): Path = Path().apply {
+            moveTo(cx0 - u * 0.8f * dir, cy - u)
+            lineTo(cx0 + u * 0.8f * dir, cy)
+            lineTo(cx0 - u * 0.8f * dir, cy + u)
+            close()
+        }
+        when (symbol) {
+            "stop" -> canvas.drawRect(cx - u * 0.85f, cy - u * 0.85f, cx + u * 0.85f, cy + u * 0.85f, ink)
+            "play" -> canvas.drawPath(tri(cx + u * 0.1f, 1f), ink)
+            "pause" -> {
+                canvas.drawRect(cx - u * 0.8f, cy - u, cx - u * 0.25f, cy + u, ink)
+                canvas.drawRect(cx + u * 0.25f, cy - u, cx + u * 0.8f, cy + u, ink)
+            }
+            "prev" -> {
+                canvas.drawRect(cx - u * 1.25f, cy - u, cx - u * 0.95f, cy + u, ink)
+                canvas.drawPath(tri(cx - u * 0.15f, -1f), ink)
+                canvas.drawPath(tri(cx + u * 1.0f, -1f), ink)
+            }
+            "next" -> {
+                canvas.drawPath(tri(cx - u * 1.0f, 1f), ink)
+                canvas.drawPath(tri(cx + u * 0.15f, 1f), ink)
+                canvas.drawRect(cx + u * 0.95f, cy - u, cx + u * 1.25f, cy + u, ink)
+            }
+        }
+        return bmp
     }
 }

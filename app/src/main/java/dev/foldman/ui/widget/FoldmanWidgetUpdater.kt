@@ -33,6 +33,8 @@ data class WidgetSnapshot(
     val reelAngleDeg: Float = 0f,
     /** 0..1 system music volume; drives the VOLUME slider indicator. */
     val volume: Float = 0.5f,
+    /** 0-based index of the now-playing track in the queue; drives the counter. */
+    val queueIndex: Int = 0,
 )
 
 /**
@@ -63,6 +65,8 @@ object FoldmanWidgetUpdater {
         }
         val tapePath = writeTape(appContext, snapshot)
         val slidersPath = writeSliders(appContext, snapshot)
+        val artworkPath = writeArtwork(appContext, snapshot)
+        val keyPaths = writeKeys(appContext)
         val widget = FoldmanWidget()
         val manager = GlanceAppWidgetManager(appContext)
         for (appWidgetId in ids) {
@@ -75,8 +79,13 @@ object FoldmanWidgetUpdater {
                 else state.remove(WidgetKeys.TAPE_PATH)
                 if (slidersPath != null) state[WidgetKeys.SLIDERS_PATH] = slidersPath
                 else state.remove(WidgetKeys.SLIDERS_PATH)
+                if (artworkPath != null) state[WidgetKeys.ARTWORK_PATH] = artworkPath
+                else state.remove(WidgetKeys.ARTWORK_PATH)
+                if (keyPaths != null) state[WidgetKeys.KEY_PATHS] = keyPaths
+                else state.remove(WidgetKeys.KEY_PATHS)
                 state[WidgetKeys.IS_PLAYING] = snapshot.isPlaying
                 state[WidgetKeys.SOURCE] = snapshot.activeSource.name
+                state[WidgetKeys.QUEUE_INDEX] = snapshot.queueIndex
             }
             runCatching { widget.update(appContext, glanceId) }
         }
@@ -94,9 +103,14 @@ object FoldmanWidgetUpdater {
         tickerJob = tickerScope.launch {
             while (isActive) {
                 delay(750)
-                val snap = lastSnapshot ?: break
-                if (!snap.isPlaying) break
-                update(context, snap.copy(reelAngleDeg = (snap.reelAngleDeg + 40f) % 360f))
+                try {
+                    val snap = lastSnapshot ?: break
+                    if (!snap.isPlaying) break
+                    update(context, snap.copy(reelAngleDeg = (snap.reelAngleDeg + 40f) % 360f))
+                } catch (e: Exception) {
+                    // Keep the ticker alive; a transient failure shouldn't kill rotation.
+                    continue
+                }
             }
         }
     }
@@ -112,11 +126,34 @@ object FoldmanWidgetUpdater {
                 .getAppWidgetIds(ComponentName(context, FoldmanWidgetReceiver::class.java))
         }.getOrNull() ?: IntArray(0)
 
+    private fun writeArtwork(context: Context, snapshot: WidgetSnapshot): String? =
+        runCatching {
+            val art = snapshot.artwork ?: return@runCatching null
+            val file = File(context.filesDir, "foldman_widget_artwork.png")
+            FileOutputStream(file).use { out ->
+                art.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
+            file.absolutePath
+        }.getOrNull()
+
+    private fun writeKeys(context: Context): String? = runCatching {
+        val symbols = listOf("prev", "play", "next", "pause", "stop")
+        val paths = symbols.map { sym ->
+            val bmp = CassetteRenderer.renderTransportKey(sym, 144)
+            val file = File(context.filesDir, "foldman_widget_key_$sym.png")
+            FileOutputStream(file).use { out ->
+                bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
+            file.absolutePath
+        }
+        paths.joinToString("|")
+    }.getOrNull()
+
     private fun writeTape(
         context: Context,
         snapshot: WidgetSnapshot,
     ): String? = runCatching {
-        val tape = CassetteRenderer.renderCassette(snapshot.reelAngleDeg, 480, 240)
+        val tape = CassetteRenderer.renderCassette(snapshot.reelAngleDeg, 640, 320)
         val file = File(context.filesDir, "foldman_widget_tape.png")
         FileOutputStream(file).use { out ->
             tape.compress(Bitmap.CompressFormat.PNG, 90, out)

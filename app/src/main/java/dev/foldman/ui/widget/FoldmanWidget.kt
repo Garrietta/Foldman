@@ -39,6 +39,7 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import dev.foldman.MainActivity
 
@@ -48,11 +49,15 @@ internal object WidgetKeys {
     val ARTIST = stringPreferencesKey("artist")
     val TAPE_PATH = stringPreferencesKey("tape_path")
     val SLIDERS_PATH = stringPreferencesKey("sliders_path")
+    val ARTWORK_PATH = stringPreferencesKey("artwork_path")
+    val KEY_PATHS = stringPreferencesKey("key_paths")
     val IS_PLAYING = booleanPreferencesKey("is_playing")
     val SHUFFLE = booleanPreferencesKey("shuffle")
     val HAS_NEXT = booleanPreferencesKey("has_next")
     val HAS_PREV = booleanPreferencesKey("has_prev")
     val SOURCE = stringPreferencesKey("source")
+    val QUEUE_INDEX = intPreferencesKey("queue_index")
+    val PRESSED_KEY = stringPreferencesKey("pressed_key")
 }
 
 /** Fixed brushed-chrome palette, matching Garrett's widget mockup. */
@@ -66,6 +71,7 @@ private object Chrome {
     val brandSub = Color(0xFF8B95A1)
     val keycap = Color(0xFFD8DCE0)
     val keyBorder = Color(0xFF5F666D)
+    val keyPressed = Color(0xFF3A3F45)
     val glyph = Color(0xFF2B2F34)
     val playGreen = Color(0xFF35A852)
     val pauseOrange = Color(0xFFE8821A)
@@ -141,6 +147,30 @@ private fun WalkmanContent() {
             BitmapFactory.decodeFile(path)?.takeIf { it.width > 0 && it.height > 0 }
         }.getOrNull()
     }
+    // Transport key icons (vector-drawn, no emoji): paths joined by "|".
+    val keyBitmaps: Map<String, android.graphics.Bitmap?> =
+        prefs?.get(WidgetKeys.KEY_PATHS)?.split("|")?.let { paths ->
+            mapOf(
+                "prev" to paths.getOrNull(0),
+                "play" to paths.getOrNull(1),
+                "next" to paths.getOrNull(2),
+                "pause" to paths.getOrNull(3),
+                "stop" to paths.getOrNull(4),
+            ).mapValues { (_, p) ->
+                p?.let {
+                    runCatching {
+                        BitmapFactory.decodeFile(it)?.takeIf { b -> b.width > 0 && b.height > 0 }
+                    }.getOrNull()
+                }
+            }
+        } ?: emptyMap()
+    val pressedKey = prefs?.get(WidgetKeys.PRESSED_KEY)
+    // Album artwork for the dimmed backdrop layer.
+    val artwork = prefs?.get(WidgetKeys.ARTWORK_PATH)?.let { path ->
+        runCatching {
+            BitmapFactory.decodeFile(path)?.takeIf { it.width > 0 && it.height > 0 }
+        }.getOrNull()
+    }
     val openApp = actionStartActivity<MainActivity>()
     val params = actionParametersOf(SourceParam to sourceName)
 
@@ -178,7 +208,7 @@ private fun WalkmanContent() {
             ) {
                 Row(verticalAlignment = Alignment.Top) {
                     // Left: title box over the chrome wordmark (fixed width).
-                    Column(modifier = GlanceModifier.width(sd(150))) {
+                    Column(modifier = GlanceModifier.width(sd(110))) {
                         Box(
                             modifier = GlanceModifier.fillMaxWidth()
                                 .cornerRadius(sd(14))
@@ -207,22 +237,7 @@ private fun WalkmanContent() {
                                 )
                             }
                         }
-                        Spacer(GlanceModifier.height(sd(10)))
-                        Text(
-                            "FOLDMAN",
-                            style = TextStyle(
-                                color = ColorProvider(Chrome.brandText),
-                                fontSize = ss(26),
-                                fontWeight = FontWeight.Bold,
-                            ),
-                            maxLines = 1,
-                        )
-                        Text(
-                            "F-8 STEREO CASSETTE PLAYER",
-                            style = TextStyle(
-                                color = ColorProvider(Chrome.brandSub),
-                                fontSize = ss(9),
-                            ),
+                        Spacer(GlanceModifier.height(sd(6)))
                             maxLines = 1,
                         )
                     }
@@ -261,8 +276,12 @@ private fun WalkmanContent() {
                                     .padding(horizontal = sd(8), vertical = sd(4)),
                                 contentAlignment = Alignment.Center,
                             ) {
+                                val qIdx = prefs?.get(WidgetKeys.QUEUE_INDEX) ?: 0
+                                // 1-based, 4 digits: track 357 -> "0357".
+                                val counterText = "%04d".format((qIdx + 1).coerceIn(1, 9999))
+                                    .let { it[0] + " " + it[1] + " " + it[2] + " " + it[3] }
                                 Text(
-                                    "0 0 0",
+                                    counterText,
                                     style = TextStyle(
                                         color = ColorProvider(Color.White),
                                         fontSize = ss(14),
@@ -298,24 +317,29 @@ private fun WalkmanContent() {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TransportKey(
-                    GlanceModifier.defaultWeight(), "PREV", "◀◀", Chrome.glyph, scale,
+                    GlanceModifier.defaultWeight(), "PREV", keyBitmaps["prev"], scale,
                     actionRunCallback<WidgetPrevAction>(params),
+                    isPressed = pressedKey == "prev",
                 )
                 TransportKey(
-                    GlanceModifier.defaultWeight(), "PLAY", "▶", Chrome.playGreen, scale,
+                    GlanceModifier.defaultWeight(), "PLAY", keyBitmaps["play"], scale,
                     actionRunCallback<WidgetPlayAction>(params),
+                    isPressed = pressedKey == "play",
                 )
                 TransportKey(
-                    GlanceModifier.defaultWeight(), "NEXT", "▶▶", Chrome.glyph, scale,
+                    GlanceModifier.defaultWeight(), "NEXT", keyBitmaps["next"], scale,
                     actionRunCallback<WidgetNextAction>(params),
+                    isPressed = pressedKey == "next",
                 )
                 TransportKey(
-                    GlanceModifier.defaultWeight(), "PAUSE", "⏸", Chrome.pauseOrange, scale,
+                    GlanceModifier.defaultWeight(), "PAUSE", keyBitmaps["pause"], scale,
                     actionRunCallback<WidgetPauseAction>(params),
+                    isPressed = pressedKey == "pause",
                 )
                 TransportKey(
-                    GlanceModifier.defaultWeight(), "STOP-EJECT", "■", Chrome.glyph, scale,
+                    GlanceModifier.defaultWeight(), "STOP-EJECT", keyBitmaps["stop"], scale,
                     actionRunCallback<WidgetStopAction>(params),
+                    isPressed = pressedKey == "stop",
                 )
                 Spacer(GlanceModifier.width(sd(8)))
                 Box(
@@ -344,10 +368,10 @@ private fun WalkmanContent() {
 private fun TransportKey(
     modifier: GlanceModifier,
     label: String,
-    glyph: String,
-    glyphColor: Color,
+    icon: Bitmap?,
     scale: Float,
     action: Action,
+    isPressed: Boolean = false,
 ) {
     fun sd(v: Number) = (v.toFloat() * scale).dp
     fun ss(v: Number) = (v.toFloat() * scale).sp
@@ -368,8 +392,10 @@ private fun TransportKey(
         Box(
             modifier = GlanceModifier
                 .cornerRadius(sd(12))
-                .background(ColorProvider(Chrome.keyBorder))
-                .padding(sd(2))
+                .background(
+                    ColorProvider(if (isPressed) Chrome.keyPressed else Chrome.keyBorder)
+                )
+                .padding(sd(if (isPressed) 4 else 2))
                 .clickable(action),
             contentAlignment = Alignment.Center,
         ) {
@@ -380,13 +406,13 @@ private fun TransportKey(
                     .background(ColorProvider(Chrome.keycap)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    glyph,
-                    style = TextStyle(
-                        color = ColorProvider(glyphColor),
-                        fontSize = ss(22),
-                    ),
-                )
+                if (icon != null) {
+                    Image(
+                        provider = ImageProvider(icon),
+                        contentDescription = label,
+                        modifier = GlanceModifier.size(sd(52)),
+                    )
+                }
             }
         }
     }
