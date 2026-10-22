@@ -10,6 +10,7 @@ import androidx.glance.BitmapImageProvider
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
+import androidx.glance.LocalSize
 import androidx.glance.action.Action
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
@@ -90,7 +91,13 @@ private object Chrome {
  */
 class FoldmanWidget : GlanceAppWidget() {
 
-    override val sizeMode: SizeMode = SizeMode.Single
+    /**
+     * Exact size mode: the launcher re-requests content whenever the
+     * allocated rect changes (including Samsung Good Lock's 110% scaling),
+     * and LocalSize.current reports that exact rect. The face below scales
+     * proportionally into it, so the transport keys can never be clipped.
+     */
+    override val sizeMode: SizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
@@ -98,6 +105,16 @@ class FoldmanWidget : GlanceAppWidget() {
         }
     }
 }
+
+/**
+ * The widget face's canonical design size (dp). The rendered face is this
+ * design scaled by min(availW/DESIGN_W, availH/DESIGN_H) — aspect locked —
+ * anchored top-left in the allocated rect. Every dimension and font below
+ * derives from that single scale, so the layout fits any launcher rect by
+ * construction instead of overflowing fixed-dp content.
+ */
+private const val DESIGN_W = 460f
+private const val DESIGN_H = 290f
 
 @Composable
 private fun WalkmanContent() {
@@ -127,170 +144,191 @@ private fun WalkmanContent() {
     val openApp = actionStartActivity<MainActivity>()
     val params = actionParametersOf(SourceParam to sourceName)
 
-    Column(
-        modifier = GlanceModifier.fillMaxSize()
-            .cornerRadius(26.dp)
-            .background(ColorProvider(Chrome.root))
-            .padding(10.dp),
+    // Aspect-locked fit: scale the whole face into the allocated rect and
+    // anchor it top-left. The widget must never throw (Glance shows
+    // "Can't show content" for any exception), so a bogus size degrades to
+    // the unscaled design rather than crashing.
+    val avail = LocalSize.current
+    val rawScale = if (avail.width > 0.dp && avail.height > 0.dp) {
+        minOf(avail.width.value / DESIGN_W, avail.height.value / DESIGN_H)
+    } else {
+        1f
+    }
+    val scale = if (rawScale.isFinite()) rawScale.coerceIn(0.3f, 3f) else 1f
+    fun sd(v: Float) = (v * scale).dp
+    fun ss(v: Float) = (v * scale).sp
+
+    Box(
+        modifier = GlanceModifier.fillMaxSize(),
+        contentAlignment = Alignment.TopStart,
     ) {
-        // Top: dark slate panel.
         Column(
-            modifier = GlanceModifier.fillMaxWidth()
-                .cornerRadius(18.dp)
-                .background(ColorProvider(Chrome.panel))
-                .padding(10.dp),
+            modifier = GlanceModifier.size(sd(DESIGN_W), sd(DESIGN_H))
+                .cornerRadius(sd(26))
+                .background(ColorProvider(Chrome.root))
+                .padding(sd(10)),
         ) {
-            Row(verticalAlignment = Alignment.Top) {
-                // Left: title box over the chrome wordmark.
-                Column(modifier = GlanceModifier.defaultWeight()) {
-                    Box(
-                        modifier = GlanceModifier.fillMaxWidth()
-                            .cornerRadius(12.dp)
-                            .background(ColorProvider(Chrome.titleBox))
-                            .padding(10.dp)
-                            .clickable(openApp),
-                    ) {
-                        Column {
-                            Text(
-                                title,
-                                style = TextStyle(
-                                    color = ColorProvider(Chrome.titleText),
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Medium,
-                                ),
-                                maxLines = 2,
-                            )
-                            Spacer(GlanceModifier.height(2.dp))
-                            Text(
-                                artist,
-                                style = TextStyle(
-                                    color = ColorProvider(Chrome.artistText),
-                                    fontSize = 12.sp
-                                ),
-                                maxLines = 1,
-                            )
-                        }
-                    }
-                    Spacer(GlanceModifier.height(10.dp))
-                    Text(
-                        "FOLDMAN",
-                        style = TextStyle(
-                            color = ColorProvider(Chrome.brandText),
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.Bold,
-                        ),
-                        maxLines = 1,
-                    )
-                    Text(
-                        "F-8 STEREO CASSETTE PLAYER",
-                        style = TextStyle(
-                            color = ColorProvider(Chrome.brandSub),
-                            fontSize = 9.sp,
-                        ),
-                        maxLines = 1,
-                    )
-                }
-                Spacer(GlanceModifier.width(10.dp))
-                // Right: cassette window over counter + RESET.
-                Column {
-                    Box(
-                        modifier = GlanceModifier.width(168.dp)
-                            .clickable(openApp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (tape != null) {
-                            Image(
-                                provider = BitmapImageProvider(tape),
-                                contentDescription = "Cassette",
-                                modifier = GlanceModifier.fillMaxWidth(),
-                            )
-                        } else {
-                            // Empty dark window until the updater renders the tape.
-                            Box(
-                                modifier = GlanceModifier.fillMaxWidth()
-                                    .height(84.dp)
-                                    .cornerRadius(10.dp)
-                                    .background(ColorProvider(Chrome.titleBox)),
-                                contentAlignment = Alignment.Center,
-                            ) {}
-                        }
-                    }
-                    Spacer(GlanceModifier.height(6.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+            // Top: dark slate panel.
+            Column(
+                modifier = GlanceModifier.fillMaxWidth()
+                    .defaultWeight()
+                    .cornerRadius(sd(18))
+                    .background(ColorProvider(Chrome.panel))
+                    .padding(sd(10)),
+            ) {
+                Row(verticalAlignment = Alignment.Top) {
+                    // Left: title box over the chrome wordmark.
+                    Column(modifier = GlanceModifier.defaultWeight()) {
                         Box(
-                            modifier = GlanceModifier
-                                .cornerRadius(6.dp)
-                                .background(ColorProvider(Chrome.counterBg))
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                            contentAlignment = Alignment.Center,
+                            modifier = GlanceModifier.fillMaxWidth()
+                                .cornerRadius(sd(12))
+                                .background(ColorProvider(Chrome.titleBox))
+                                .padding(sd(10))
+                                .clickable(openApp),
                         ) {
-                            Text(
-                                "0 0 0",
-                                style = TextStyle(
-                                    color = ColorProvider(Color.White),
-                                    fontSize = 14.sp,
-                                ),
-                            )
+                            Column {
+                                Text(
+                                    title,
+                                    style = TextStyle(
+                                        color = ColorProvider(Chrome.titleText),
+                                        fontSize = ss(16),
+                                        fontWeight = FontWeight.Medium,
+                                    ),
+                                    maxLines = 2,
+                                )
+                                Spacer(GlanceModifier.height(sd(2)))
+                                Text(
+                                    artist,
+                                    style = TextStyle(
+                                        color = ColorProvider(Chrome.artistText),
+                                        fontSize = ss(12)
+                                    ),
+                                    maxLines = 1,
+                                )
+                            }
                         }
-                        Spacer(GlanceModifier.width(6.dp))
+                        Spacer(GlanceModifier.height(sd(10)))
+                        Text(
+                            "FOLDMAN",
+                            style = TextStyle(
+                                color = ColorProvider(Chrome.brandText),
+                                fontSize = ss(26),
+                                fontWeight = FontWeight.Bold,
+                            ),
+                            maxLines = 1,
+                        )
+                        Text(
+                            "F-8 STEREO CASSETTE PLAYER",
+                            style = TextStyle(
+                                color = ColorProvider(Chrome.brandSub),
+                                fontSize = ss(9),
+                            ),
+                            maxLines = 1,
+                        )
+                    }
+                    Spacer(GlanceModifier.width(sd(10)))
+                    // Right: cassette window over counter + RESET.
+                    Column(modifier = GlanceModifier.width(sd(168))) {
                         Box(
-                            modifier = GlanceModifier
-                                .cornerRadius(6.dp)
-                                .background(ColorProvider(Chrome.resetBg))
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                            modifier = GlanceModifier.fillMaxWidth()
                                 .clickable(openApp),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text(
-                                "RESET",
-                                style = TextStyle(
-                                    color = ColorProvider(Chrome.resetText),
-                                    fontSize = 10.sp,
-                                ),
-                            )
+                            if (tape != null) {
+                                Image(
+                                    provider = BitmapImageProvider(tape),
+                                    contentDescription = "Cassette",
+                                    modifier = GlanceModifier.fillMaxWidth(),
+                                )
+                            } else {
+                                // Empty dark window until the updater renders the tape.
+                                Box(
+                                    modifier = GlanceModifier.fillMaxWidth()
+                                        .height(sd(84))
+                                        .cornerRadius(sd(10))
+                                        .background(ColorProvider(Chrome.titleBox)),
+                                    contentAlignment = Alignment.Center,
+                                ) {}
+                            }
+                        }
+                        Spacer(GlanceModifier.height(sd(6)))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = GlanceModifier
+                                    .cornerRadius(sd(6))
+                                    .background(ColorProvider(Chrome.counterBg))
+                                    .padding(horizontal = sd(8), vertical = sd(4)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    "0 0 0",
+                                    style = TextStyle(
+                                        color = ColorProvider(Color.White),
+                                        fontSize = ss(14),
+                                    ),
+                                )
+                            }
+                            Spacer(GlanceModifier.width(sd(6)))
+                            Box(
+                                modifier = GlanceModifier
+                                    .cornerRadius(sd(6))
+                                    .background(ColorProvider(Chrome.resetBg))
+                                    .padding(horizontal = sd(10), vertical = sd(6))
+                                    .clickable(openApp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    "RESET",
+                                    style = TextStyle(
+                                        color = ColorProvider(Chrome.resetText),
+                                        fontSize = ss(10),
+                                    ),
+                                )
+                            }
                         }
                     }
                 }
             }
-        }
-        Spacer(GlanceModifier.height(10.dp))
-        // Bottom: transport keys + slider cluster.
-        Row(
-            modifier = GlanceModifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TransportKey(
-                GlanceModifier.defaultWeight(), "PREV", "◀◀", Chrome.glyph,
-                actionRunCallback<WidgetPrevAction>(params),
-            )
-            TransportKey(
-                GlanceModifier.defaultWeight(), "PLAY", "▶", Chrome.playGreen,
-                actionRunCallback<WidgetPlayAction>(params),
-            )
-            TransportKey(
-                GlanceModifier.defaultWeight(), "NEXT", "▶▶", Chrome.glyph,
-                actionRunCallback<WidgetNextAction>(params),
-            )
-            TransportKey(
-                GlanceModifier.defaultWeight(), "PAUSE", "⏸", Chrome.pauseOrange,
-                actionRunCallback<WidgetPauseAction>(params),
-            )
-            TransportKey(
-                GlanceModifier.defaultWeight(), "STOP-EJECT", "■", Chrome.glyph,
-                actionRunCallback<WidgetStopAction>(params),
-            )
-            Spacer(GlanceModifier.width(8.dp))
-            Box(
-                modifier = GlanceModifier.defaultWeight()
-                    .clickable(openApp),
-                contentAlignment = Alignment.Center,
+            Spacer(GlanceModifier.height(sd(10)))
+            // Bottom: transport keys + slider cluster. Fixed design height so
+            // the keys always land fully inside the face.
+            Row(
+                modifier = GlanceModifier.fillMaxWidth().height(sd(72)),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (sliders != null) {
-                    Image(
-                        provider = BitmapImageProvider(sliders),
-                        contentDescription = "Volume and tone",
-                        modifier = GlanceModifier.fillMaxWidth(),
-                    )
+                TransportKey(
+                    GlanceModifier.defaultWeight(), "PREV", "◀◀", Chrome.glyph, scale,
+                    actionRunCallback<WidgetPrevAction>(params),
+                )
+                TransportKey(
+                    GlanceModifier.defaultWeight(), "PLAY", "▶", Chrome.playGreen, scale,
+                    actionRunCallback<WidgetPlayAction>(params),
+                )
+                TransportKey(
+                    GlanceModifier.defaultWeight(), "NEXT", "▶▶", Chrome.glyph, scale,
+                    actionRunCallback<WidgetNextAction>(params),
+                )
+                TransportKey(
+                    GlanceModifier.defaultWeight(), "PAUSE", "⏸", Chrome.pauseOrange, scale,
+                    actionRunCallback<WidgetPauseAction>(params),
+                )
+                TransportKey(
+                    GlanceModifier.defaultWeight(), "STOP-EJECT", "■", Chrome.glyph, scale,
+                    actionRunCallback<WidgetStopAction>(params),
+                )
+                Spacer(GlanceModifier.width(sd(8)))
+                Box(
+                    modifier = GlanceModifier.defaultWeight()
+                        .clickable(openApp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (sliders != null) {
+                        Image(
+                            provider = BitmapImageProvider(sliders),
+                            contentDescription = "Volume and tone",
+                            modifier = GlanceModifier.fillMaxWidth(),
+                        )
+                    }
                 }
             }
         }
@@ -299,7 +337,8 @@ private fun WalkmanContent() {
 
 /**
  * One square metallic transport key with its small label above: a dark
- * border box holding the silver cap, glyph centered.
+ * border box holding the silver cap, glyph centered. All sizes derive from
+ * the face [scale] so the keys shrink and grow with the widget.
  */
 @Composable
 private fun TransportKey(
@@ -307,8 +346,11 @@ private fun TransportKey(
     label: String,
     glyph: String,
     glyphColor: Color,
+    scale: Float,
     action: Action,
 ) {
+    fun sd(v: Float) = (v * scale).dp
+    fun ss(v: Float) = (v * scale).sp
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -317,24 +359,24 @@ private fun TransportKey(
             label,
             style = TextStyle(
                 color = ColorProvider(Chrome.label),
-                fontSize = 8.sp,
+                fontSize = ss(8),
                 fontWeight = FontWeight.Medium,
             ),
             maxLines = 1,
         )
-        Spacer(GlanceModifier.height(3.dp))
+        Spacer(GlanceModifier.height(sd(3)))
         Box(
             modifier = GlanceModifier
-                .cornerRadius(12.dp)
+                .cornerRadius(sd(12))
                 .background(ColorProvider(Chrome.keyBorder))
-                .padding(2.dp)
+                .padding(sd(2))
                 .clickable(action),
             contentAlignment = Alignment.Center,
         ) {
             Box(
                 modifier = GlanceModifier
-                    .size(52.dp)
-                    .cornerRadius(10.dp)
+                    .size(sd(52))
+                    .cornerRadius(sd(10))
                     .background(ColorProvider(Chrome.keycap)),
                 contentAlignment = Alignment.Center,
             ) {
@@ -342,7 +384,7 @@ private fun TransportKey(
                     glyph,
                     style = TextStyle(
                         color = ColorProvider(glyphColor),
-                        fontSize = 22.sp,
+                        fontSize = ss(22),
                     ),
                 )
             }
