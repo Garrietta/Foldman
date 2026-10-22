@@ -98,15 +98,12 @@ private fun Preferences.rustic(): RusticColors {
 @Composable
 private fun WalkmanContent() {
     // The widget must never throw: Glance shows "Can't show content" for any
-    // exception out of provideContent. Every risky read degrades to the idle
-    // "No tape loaded" rendering instead of crashing the render. (A plain
-    // try/catch: the Compose compiler forbids @Composable invocations such as
-    // currentState() inside runCatching lambdas.)
-    val prefs: Preferences? = try {
-        currentState<Preferences>()
-    } catch (e: Exception) {
-        null
-    }
+    // exception out of provideContent, so every other risky read below
+    // degrades to the idle "No tape loaded" rendering.
+    // Glance always provides the state inside provideContent, so this never
+    // throws in practice. (try/catch and runCatching are illegal around
+    // @Composable invocations.) Empty state still degrades to "No tape loaded".
+    val prefs: Preferences? = currentState()
     val colors = remember(prefs) { prefs?.rustic() ?: RusticColors.Fallback }
     val title = prefs?.get(WidgetKeys.TITLE).orEmpty().ifBlank { "Foldman" }
     val artist = prefs?.get(WidgetKeys.ARTIST).orEmpty().ifBlank { "No tape loaded" }
