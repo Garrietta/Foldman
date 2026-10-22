@@ -250,7 +250,6 @@ private fun TapeSpine(source: Source, inDeck: Boolean, onClick: () -> Unit) {
  * now the sticky header of the sheet's scroll.
  */
 @Composable
-@Composable
 private fun CoverArt(ui: DeckUi, modifier: Modifier) {
     val art = ui.artwork
     Box(modifier.shadow(4.dp).background(ui.label.stripe), contentAlignment = Alignment.Center) {
