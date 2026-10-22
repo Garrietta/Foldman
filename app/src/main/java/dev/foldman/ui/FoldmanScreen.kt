@@ -214,15 +214,24 @@ fun FoldmanScreen(
                 .background(Brush.radialGradient(listOf(Color(0xFF2A2420), DeckColors.Backdrop), radius = 1800f)),
         ) {
             val density = LocalDensity.current
+            // Posture lock: the FOLDED phone gets ONE single-column UI (Cover)
+            // regardless of rotation. Rotating the folded phone shows the same
+            // portrait arrangement turned sideways ("just a sideways tape").
+            // The two-pane (Unfolded) and vertical-stack (UnfoldedPortrait)
+            // layouts are for the UNFOLDED phone only, keyed on the
+            // FoldingFeature — not on orientation or width alone.
+            val isUnfolded = fold != null &&
+                fold.orientation == FoldingFeature.Orientation.VERTICAL &&
+                fold.state != FoldingFeature.State.HALF_OPENED
             val posture = when {
                 fold != null && fold.state == FoldingFeature.State.HALF_OPENED && fold.orientation == FoldingFeature.Orientation.HORIZONTAL -> Posture.Tabletop
-                fold != null && fold.orientation == FoldingFeature.Orientation.VERTICAL -> {
+                isUnfolded -> {
                     // Unfolded: landscape keeps the two-pane layout; portrait gets
                     // the vertical stack (deck on top, queue below).
                     if (maxWidth > maxHeight) Posture.Unfolded else Posture.UnfoldedPortrait
                 }
-                maxWidth >= 600.dp && maxWidth > maxHeight -> Posture.Unfolded
-                maxWidth >= 600.dp -> Posture.UnfoldedPortrait
+                // Folded (or no folding feature): always the single-column
+                // Cover UI. Never route the folded screen to the two-pane.
                 else -> Posture.Cover
             }
             // Full screen: the system bars stay visible as transparent overlays over the

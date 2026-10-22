@@ -184,32 +184,42 @@ fun TapeShelf(
         }
         Spacer(Modifier.height(10.dp))
         if (tab == 0) {
-            LazyColumn(
-                state = list,
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-            ) {
-                // (1) The source rows scroll up and hide under the fixed tabs.
-                Source.entries.forEach { s ->
-                    item(key = "source-${s.name}") {
-                        TapeSpine(s, inDeck = s == ui.source, onClick = { actions.selectSource(s) })
-                        Spacer(Modifier.height(8.dp))
+            // Tape dropdown header: shows the selected tape, no shadow, no buttons.
+            // Tap to cascade the other options; tap an option to select it.
+            var dropdownOpen by remember { mutableStateOf(false) }
+            Column(Modifier.weight(1f).fillMaxWidth()) {
+                TapeDropdownHeader(
+                    selected = ui.source,
+                    open = dropdownOpen,
+                    onToggle = { dropdownOpen = !dropdownOpen },
+                    onSelect = { s ->
+                        actions.selectSource(s)
+                        dropdownOpen = false
+                    },
+                )
+                if (dropdownOpen) {
+                    Spacer(Modifier.height(4.dp))
+                }
+                // The browser content for the selected source, below the header.
+                // (The per-source "tap to load" state lives here, not in the header.)
+                LazyColumn(
+                    state = list,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                ) {
+                    when (ui.source) {
+                        Source.LOCAL -> localItems(ui, actions, paperWrap)
+                        Source.YT_MUSIC -> youtubeMusicItems(ui.youtubeMusic, actions.youtubeMusic, onPaper = true, wrap = paperWrap)
+                        Source.PODCASTS -> podcastItems(ui.podcasts, actions.podcasts, onPaper = true, wrap = paperWrap)
                     }
-                }
-                // (2) The browser list, on the J-card's paper. (The sticky
-                // now-playing card is gone: playback state lives on the deck.)
-                when (ui.source) {
-                    Source.LOCAL -> localItems(ui, actions, paperWrap)
-                    Source.YT_MUSIC -> youtubeMusicItems(ui.youtubeMusic, actions.youtubeMusic, onPaper = true, wrap = paperWrap)
-                    Source.PODCASTS -> podcastItems(ui.podcasts, actions.podcasts, onPaper = true, wrap = paperWrap)
-                }
-                // Rounded foot of the paper card.
-                item(key = "paper-foot") {
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(14.dp)
-                            .background(DeckColors.Paper, RoundedCornerShape(bottomStart = 3.dp, bottomEnd = 3.dp))
-                    )
+                    // Rounded foot of the paper card.
+                    item(key = "paper-foot") {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(14.dp)
+                                .background(DeckColors.Paper, RoundedCornerShape(bottomStart = 3.dp, bottomEnd = 3.dp))
+                        )
+                    }
                 }
             }
         } else {
@@ -223,6 +233,72 @@ fun TapeShelf(
             AddFeedDialog(ui.podcasts, actions.podcasts)
         }
         } // inner cream panel
+    }
+}
+
+/**
+ * Tape dropdown header for the Tapes tab: shows ONLY the selected tape,
+ * centered label, no shadow, no buttons. Tap to cascade the other options;
+ * tap an option to select it (menu closes, content below switches).
+ * Tap the header while open to close without changing.
+ */
+@Composable
+private fun TapeDropdownHeader(
+    selected: Source,
+    open: Boolean,
+    onToggle: () -> Unit,
+    onSelect: (Source) -> Unit,
+) {
+    Column(Modifier.fillMaxWidth()) {
+        // Header: the selected tape, centered, no shadow.
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(DeckColors.Paper)
+                .clickable(onClick = onToggle)
+                .padding(vertical = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    selected.label,
+                    style = Hand.copy(fontSize = 20.sp),
+                    maxLines = 1,
+                )
+                Spacer(Modifier.width(8.dp))
+                // Chevron indicates dropdown state.
+                Text(
+                    if (open) "▲" else "▼",
+                    style = EngravedCaps.copy(fontSize = 10.sp, color = Color(0xFF6B5A4A)),
+                )
+            }
+        }
+        // Dropdown options: the other tapes, cascading down.
+        if (open) {
+            Spacer(Modifier.height(4.dp))
+            Source.entries.filter { it != selected }.forEach { s ->
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.White.copy(alpha = 0.6f))
+                        .clickable { onSelect(s) }
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        s.label,
+                        style = Hand.copy(fontSize = 18.sp, color = Color(0xFF4A3F35)),
+                        maxLines = 1,
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+            }
+        }
     }
 }
 

@@ -45,6 +45,14 @@ class PodcastRepository(context: Context) {
 
     companion object {
         private const val TAG = "PodcastRepository"
+        /** Cache of podcast song ID -> enclosure URL, populated by [episodeToSong].
+         *  Belt-and-braces for the item builder: if [Song.uri] is lost in transit,
+         *  [toPlaybackMediaItem] can recover the enclosure here. */
+        private val enclosureCache = mutableMapOf<String, String>()
+        fun enclosureFor(songId: String): String? = enclosureCache[songId]
+        internal fun cacheEnclosure(songId: String, url: String) {
+            if (url.isNotBlank()) enclosureCache[songId] = url
+        }
         internal const val PREFS_NAME = "ivor_music_podcasts"
         internal const val STORE_FILE_BASE = "podcast_store"
         private const val KEY_FEED_IDS = "feed_ids"
@@ -197,20 +205,10 @@ class PodcastRepository(context: Context) {
      * the normal music pipeline (queue, notification, Auto) with the show as
      * artist/album and its artwork.
      */
-    /** Cache of podcast song ID -> enclosure URL, populated by [episodeToSong].
-     *  Belt-and-braces for the item builder: if [Song.uri] is lost in transit,
-     *  [toPlaybackMediaItem] can recover the enclosure here. */
-    companion object {
-        private val enclosureCache = mutableMapOf<String, String>()
-        fun enclosureFor(songId: String): String? = enclosureCache[songId]
-    }
-
     fun episodeToSong(episode: PodcastEpisode, feed: PodcastFeed?): Song {
         val songId = "podcast:${episode.id}"
         // Populate the cache: the enclosure URL for this song ID.
-        if (episode.audioUrl.isNotBlank()) {
-            enclosureCache[songId] = episode.audioUrl
-        }
+        cacheEnclosure(songId, episode.audioUrl)
         return Song(
             id = songId,
             title = episode.title,
