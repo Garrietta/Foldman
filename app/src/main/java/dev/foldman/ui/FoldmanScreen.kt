@@ -76,6 +76,7 @@ import dev.foldman.deck.DeckEvent
 import dev.foldman.deck.DeckUi
 import dev.foldman.deck.DeckViewModel
 import dev.foldman.deck.Source
+import dev.foldman.deck.Transport
 import com.ivor.ivormusic.ui.player.PlayerViewModel
 import kotlinx.coroutines.launch
 
@@ -474,10 +475,10 @@ private fun CoverWalkman(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, o
                             // Cassette gestures: tap = play/pause, swipe up = next,
                             // swipe down = previous. Consumes the gesture so the
                             // blue-face swipe doesn't fire.
-                            .pointerInput(ui.isPlaying, deck) {
+                            .pointerInput(ui.transport == Transport.PLAYING, deck) {
                                 detectTapGestures(
                                     onTap = {
-                                        if (ui.isPlaying) deck.pause() else deck.play()
+                                        if (ui.transport == Transport.PLAYING) deck.pause() else deck.play()
                                     }
                                 )
                             }
