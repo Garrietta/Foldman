@@ -135,8 +135,12 @@ fun FoldmanScreen(
     var showDiagnostics by rememberSaveable { mutableStateOf(false) }
     val feel by rememberUpdatedState(ui)
 
-    // A new tape drops into the deck whenever the source changes (and when the app opens).
-    LaunchedEffect(ui.source) {
+    // A new tape drops into the deck on every track change (and when the app opens):
+    // the same loading animation replays for NEXT/PREVIOUS, key press or swipe.
+    // currentQueueId is the stable per-track identity (unlike the index, it does
+    // not move when the queue is shuffled), and it changes with the source too,
+    // so source switches still fire exactly once.
+    LaunchedEffect(ui.source, ui.currentQueueId) {
         anim.insert.snapTo(1f)
         anim.insert.animateTo(0f, spring(dampingRatio = 0.62f, stiffness = 220f))
         if (feel.keySounds) sounds.autoStop()
