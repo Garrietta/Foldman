@@ -21,9 +21,14 @@ import kotlin.math.sin
 object CassetteRenderer {
 
     fun render(colors: RusticColors, artwork: Bitmap?, angleDeg: Float, sizePx: Int): Bitmap {
-        val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        // Never trust the inputs: a zero/negative size or a recycled/empty
+        // bitmap must degrade to a blank tape, never throw into the updater.
+        val size = sizePx.coerceAtLeast(1)
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
-        val s = sizePx.toFloat()
+        val s = size.toFloat()
+        val angle = if (angleDeg.isFinite()) angleDeg else 0f
+        val art = artwork?.takeIf { !it.isRecycled && it.width > 0 && it.height > 0 }
 
         // Body.
         val body = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colors.keycap.toArgb() }
@@ -31,15 +36,16 @@ object CassetteRenderer {
 
         // Label window: the album art when there is any, else a ♪ glyph.
         val label = RectF(s * 0.09f, s * 0.08f, s * 0.91f, s * 0.50f)
-        if (artwork != null) {
+        if (art != null) {
             canvas.save()
             val clip = Path().apply {
                 addRoundRect(label, s * 0.05f, s * 0.05f, Path.Direction.CW)
             }
             canvas.clipPath(clip)
-            // Center-crop the art into the label.
-            val aw = artwork.width.toFloat()
-            val ah = artwork.height.toFloat()
+            // Center-crop the art into the label (art is guaranteed non-empty
+            // here, so the divisions below stay finite).
+            val aw = art.width.toFloat()
+            val ah = art.height.toFloat()
             val scale = maxOf(label.width() / aw, label.height() / ah)
             val dw = aw * scale
             val dh = ah * scale
@@ -47,7 +53,7 @@ object CassetteRenderer {
                 label.centerX() - dw / 2f, label.centerY() - dh / 2f,
                 label.centerX() + dw / 2f, label.centerY() + dh / 2f,
             )
-            canvas.drawBitmap(artwork, null, dst, Paint(Paint.ANTI_ALIAS_FLAG))
+            canvas.drawBitmap(art, null, dst, Paint(Paint.ANTI_ALIAS_FLAG))
             canvas.restore()
             val frame = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = colors.symbol.toArgb()
@@ -77,9 +83,9 @@ object CassetteRenderer {
         }
         canvas.drawLine(leftX, reelY, rightX, reelY, tape)
 
-        // Twin reels; the spokes rotate with angleDeg.
-        drawReel(canvas, leftX, reelY, s * 0.115f, angleDeg, colors)
-        drawReel(canvas, rightX, reelY, s * 0.115f, angleDeg, colors)
+        // Twin reels; the spokes rotate with the sanitized angle.
+        drawReel(canvas, leftX, reelY, s * 0.115f, angle, colors)
+        drawReel(canvas, rightX, reelY, s * 0.115f, angle, colors)
 
         return bmp
     }

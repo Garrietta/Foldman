@@ -2,6 +2,8 @@ package dev.foldman.ui.widget
 
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.util.Log
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
@@ -9,11 +11,15 @@ import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import dev.foldman.MainActivity
 import dev.foldman.playback.PlaybackService
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.guava.await
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+
+private const val TAG = "FoldmanWidget"
 
 /**
  * Which of Foldman's two in-process Media3 sessions a widget action talks to.
@@ -49,10 +55,23 @@ internal fun WidgetSource.sessionId(): String = when (this) {
 internal val SourceParam = ActionParameters.Key<String>("widget_source")
 
 /**
+ * Opens Foldman itself. This is the loud fallback when a widget tap has
+ * nothing to play: instead of a silent no-op, Garrett lands in the app where
+ * he can load a tape.
+ */
+internal fun openFoldmanApp(context: Context) {
+    val intent = Intent(context.applicationContext, MainActivity::class.java).apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+    }
+    runCatching { context.applicationContext.startActivity(intent) }
+        .onFailure { Log.e(TAG, "openFoldmanApp: startActivity failed", it) }
+}
+
+/**
  * Bind a throwaway [MediaController] to the active session, run [block] on the
  * main thread, and release it again. Building the controller starts a stopped
- * service, so actions work with the app closed; anything that fails returns
- * null and the tap is silently dropped.
+ * service, so actions work with the app closed. A null return means the
+ * session could not be reached at all; failures are logged, never swallowed.
  */
 internal suspend fun <T> withWidgetController(
     context: Context,
@@ -65,9 +84,15 @@ internal suspend fun <T> withWidgetController(
     val future = MediaController.Builder(appContext, token).buildAsync()
     var controller: MediaController? = null
     try {
-        controller = withTimeoutOrNull(timeoutMs) { future.await() } ?: return@withContext null
+        controller = withTimeoutOrNull(timeoutMs) { future.await() }
+        if (controller == null) {
+            Log.w(TAG, "withWidgetController: connect timeout (${timeoutMs}ms) for $source")
+            return@withContext null
+        }
         block(controller)
     } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        Log.w(TAG, "withWidgetController: action failed for $source", e)
         null
     } finally {
         // Both: release() covers a connected controller, releaseFuture covers
@@ -107,24 +132,42 @@ private fun ActionParameters.widgetSource(): WidgetSource? =
 
 class WidgetPlayPauseAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val source = parameters.widgetSource() ?: return
-        withWidgetController(context, source) { controller ->
-            // Decide from live state, not the last render: buffering counts as
-            // playing, so a second tap during spin-up stops instead of
-            // queueing a redundant play.
-            if (controller.playWhenReady || controller.playbackState == Player.STATE_BUFFERING) {
+        val source = parameters.widgetSource()
+        if (source == null) {
+            Log.w(TAG, "WidgetPlayPauseAction: missing source param; opening app")
+            openFoldmanApp(context)
+            return
+        }
+        val reached = withWidgetController(context, source) { controller ->
+            if (controller.mediaItemCount == 0) {
+                // Nothing loaded: a bare play() would be a silent no-op, so
+                // open the app where a tape can be loaded instead.
+                Log.i(TAG, "WidgetPlayPauseAction: empty queue on $source; opening app")
+                openFoldmanApp(context)
+            } else if (controller.playWhenReady || controller.playbackState == Player.STATE_BUFFERING) {
+                // Decide from live state, not the last render: buffering counts
+                // as playing, so a second tap during spin-up stops instead of
+                // queueing a redundant play.
                 controller.pause()
             } else {
                 controller.play()
             }
             publishLiveState(context, glanceId, controller)
         }
+        if (reached == null) {
+            Log.w(TAG, "WidgetPlayPauseAction: could not reach $source; opening app")
+            openFoldmanApp(context)
+        }
     }
 }
 
 class WidgetPrevAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val source = parameters.widgetSource() ?: return
+        val source = parameters.widgetSource()
+        if (source == null) {
+            Log.w(TAG, "WidgetPrevAction: missing source param")
+            return
+        }
         withWidgetController(context, source) { controller ->
             controller.seekToPreviousMediaItem()
             publishLiveState(context, glanceId, controller)
@@ -134,7 +177,11 @@ class WidgetPrevAction : ActionCallback {
 
 class WidgetNextAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val source = parameters.widgetSource() ?: return
+        val source = parameters.widgetSource()
+        if (source == null) {
+            Log.w(TAG, "WidgetNextAction: missing source param")
+            return
+        }
         withWidgetController(context, source) { controller ->
             controller.seekToNextMediaItem()
             publishLiveState(context, glanceId, controller)
@@ -145,7 +192,11 @@ class WidgetNextAction : ActionCallback {
 /** Toggles shuffle on whatever queue is currently playing. */
 class WidgetShuffleAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val source = parameters.widgetSource() ?: return
+        val source = parameters.widgetSource()
+        if (source == null) {
+            Log.w(TAG, "WidgetShuffleAction: missing source param")
+            return
+        }
         withWidgetController(context, source) { controller ->
             controller.shuffleModeEnabled = !controller.shuffleModeEnabled
             publishLiveState(context, glanceId, controller)

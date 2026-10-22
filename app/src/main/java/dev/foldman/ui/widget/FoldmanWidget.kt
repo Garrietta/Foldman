@@ -97,17 +97,25 @@ private fun Preferences.rustic(): RusticColors {
 
 @Composable
 private fun WalkmanContent() {
-    val prefs = currentState<Preferences>()
-    val colors = remember(prefs) { prefs.rustic() }
-    val title = prefs[WidgetKeys.TITLE].orEmpty().ifBlank { "Foldman" }
-    val artist = prefs[WidgetKeys.ARTIST].orEmpty().ifBlank { "No tape loaded" }
-    val isPlaying = prefs[WidgetKeys.IS_PLAYING] == true
-    val shuffleOn = prefs[WidgetKeys.SHUFFLE] == true
-    val sourceName = prefs[WidgetKeys.SOURCE] ?: WidgetSource.LOCAL.name
-    val tapePath = prefs[WidgetKeys.TAPE_PATH]
+    // The widget must never throw: Glance shows "Can't show content" for any
+    // exception out of provideContent. Every risky read degrades to the idle
+    // "No tape loaded" rendering instead of crashing the render.
+    val prefs = runCatching { currentState<Preferences>() }.getOrNull()
+    val colors = remember(prefs) { prefs?.rustic() ?: RusticColors.Fallback }
+    val title = prefs?.get(WidgetKeys.TITLE).orEmpty().ifBlank { "Foldman" }
+    val artist = prefs?.get(WidgetKeys.ARTIST).orEmpty().ifBlank { "No tape loaded" }
+    val isPlaying = prefs?.get(WidgetKeys.IS_PLAYING) == true
+    val shuffleOn = prefs?.get(WidgetKeys.SHUFFLE) == true
+    val sourceName = prefs?.get(WidgetKeys.SOURCE) ?: WidgetSource.LOCAL.name
     // Deliberately not remembered: the updater re-renders the tape file on
-    // every reel tick while playing, so it must be re-decoded each time.
-    val tape = tapePath?.let { runCatching { BitmapFactory.decodeFile(it) }.getOrNull() }
+    // every reel tick while playing, so it must be re-decoded each time. A
+    // partially-written file (ticker rewrite race) decodes to null or a
+    // zero-size bitmap; both fall back to the note glyph, never a crash.
+    val tape = prefs?.get(WidgetKeys.TAPE_PATH)?.let { path ->
+        runCatching {
+            BitmapFactory.decodeFile(path)?.takeIf { it.width > 0 && it.height > 0 }
+        }.getOrNull()
+    }
     val openApp = actionStartActivity<MainActivity>()
     val params = actionParametersOf(SourceParam to sourceName)
 
