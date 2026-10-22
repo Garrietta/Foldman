@@ -179,12 +179,11 @@ fun LazyListScope.youtubeMusicItems(
                         ),
                     )
                     Spacer(Modifier.size(6.dp))
-                    Button(
+                    TextButton(
                         onClick = actions.search,
                         enabled = ui.query.isNotBlank() && !ui.loading,
-                        colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color.White),
                     ) {
-                        Text("Search")
+                        Text("Search", style = linkStyle)
                     }
                 }
             }

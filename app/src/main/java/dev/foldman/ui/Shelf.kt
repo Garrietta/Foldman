@@ -156,7 +156,7 @@ fun TapeShelf(
             when (ui.source) {
                 Source.LOCAL -> localItems(ui, actions, paperWrap)
                 Source.YT_MUSIC -> youtubeMusicItems(ui.youtubeMusic, actions.youtubeMusic, onPaper = true, wrap = paperWrap)
-                Source.PODCASTS -> podcastItems(ui.podcasts, actions.podcasts, paperWrap)
+                Source.PODCASTS -> podcastItems(ui.podcasts, actions.podcasts, onPaper = true, wrap = paperWrap)
             }
             // Rounded foot of the paper card.
             item(key = "paper-foot") {
