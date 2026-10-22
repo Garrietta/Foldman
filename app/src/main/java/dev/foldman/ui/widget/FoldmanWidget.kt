@@ -209,9 +209,10 @@ private fun WalkmanContent() {
                     .background(ColorProvider(Chrome.panel))
                     .padding(sd(8)),
             ) {
-                Row(verticalAlignment = Alignment.Top) {
-                    // Left: title box over the chrome wordmark (fixed width).
-                    Column(modifier = GlanceModifier.width(sd(110))) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Left: track-info box expands to fill space between title and tape.
+                    // (More of the title becomes visible.)
+                    Column(modifier = GlanceModifier.defaultWeight()) {
                         Box(
                             modifier = GlanceModifier.fillMaxWidth()
                                 .cornerRadius(sd(14))
@@ -243,9 +244,12 @@ private fun WalkmanContent() {
                         }
                         Spacer(GlanceModifier.height(sd(6)))
                     }
-                    Spacer(GlanceModifier.width(sd(10)))
-                    // Right: cassette window over counter + RESET (fills the row).
-                    Column(modifier = GlanceModifier.defaultWeight()) {
+                    Spacer(GlanceModifier.width(sd(8)))
+                    // Right: cassette anchored to the right edge, larger (200%+).
+                    Column(
+                        modifier = GlanceModifier.width(sd(220)),
+                        horizontalAlignment = Alignment.End,
+                    ) {
                         Box(
                             modifier = GlanceModifier.fillMaxWidth()
                                 .clickable(openApp),

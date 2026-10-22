@@ -1972,10 +1972,26 @@ class MusicService : MediaLibraryService() {
         for (index in 0 until player.mediaItemCount) {
             if (index == playingIndex) continue
             val item = player.getMediaItemAt(index)
+            // NEVER reset podcast items: their https enclosure URIs are the
+            // real stream URLs, not YouTube placeholders awaiting resolution.
+            // Resetting them breaks NEXT (esp. in shuffle).
+            val isPodcast = item.mediaMetadata.extras?.getString(EXTRA_SONG_SOURCE) ==
+                com.ivor.ivormusic.data.SongSource.PODCAST.name
+            if (isPodcast) {
+                com.ivor.ivormusic.diagnostics.PlaybackDiagnostics.log(
+                    "podcast",
+                    "resetUpcomingItemsToPlaceholders: skipping podcast ${item.mediaId}",
+                )
+                continue
+            }
             val uri = item.localConfiguration?.uri ?: continue
             if (uri.scheme != "http" && uri.scheme != "https") continue
             if (uri.toString().startsWith(PLACEHOLDER_PREFIX)) continue
             if (uri.toString().startsWith(CACHED_PREFIX)) continue
+            com.ivor.ivormusic.diagnostics.PlaybackDiagnostics.log(
+                "podcast",
+                "resetUpcomingItemsToPlaceholders: minting placeholder for ${item.mediaId}",
+            )
             player.replaceMediaItem(
                 index,
                 item.buildUpon().setUri("$PLACEHOLDER_PREFIX${item.mediaId}").build(),
@@ -2374,6 +2390,22 @@ class MusicService : MediaLibraryService() {
                 meta = meta.buildUpon().setExtras(extras).build()
             }
 
+            // Podcasts carry their https enclosure URI directly — NEVER replace
+            // with a placeholder. The placeholder triggers the YT-resolution path
+            // which mints error:// and breaks playback (esp. NEXT in shuffle).
+            val isPodcast = meta.extras?.getString(EXTRA_SONG_SOURCE) ==
+                com.ivor.ivormusic.data.SongSource.PODCAST.name
+            if (isPodcast && existingUri != null) {
+                com.ivor.ivormusic.diagnostics.PlaybackDiagnostics.log(
+                    "podcast",
+                    "preparePlaybackItem: preserving enclosure URI for ${item.mediaId}",
+                )
+                return MediaItem.Builder()
+                    .setMediaId(item.mediaId)
+                    .setUri(existingUri)
+                    .setMediaMetadata(meta)
+                    .build()
+            }
             return if (isLocalUri) {
                 // Local song: preserve the original content:// URI for direct playback
                 KLog.d(TAG, "onAddMediaItems: Preserving local URI for ${item.mediaId}: $existingUri")
@@ -2384,6 +2416,11 @@ class MusicService : MediaLibraryService() {
                     .build()
             } else {
                 // YouTube song: use placeholder — resolution will happen via prefetch system
+                // (Podcasts never reach here; they return early above.)
+                com.ivor.ivormusic.diagnostics.PlaybackDiagnostics.log(
+                    "podcast",
+                    "preparePlaybackItem: minting placeholder for non-podcast ${item.mediaId}",
+                )
                 MediaItem.Builder()
                     .setMediaId(item.mediaId)
                     .setUri("$PLACEHOLDER_PREFIX${item.mediaId}")
