@@ -937,6 +937,25 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
                 "first=${playbackQueue.firstOrNull()?.song?.id} " +
                 "start=${playbackQueue.getOrNull(safeStartIndex)?.song?.id}",
         )
+        // Hidden diagnostics: a podcast play through ANY entry point (tap,
+        // shuffle, queue restore) records the attempt here, so the on-device
+        // report's "last attempt" cannot be empty while the event log isn't.
+        playbackQueue.getOrNull(safeStartIndex)?.song
+            ?.takeIf { it.source == com.ivor.ivormusic.data.SongSource.PODCAST }
+            ?.let { song ->
+                val diag = com.ivor.ivormusic.diagnostics.PlaybackDiagnostics
+                if (diag.lastPodcastAttempt?.episodeMediaId != song.id) {
+                    diag.recordPodcastAttempt(
+                        diag.PodcastAttempt(
+                            startedAtMs = System.currentTimeMillis(),
+                            episodeTitle = song.title,
+                            enclosureUrl = song.uri?.toString().orEmpty(),
+                            episodeMediaId = song.id,
+                        )
+                    )
+                    diag.log("podcast", "playQueueItems: recorded attempt for ${song.id}")
+                }
+            }
 
         // Reset cleared flag - user is actively playing
         isPlayerCleared = false

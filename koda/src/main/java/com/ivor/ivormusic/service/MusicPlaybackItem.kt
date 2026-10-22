@@ -24,6 +24,8 @@ internal const val EXTRA_MUSIC_IS_UPLOAD = "com.ivor.ivormusic.MUSIC_IS_UPLOAD"
 internal const val EXTRA_SONG_THUMBNAIL_URL = "com.ivor.ivormusic.SONG_THUMBNAIL_URL"
 internal const val EXTRA_SONG_FILE_PATH = "com.ivor.ivormusic.SONG_FILE_PATH"
 internal const val EXTRA_SONG_LYRICS_URI = "com.ivor.ivormusic.SONG_LYRICS_URI"
+/** Backup carrier for a podcast episode's RSS enclosure URL (string form). */
+internal const val EXTRA_PODCAST_ENCLOSURE_URL = "com.ivor.ivormusic.PODCAST_ENCLOSURE_URL"
 
 /** A plain YouTube upload played as a song; see [com.ivor.ivormusic.data.Song.isUpload]. */
 internal val MediaItem.isUpload: Boolean
@@ -87,6 +89,17 @@ internal fun isSameQueueOccurrence(
  * from losing local URIs, occurrence IDs, or artwork metadata.
  */
 internal fun MusicQueueItem.toPlaybackMediaItem(): MediaItem {
+    // Podcasts carry their stream URL directly, like local files: without it
+    // the item would be pushed through YouTube stream resolution and fail.
+    // Resolve the playback URI up front so it can also be stashed in extras
+    // as a backup carrier before the metadata is built.
+    val podcastUri = song.uri.takeIf { song.source == SongSource.PODCAST }
+    if (song.source == SongSource.PODCAST && podcastUri == null) {
+        com.ivor.ivormusic.diagnostics.PlaybackDiagnostics.log(
+            "podcast",
+            "toPlaybackMediaItem: PODCAST song ${song.id} has null uri; placeholder used",
+        )
+    }
     val extras = Bundle().apply {
         putString(EXTRA_QUEUE_ITEM_ID, id)
         putString(MusicService.EXTRA_SONG_SOURCE, song.source.name)
@@ -96,6 +109,7 @@ internal fun MusicQueueItem.toPlaybackMediaItem(): MediaItem {
         song.thumbnailUrl?.let { putString(EXTRA_SONG_THUMBNAIL_URL, it) }
         song.filePath?.let { putString(EXTRA_SONG_FILE_PATH, it) }
         song.lyricsUri?.let { putString(EXTRA_SONG_LYRICS_URI, it.toString()) }
+        podcastUri?.let { putString(EXTRA_PODCAST_ENCLOSURE_URL, it.toString()) }
     }
     val metadata = MediaMetadata.Builder()
         .setTitle(song.title)
@@ -120,16 +134,18 @@ internal fun MusicQueueItem.toPlaybackMediaItem(): MediaItem {
     val builder = MediaItem.Builder()
         .setMediaId(song.id)
         .setMediaMetadata(metadata)
-    // Podcasts carry their stream URL directly, like local files: without it
-    // the item would be pushed through YouTube stream resolution and fail.
-    if ((song.source == SongSource.LOCAL || song.source == SongSource.PODCAST) && song.uri != null) {
-        builder.setUri(song.uri)
-        // Hidden diagnostics: capture the exact URI the tapped episode resolves to.
-        if (song.source == SongSource.PODCAST) {
+    if (song.source == SongSource.PODCAST) {
+        if (podcastUri != null) {
+            builder.setUri(podcastUri)
+            // Hidden diagnostics: capture the exact URI the tapped episode resolves to.
             com.ivor.ivormusic.diagnostics.PlaybackDiagnostics.recordPodcastResolvedUri(
-                song.id, song.uri.toString()
+                song.id, podcastUri.toString()
             )
+        } else {
+            builder.setUri("https://placeholder.ivormusic/${song.id}")
         }
+    } else if (song.source == SongSource.LOCAL && song.uri != null) {
+        builder.setUri(song.uri)
     } else {
         builder.setUri("https://placeholder.ivormusic/${song.id}")
     }

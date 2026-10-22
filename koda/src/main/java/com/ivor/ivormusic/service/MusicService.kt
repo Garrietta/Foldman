@@ -1375,6 +1375,36 @@ class MusicService : MediaLibraryService() {
         if (isPlaceholder(uri)) {
             KLog.w(TAG, "Validation: Hit placeholder for $videoId. Resolving...")
 
+            // Podcasts never go through YouTube stream resolution: a
+            // "podcast:<id>" media id is not a YouTube video id, so the
+            // resolver mints error:// and ExoPlayer chokes on the scheme.
+            // Recover the RSS enclosure URL stashed in extras and play it
+            // directly.
+            val isPodcast = mediaItem.mediaMetadata.extras?.getString(EXTRA_SONG_SOURCE) ==
+                com.ivor.ivormusic.data.SongSource.PODCAST.name
+            if (isPodcast) {
+                val enclosure = mediaItem.mediaMetadata.extras
+                    ?.getString(EXTRA_PODCAST_ENCLOSURE_URL)
+                if (!enclosure.isNullOrBlank()) {
+                    KLog.i(TAG, "Validation: Recovered podcast enclosure for $videoId")
+                    com.ivor.ivormusic.diagnostics.PlaybackDiagnostics.log(
+                        "podcast",
+                        "validate: recovered enclosure from extras for $videoId",
+                    )
+                    val fixed = buildMediaItemWithUri(mediaItem, android.net.Uri.parse(enclosure))
+                    if (player.currentMediaItem?.isSameQueueItemAs(mediaItem) == true) {
+                        player.replaceMediaItem(player.currentMediaItemIndex, fixed)
+                    }
+                } else {
+                    KLog.e(TAG, "Validation: Podcast $videoId has placeholder and no enclosure URL")
+                    com.ivor.ivormusic.diagnostics.PlaybackDiagnostics.log(
+                        "podcast",
+                        "validate: podcast $videoId placeholder with no enclosure URL in extras",
+                    )
+                }
+                return
+            }
+
             // Launch resolution main-safe
             serviceScope.launch {
                 // Get the deduplicated future (reuses existing if prefetch started it)
