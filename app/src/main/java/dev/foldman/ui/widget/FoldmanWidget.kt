@@ -281,7 +281,6 @@ private fun WalkmanContent() {
                             )
                         }
                     }
-                }
             }
             // Bottom: transport keys + slider cluster, flush against the dark
             // container (zero gap per spec).
@@ -313,9 +312,9 @@ private fun WalkmanContent() {
         }  // Left column ends.
         Spacer(GlanceModifier.width(sd(6)))
         // Right: vertical cassette spanning the full height.
+        // (Glance Box in a Row stretches vertically to fill the Row's height.)
         Box(
             modifier = GlanceModifier.width(sd(96))
-                .fillMaxHeight()
                 .cornerRadius(sd(14))
                 .background(ColorProvider(Chrome.panel))
                 .padding(sd(6))
@@ -326,13 +325,12 @@ private fun WalkmanContent() {
                 Image(
                     provider = BitmapImageProvider(tape),
                     contentDescription = "Cassette",
-                    modifier = GlanceModifier.fillMaxHeight(),
+                    modifier = GlanceModifier.fillMaxWidth(),
                 )
             } else {
                 // Empty dark window until the updater renders the tape.
                 Box(
-                    modifier = GlanceModifier.fillMaxHeight()
-                        .width(sd(60))
+                    modifier = GlanceModifier.width(sd(60))
                         .cornerRadius(sd(10))
                         .background(ColorProvider(Chrome.titleBox)),
                     contentAlignment = Alignment.Center,
