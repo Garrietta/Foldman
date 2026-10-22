@@ -91,6 +91,7 @@ class YouTubeMusicBackend(private val context: Context) : DeckBackend {
                 album = metadata.albumTitle?.toString(),
                 artwork = artwork,
                 artworkKey = artworkKey.takeIf { artwork != null },
+                artworkLoading = artwork == null && artworkKey != null,
                 durationMs = duration,
             ),
             isPlaying = player.isPlaying || (player.playWhenReady && player.playbackState == Player.STATE_BUFFERING),
@@ -105,18 +106,27 @@ class YouTubeMusicBackend(private val context: Context) : DeckBackend {
     }
 
     private fun updateArtwork(metadata: MediaMetadata) {
+        // Keyed by the artwork URI (falling back to the image bytes' hash), not the song:
+        // right after a track change the controller can still report the previous song's
+        // metadata for a moment, and keying by song would keep that stale cover for the new
+        // one. URI-first also means the prefetch pass warms exactly the key asked for here.
         val data = metadata.artworkData
         val uri = metadata.artworkUri
-        val key: Any? = data?.contentHashCode() ?: uri
+        val key: Any? = uri ?: data?.contentHashCode()
         if (key == artworkKey && (artwork != null || artworkJob?.isActive == true)) return
         artworkJob?.cancel()
         artworkKey = key
-        artwork = null
+        // Serve from the art cache synchronously: on a hit there is no null window, so the
+        // cassette label never flashes the default background on track change.
+        val cacheKey = ArtworkCache.stableKey(key)
+        artwork = cacheKey?.let { ArtworkCache.get(context, it) }
+        if (artwork != null) return
         if (data == null && uri == null) return
         artworkJob = scope.launch {
             val loaded = withContext(Dispatchers.IO) { data?.let(Artwork::decode) }
                 ?: uri?.let { Artwork.load(context, it) }
             if (artworkKey == key && loaded != null) {
+                cacheKey?.let { ArtworkCache.put(context, it, loaded) }
                 artwork = loaded
                 publish()
             }

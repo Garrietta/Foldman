@@ -76,6 +76,8 @@ data class NowPlaying(
     val artwork: Bitmap? = null,
     /** Changes whenever the artwork does, so the label palette is only worked out once per cover. */
     val artworkKey: Any? = null,
+    /** True while a new track's cover is still loading — the UI should hold the old art, not blank. */
+    val artworkLoading: Boolean = false,
     val durationMs: Long = 0,
 )
 
