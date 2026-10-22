@@ -175,6 +175,7 @@ fun FoldmanScreen(
             selectSource = vm::selectSource,
             pickFolder = onPickFolder,
             playTrack = vm::playTrack,
+            playQueueItem = vm::playQueueItem,
             toggleShuffle = vm::toggleShuffle,
             youtubeMusic = youtubeMusicActions,
             podcasts = podcastActions,
@@ -258,7 +259,9 @@ fun FoldmanScreen(
                 ModalBottomSheet(
                     onDismissRequest = { shelfOpen = false },
                     sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-                    containerColor = Color(0xFF1C1510),
+                    // Unified with the sheet's own top: the drag-handle zone shares
+                    // the brown tone the sheet background starts with.
+                    containerColor = Color(0xFF2A1F17),
                     // We own inset handling: M3's default contentWindowInsets (safeDrawing
                     // top+bottom) pads the sheet chrome, which would push the surface
                     // behind the status bar at full expansion. The nav bar keeps its
@@ -307,6 +310,7 @@ fun FoldmanScreen(
                             selectSource = { vm.selectSource(it) },
                             pickFolder = onPickFolder,
                             playTrack = { vm.playTrack(it); shelfOpen = false },
+                            playQueueItem = { vm.playQueueItem(it) },
                             toggleShuffle = vm::toggleShuffle,
                             youtubeMusic = youtubeMusicActions,
                             podcasts = podcastActions,

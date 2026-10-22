@@ -225,7 +225,7 @@ private fun Albums(ui: DeckUi, actions: ShelfActions, filter: String = "") {
 }
 
 @Composable
-private fun QueueList(ui: DeckUi, onPlay: (Long) -> Unit, showArt: Boolean = false, modifier: Modifier = Modifier) {
+internal fun QueueList(ui: DeckUi, onPlay: (Long) -> Unit, showArt: Boolean = false, modifier: Modifier = Modifier) {
     if (ui.queue.isEmpty()) {
         val empty = when {
             ui.source == Source.LOCAL -> "Nothing loaded"

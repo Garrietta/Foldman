@@ -58,6 +58,7 @@ class ShelfActions(
     val selectSource: (Source) -> Unit,
     val pickFolder: () -> Unit,
     val playTrack: (Int) -> Unit,
+    val playQueueItem: (Long) -> Unit,
     val toggleShuffle: () -> Unit,
     val youtubeMusic: YouTubeMusicActions,
     val podcasts: PodcastActions,
@@ -134,39 +135,75 @@ fun TapeShelf(
             .background(Brush.verticalGradient(listOf(Color(0xFF2A1F17), Color(0xFF1C1510))))
             .padding(16.dp),
     ) {
-        // Fixed header — the ModalBottomSheet's drag handle sits above this.
-        Text("TAPES", style = EngravedCaps.copy(color = Color(0xFFB59B80), fontSize = 10.sp, letterSpacing = 3.sp))
-        Spacer(Modifier.height(10.dp))
-        LazyColumn(
-            state = list,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
+        // Fixed tab switcher below the drag handle: Tapes (sources + browser)
+        // or Queue (the live playing queue).
+        var tab by remember { mutableStateOf(0) }
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color.Black.copy(alpha = 0.35f))
+                .padding(4.dp),
         ) {
-            // (1) The source rows scroll up and hide under the fixed header.
-            Source.entries.forEach { s ->
-                item(key = "source-${s.name}") {
-                    TapeSpine(s, inDeck = s == ui.source, onClick = { actions.selectSource(s) })
-                    Spacer(Modifier.height(8.dp))
-                }
-            }
-            // (2) The now-playing card locks in place as the new header once reached.
-            stickyHeader(key = "now-playing") {
-                NowPlayingCard(ui)
-            }
-            // (3) The browser list scrolls beneath it, on the card's paper.
-            when (ui.source) {
-                Source.LOCAL -> localItems(ui, actions, paperWrap)
-                Source.YT_MUSIC -> youtubeMusicItems(ui.youtubeMusic, actions.youtubeMusic, onPaper = true, wrap = paperWrap)
-                Source.PODCASTS -> podcastItems(ui.podcasts, actions.podcasts, onPaper = true, wrap = paperWrap)
-            }
-            // Rounded foot of the paper card.
-            item(key = "paper-foot") {
+            listOf("Tapes", "Queue").forEachIndexed { i, label ->
+                val selected = tab == i
                 Box(
                     Modifier
-                        .fillMaxWidth()
-                        .height(14.dp)
-                        .background(DeckColors.Paper, RoundedCornerShape(bottomStart = 3.dp, bottomEnd = 3.dp))
-                )
+                        .weight(1f)
+                        .clip(RoundedCornerShape(7.dp))
+                        .background(if (selected) Color.White.copy(alpha = 0.14f) else Color.Transparent)
+                        .clickable { tab = i }
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        label,
+                        style = EngravedCaps.copy(
+                            color = if (selected) Color(0xFFE8DCC8) else Color(0xFFB59B80),
+                            fontSize = 11.sp,
+                            letterSpacing = 2.sp,
+                        ),
+                        maxLines = 1,
+                    )
+                }
             }
+        }
+        Spacer(Modifier.height(10.dp))
+        if (tab == 0) {
+            LazyColumn(
+                state = list,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+            ) {
+                // (1) The source rows scroll up and hide under the fixed tabs.
+                Source.entries.forEach { s ->
+                    item(key = "source-${s.name}") {
+                        TapeSpine(s, inDeck = s == ui.source, onClick = { actions.selectSource(s) })
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
+                // (2) The browser list, on the J-card's paper. (The sticky
+                // now-playing card is gone: playback state lives on the deck.)
+                when (ui.source) {
+                    Source.LOCAL -> localItems(ui, actions, paperWrap)
+                    Source.YT_MUSIC -> youtubeMusicItems(ui.youtubeMusic, actions.youtubeMusic, onPaper = true, wrap = paperWrap)
+                    Source.PODCASTS -> podcastItems(ui.podcasts, actions.podcasts, onPaper = true, wrap = paperWrap)
+                }
+                // Rounded foot of the paper card.
+                item(key = "paper-foot") {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(14.dp)
+                            .background(DeckColors.Paper, RoundedCornerShape(bottomStart = 3.dp, bottomEnd = 3.dp))
+                    )
+                }
+            }
+        } else {
+            // Queue tab: the live playing queue, same data as Up Next.
+            QueueList(
+                ui, onPlay = actions.playQueueItem, showArt = true,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+            )
         }
         if (ui.podcasts.showAddDialog) {
             AddFeedDialog(ui.podcasts, actions.podcasts)
@@ -213,34 +250,6 @@ private fun TapeSpine(source: Source, inDeck: Boolean, onClick: () -> Unit) {
  * now the sticky header of the sheet's scroll.
  */
 @Composable
-private fun NowPlayingCard(ui: DeckUi, modifier: Modifier = Modifier) {
-    Column(
-        modifier
-            .fillMaxWidth()
-            .shadow(8.dp, RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
-            .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
-            .background(DeckColors.Paper)
-            .padding(14.dp),
-    ) {
-        Row(verticalAlignment = Alignment.Top) {
-            CoverArt(ui, Modifier.size(104.dp))
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(ui.title.ifBlank { "—" }, style = Hand.copy(fontSize = 24.sp, fontWeight = FontWeight.Bold), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (ui.artist.isNotBlank()) Text(ui.artist, style = Hand.copy(fontSize = 18.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (ui.album.isNotBlank()) Text(ui.album, style = Typed.copy(fontSize = 11.sp, color = DeckColors.Ink.copy(alpha = 0.6f)), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(4.dp))
-                Text("${formatTime(ui.positionMs)} / ${formatTime(ui.durationMs)}", style = Typed.copy(fontSize = 11.sp, color = DeckColors.Ink.copy(alpha = 0.6f)))
-            }
-        }
-        Spacer(Modifier.height(12.dp))
-        Box(Modifier.fillMaxWidth().height(2.dp).background(DeckColors.Accent))
-        Spacer(Modifier.height(2.dp))
-        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFF2B33D)))
-        Spacer(Modifier.height(10.dp))
-    }
-}
-
 @Composable
 private fun CoverArt(ui: DeckUi, modifier: Modifier) {
     val art = ui.artwork
