@@ -16,6 +16,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.window.layout.WindowInfoTracker
@@ -28,6 +29,19 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
+        // Full screen: the status and navigation bars are transparent overlays over the
+        // deck, so there's no swipe needed to see them.
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        window.navigationBarColor = android.graphics.Color.TRANSPARENT
+        if (Build.VERSION.SDK_INT >= 29) {
+            window.isNavigationBarContrastEnforced = false
+        }
+        // The deck is always dark (hardcoded darkColorScheme), so the system-bar icons
+        // stay light in both system themes.
+        WindowInsetsControllerCompat(window, window.decorView).let {
+            it.isAppearanceLightStatusBars = false
+            it.isAppearanceLightNavigationBars = false
+        }
         super.onCreate(savedInstanceState)
         setContent {
             val windowLayout by remember { WindowInfoTracker.getOrCreate(this).windowLayoutInfo(this) }

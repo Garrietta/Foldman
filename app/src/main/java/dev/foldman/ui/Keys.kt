@@ -30,6 +30,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
@@ -47,7 +48,7 @@ import androidx.compose.ui.unit.sp
 import dev.foldman.deck.DeckUi
 import dev.foldman.deck.Transport
 
-enum class KeySymbol { STOP, REW, PLAY, FF, PAUSE, PREV, NEXT }
+enum class KeySymbol { STOP, REW, PLAY, FF, PAUSE, PREV, NEXT, SHUFFLE }
 
 /**
  * The transport keys. Latched keys stay down, exactly as the mechanism would hold them. [vertical]
@@ -61,6 +62,7 @@ fun TransportKeys(
     onPlay: () -> Unit,
     onFastForward: () -> Unit,
     onPause: () -> Unit,
+    onShuffle: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     keyHeight: Dp = 86.dp,
     vertical: Boolean = false,
@@ -77,6 +79,11 @@ fun TransportKeys(
         DeckKey(KeySymbol.FF, "FF", latched = t == Transport.FAST_FORWARDING, onPress = onFastForward, modifier = k, height = keyHeight, captionColor = cc)
         DeckKey(KeySymbol.PAUSE, "PAUSE", latched = t == Transport.PAUSED, onPress = onPause, modifier = k, height = keyHeight, captionColor = cc, mark = Color(0xFF3E9C5A))
         DeckKey(KeySymbol.STOP, "STOP·EJECT", latched = false, onPress = onStop, modifier = k, height = keyHeight, captionColor = cc, mark = Color(0xFFC8352B))
+        // Folded deck only: a SHUFFLE key in the PLAY key's active language (accent underline,
+        // latched down + deep-ink symbol when shuffle is on).
+        if (onShuffle != null) {
+            DeckKey(KeySymbol.SHUFFLE, "SHUFFLE", latched = ui.shuffleOn, onPress = onShuffle, modifier = k, height = keyHeight, captionColor = cc, accent = true)
+        }
     }
     if (vertical) {
         Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) { keys(Modifier.fillMaxWidth(), Modifier.fillMaxWidth()) }
@@ -215,6 +222,27 @@ fun DrawScope.drawSymbol(symbol: KeySymbol, c: Offset, s: Float, ink: Color) {
         KeySymbol.NEXT -> {
             drawPath(tri(c.x - s * 1.0f, 1f), ink); drawPath(tri(c.x + s * 0.15f, 1f), ink)
             drawRect(ink, Offset(c.x + s * 0.95f, c.y - s), Size(s * 0.3f, s * 2f))
+        }
+        KeySymbol.SHUFFLE -> {
+            // Two crossing arrows with heads at the right ends.
+            val x0 = c.x - s
+            val x1 = c.x + s * 0.82f
+            val yA = c.y - s * 0.55f
+            val yB = c.y + s * 0.55f
+            val sw = s * 0.24f
+            drawLine(ink, Offset(x0, yA), Offset(x1, yB), sw, StrokeCap.Round)
+            drawLine(ink, Offset(x0, yB), Offset(x1, yA), sw, StrokeCap.Round)
+            for (yy in listOf(yA, yB)) {
+                drawPath(
+                    Path().apply {
+                        moveTo(x1 - s * 0.42f, yy - s * 0.3f)
+                        lineTo(x1 + s * 0.14f, yy)
+                        lineTo(x1 - s * 0.42f, yy + s * 0.3f)
+                        close()
+                    },
+                    ink,
+                )
+            }
         }
     }
 }
