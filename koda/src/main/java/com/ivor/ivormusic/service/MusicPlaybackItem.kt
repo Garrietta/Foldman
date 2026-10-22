@@ -124,6 +124,12 @@ internal fun MusicQueueItem.toPlaybackMediaItem(): MediaItem {
     // the item would be pushed through YouTube stream resolution and fail.
     if ((song.source == SongSource.LOCAL || song.source == SongSource.PODCAST) && song.uri != null) {
         builder.setUri(song.uri)
+        // Hidden diagnostics: capture the exact URI the tapped episode resolves to.
+        if (song.source == SongSource.PODCAST) {
+            com.ivor.ivormusic.diagnostics.PlaybackDiagnostics.recordPodcastResolvedUri(
+                song.id, song.uri.toString()
+            )
+        }
     } else {
         builder.setUri("https://placeholder.ivormusic/${song.id}")
     }

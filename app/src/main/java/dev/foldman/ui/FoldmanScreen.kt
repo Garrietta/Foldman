@@ -111,6 +111,8 @@ fun FoldmanScreen(
     val view = LocalView.current
     val scope = rememberCoroutineScope()
     var shelfOpen by rememberSaveable { mutableStateOf(false) }
+    // Hidden diagnostics screen: five taps on the FOLDMAN wordmark.
+    var showDiagnostics by rememberSaveable { mutableStateOf(false) }
     val feel by rememberUpdatedState(ui)
 
     // A new tape drops into the deck whenever the source changes (and when the app opens).
@@ -316,6 +318,18 @@ fun FoldmanScreen(
                     )
                 }
             }
+            // Hidden diagnostics screen: five taps on the FOLDMAN wordmark.
+            // The gesture is the only entry point; nothing advertises it.
+            if (showDiagnostics) {
+                ModalBottomSheet(
+                    onDismissRequest = { showDiagnostics = false },
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                    containerColor = Color(0xFF14181D),
+                    contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
+                ) {
+                    DiagnosticsScreen()
+                }
+            }
         }
     }
 }
@@ -399,7 +413,7 @@ private fun CoverWalkman(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, o
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.height(10.dp))
-                Wordmark("FOLDMAN", 40.sp)
+                Wordmark("FOLDMAN", 40.sp, modifier = Modifier.fiveTap { showDiagnostics = true })
                 Spacer(Modifier.height(20.dp))
             }
             SideStrip(ui, deck, Modifier.weight(0.27f).fillMaxHeight())
@@ -458,7 +472,7 @@ private fun DeckBand(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, vm: D
             Row(verticalAlignment = Alignment.Bottom) {
                 Text("STEREO", style = Serif.copy(fontSize = 24.sp))
                 Spacer(Modifier.weight(1f))
-                Wordmark("FOLDMAN", 26.sp)
+                Wordmark("FOLDMAN", 26.sp, modifier = Modifier.fiveTap { showDiagnostics = true })
             }
             Spacer(Modifier.height(8.dp))
             Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

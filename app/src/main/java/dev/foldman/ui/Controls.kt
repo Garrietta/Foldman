@@ -1,5 +1,6 @@
 package dev.foldman.ui
 
+import android.os.SystemClock
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -10,7 +11,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.composed
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberUpdatedState
@@ -109,8 +112,7 @@ fun Modifier.paintedBody(color: Color, capHeight: Dp = 0.dp, corner: Dp = 34.dp,
 
 /** Raised chrome lettering for the name on the case. */
 @Composable
-fun Wordmark(text: String, size: TextUnit, modifier: Modifier = Modifier, light: Boolean = true) {
-    Text(
+fun Wordmark(text: String, size: TextUnit, modifier: Modifier = Modifier, light: Boolean = true) {    Text(
         text,
         modifier,
         style = TextStyle(
@@ -127,6 +129,31 @@ fun Wordmark(text: String, size: TextUnit, modifier: Modifier = Modifier, light:
         ),
         maxLines = 1,
     )
+}
+
+/**
+ * Hidden-gesture detector: fires [onFiveTap] after five taps land within a
+ * three-second window. The hidden diagnostics screen hangs off this
+ * (FOLDMAN wordmark); nothing in the UI advertises it.
+ */
+fun Modifier.fiveTap(onFiveTap: () -> Unit): Modifier = composed(
+    inspectorInfo = { name = "fiveTap" },
+) {
+    var recent by remember { mutableStateOf(emptyList<Long>()) }
+    val latest by rememberUpdatedState(onFiveTap)
+    pointerInput(Unit) {
+        detectTapGestures(
+            onTap = {
+                val now = SystemClock.elapsedRealtime()
+                val window = (recent + now).filter { now - it <= 3000L }
+                recent = window
+                if (window.size >= 5) {
+                    recent = emptyList()
+                    latest()
+                }
+            },
+        )
+    }
 }
 
 /** A two-position slide switch with a ridged metal nub, labelled on its left. */

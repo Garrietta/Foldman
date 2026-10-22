@@ -23,6 +23,7 @@ import com.ivor.ivormusic.data.PodcastRepository
 import com.ivor.ivormusic.data.SessionManager
 import com.ivor.ivormusic.data.Song
 import com.ivor.ivormusic.data.YouTubeRepository
+import com.ivor.ivormusic.diagnostics.PlaybackDiagnostics
 import com.ivor.ivormusic.service.MusicService
 import com.ivor.ivormusic.ui.player.PlayerViewModel
 import dev.foldman.playback.Artwork
@@ -708,12 +709,38 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     /** Plays one episode inside its feed's episode list. */
     @androidx.media3.common.util.UnstableApi
     fun playPodcastEpisode(episode: PodcastEpisode, player: PlayerViewModel) {
+        val feed = _podcasts.value.feeds.firstOrNull { it.id == episode.feedId }
+        // Hidden diagnostics: record the attempt before anything can fail, so
+        // the on-device report shows exactly what was tried.
+        PlaybackDiagnostics.recordPodcastAttempt(
+            PlaybackDiagnostics.PodcastAttempt(
+                startedAtMs = System.currentTimeMillis(),
+                feedTitle = feed?.title.orEmpty(),
+                feedUrl = feed?.feedUrl.orEmpty(),
+                episodeTitle = episode.title,
+                enclosureUrl = episode.audioUrl,
+                episodeMediaId = "podcast:${episode.id}",
+            )
+        )
+        PlaybackDiagnostics.log(
+            "podcast",
+            "playPodcastEpisode: feed='${feed?.title}' episode='${episode.title}' " +
+                "enclosure='${episode.audioUrl}'",
+        )
         // Defensive: never hand the player an episode without a playable URI.
         // A blank/malformed enclosure URL would otherwise throw in Uri.parse
         // or fail in ExoPlayer and trigger the skip loop.
-        if (episode.audioUrl.isBlank()) return
+        if (episode.audioUrl.isBlank()) {
+            PlaybackDiagnostics.log("podcast", "playPodcastEpisode: blank enclosure URL, not playing")
+            return
+        }
         val songs = podcastSongs(episode.feedId)
         val index = songs.indexOfFirst { it.id == "podcast:${episode.id}" }.coerceAtLeast(0)
+        PlaybackDiagnostics.log(
+            "podcast",
+            "playPodcastEpisode: mapped ${songs.size} songs, index=$index " +
+                "songUri=${songs.getOrNull(index)?.uri}",
+        )
         playKodaSongs(songs, index, player, Source.PODCASTS)
     }
 

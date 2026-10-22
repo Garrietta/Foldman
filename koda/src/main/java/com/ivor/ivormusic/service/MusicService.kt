@@ -41,6 +41,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.ivor.ivormusic.MainActivity
 import android.media.audiofx.AudioEffect
 import com.ivor.ivormusic.data.CacheManager
+import com.ivor.ivormusic.diagnostics.PlaybackDiagnostics
 import com.ivor.ivormusic.data.DownloadRepository
 import com.ivor.ivormusic.data.NotificationArtworkLoader
 import com.ivor.ivormusic.data.AudioProfileStore
@@ -1360,6 +1361,17 @@ class MusicService : MediaLibraryService() {
         val uri = mediaItem.localConfiguration?.uri
         val videoId = mediaItem.mediaId
 
+        // Hidden diagnostics: one line per track handoff so a podcast failure
+        // shows exactly what the player was handed.
+        if (mediaItem.mediaMetadata.extras?.getString(EXTRA_SONG_SOURCE) ==
+            com.ivor.ivormusic.data.SongSource.PODCAST.name
+        ) {
+            PlaybackDiagnostics.log(
+                "podcast",
+                "validate: mediaId=$videoId uri=$uri placeholder=${isPlaceholder(uri)}",
+            )
+        }
+
         if (isPlaceholder(uri)) {
             KLog.w(TAG, "Validation: Hit placeholder for $videoId. Resolving...")
 
@@ -1676,6 +1688,24 @@ class MusicService : MediaLibraryService() {
             uri != null && !isPlaceholder(uri)
         ) {
             KLog.e(TAG, "Error: Podcast episode $videoId failed. Skipping (direct URI, not resolvable via YouTube).")
+            // Hidden diagnostics: capture the failure verbatim for the on-device report.
+            val codeName = runCatching { error.errorCodeName }.getOrNull().orEmpty()
+            val http = httpResponseCode(error)
+            PlaybackDiagnostics.recordPodcastError(
+                errorCode = "exo=${error.errorCode}" +
+                    (if (codeName.isNotEmpty()) " ($codeName)" else "") +
+                    (if (http != null) " http=$http" else ""),
+                errorMessage = listOfNotNull(
+                    error.message,
+                    error.cause?.let { "cause=$it" },
+                ).joinToString(" ").ifEmpty { "<no message>" },
+            )
+            PlaybackDiagnostics.log(
+                "podcast",
+                "handlePlayerError: mediaId=$videoId uri=$uri " +
+                    "exoCode=${error.errorCode}($codeName) http=$http " +
+                    "message=${error.message} cause=${error.cause}",
+            )
             skipAfterFailure(currentItem)
             return
         }

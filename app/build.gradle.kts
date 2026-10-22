@@ -30,6 +30,14 @@ android {
         targetSdk = 36
         versionCode = appVersionCode
         versionName = appVersionName
+        // Head commit, for the hidden diagnostics screen. Resolved at build
+        // time; "unknown" when git is unavailable (e.g. a source-less build).
+        val gitCommit: String = runCatching {
+            providers.exec { commandLine("git", "rev-parse", "--short=12", "HEAD") }
+                .standardOutput.asText.get().trim().takeIf { it.matches(Regex("[0-9a-f]+")) }
+                ?: "unknown"
+        }.getOrDefault("unknown")
+        buildConfigField("String", "GIT_COMMIT", "\"$gitCommit\"")
         // Every current foldable is 64-bit ARM; leaving out the rest halves the APK.
         ndk {
             abiFilters += "arm64-v8a"

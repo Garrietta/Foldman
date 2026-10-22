@@ -930,6 +930,14 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
         val playbackQueue = queue
         val safeStartIndex = startIndex.coerceIn(playbackQueue.indices)
 
+        // Hidden diagnostics: what the session was handed, per play request.
+        com.ivor.ivormusic.diagnostics.PlaybackDiagnostics.log(
+            "queue",
+            "playQueueItems: ${playbackQueue.size} items startIndex=$safeStartIndex " +
+                "first=${playbackQueue.firstOrNull()?.song?.id} " +
+                "start=${playbackQueue.getOrNull(safeStartIndex)?.song?.id}",
+        )
+
         // Reset cleared flag - user is actively playing
         isPlayerCleared = false
 
