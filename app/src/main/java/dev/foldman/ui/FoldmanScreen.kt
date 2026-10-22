@@ -450,7 +450,7 @@ private fun SideStrip(ui: DeckUi, deck: DeckControls, modifier: Modifier) {
             // take the REW/FF slots (the circular AMS buttons are gone); the freed
             // space flows into the volume slider's weight below, making it taller.
             TransportKeys(
-                ui, deck.stop, deck.rewind, deck.play, deck.fastForward, deck.pause,
+                ui, deck.rewind, deck.play, deck.fastForward, deck.pause,
                 onShuffle = { deck.toggleShuffle() },
                 onPrevTrack = deck.previous, onNextTrack = deck.next,
                 modifier = Modifier.fillMaxWidth(), keyHeight = keyH, vertical = true,
@@ -480,13 +480,13 @@ private fun DeckBand(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, vm: D
             }
             Spacer(Modifier.height(8.dp))
             Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                // Widened dial compartment: the VU meters and the counter row stretch naturally.
-                Column(Modifier.width(178.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically)) {
+                // Dial compartment narrowed a touch: the freed width goes to the cassette window.
+                Column(Modifier.width(162.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically)) {
                     Row(Modifier.fillMaxWidth().weight(1f).bezel().padding(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         VuMeter(ui.transport, ui.source, Modifier.weight(1f).fillMaxHeight(), channel = 0)
                         VuMeter(ui.transport, ui.source, Modifier.weight(1f).fillMaxHeight(), channel = 1)
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.Bottom) {
                         Box(Modifier.bezel().padding(5.dp)) { TapeCounter(anim.reels, digitWidth = 16.dp) }
                         Spacer(Modifier.width(14.dp))
                         MiniButton("RESET", { anim.reels.resetCounter() }, diameter = 20.dp)
@@ -508,7 +508,7 @@ private fun DeckBand(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, vm: D
             // FF/REW slots (the small circular AMS buttons are gone on the unfolded deck).
             Row(verticalAlignment = Alignment.Bottom) {
                 TransportKeys(
-                    ui, deck.stop, deck.rewind, deck.play, deck.fastForward, deck.pause,
+                    ui, deck.rewind, deck.play, deck.fastForward, deck.pause,
                     onPrevTrack = deck.previous, onNextTrack = deck.next,
                     modifier = Modifier.weight(1f), keyHeight = 58.dp,
                 )
@@ -536,6 +536,9 @@ private fun DeckBand(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, vm: D
                 Text("PHONES", style = EngravedCaps.copy(fontSize = 6.sp))
             }
             Column(Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+                // Spacer matches the mic grille's height so VOLUME shares MIC's baseline;
+                // the slider's scale then starts clear of the grille.
+                Spacer(Modifier.height(30.dp))
                 Text("VOLUME", style = EngravedCaps.copy(fontSize = 7.sp))
                 VolumeSlider(ui.volume, deck.volume, Modifier.fillMaxWidth().weight(1f))
             }

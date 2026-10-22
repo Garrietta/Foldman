@@ -287,17 +287,20 @@ fun VolumeSlider(volume: Float, onVolume: (Float) -> Unit, modifier: Modifier = 
         val ink = Color(0xFF34363B)
         val small = TextStyle(fontSize = 7.sp, fontWeight = FontWeight.Bold, color = ink)
         val labelH = 12.dp.toPx()
-        val top = 4f
-        val bottom = size.height - labelH - 4f
+        // Generous top inset so the "10" clears the strip's top edge (and the
+        // mic grille beside it); the bottom inset keeps the "0" clear of the
+        // LEFT/RIGHT labels.
+        val top = 14f
+        val bottom = size.height - labelH - 10f
         val trackW = size.width * 0.13f
-        val xs = listOf(size.width * 0.42f, size.width * 0.66f)
-        // Scale 0–10 printed on the left.
+        val xs = listOf(size.width * 0.40f, size.width * 0.70f)
+        // Scale 0–10 printed on the left, held clear of the left track.
         for (i in 0..10) {
             val y = bottom - (bottom - top) * i / 10f
-            drawLine(ink, Offset(size.width * 0.22f, y), Offset(size.width * (if (i % 5 == 0) 0.32f else 0.28f), y), 1.2f)
+            drawLine(ink, Offset(size.width * 0.19f, y), Offset(size.width * (if (i % 5 == 0) 0.25f else 0.23f), y), 1.2f)
             if (i % 2 == 0) {
                 val l = measurer.measure(i.toString(), small)
-                drawText(l, topLeft = Offset(size.width * 0.18f - l.size.width, y - l.size.height / 2f))
+                drawText(l, topLeft = Offset(size.width * 0.15f - l.size.width, y - l.size.height / 2f))
             }
         }
         xs.forEach { x ->
@@ -306,8 +309,8 @@ fun VolumeSlider(volume: Float, onVolume: (Float) -> Unit, modifier: Modifier = 
         }
         val nubH = 30.dp.toPx().coerceAtMost((bottom - top) * 0.3f)
         val ny = bottom - nubH - (bottom - top - nubH) * current
-        val left = xs[0] - trackW * 1.6f
-        val right = xs[1] + trackW * 1.6f
+        val left = xs[0] - trackW * 1.2f
+        val right = xs[1] + trackW * 1.2f
         drawRoundRect(Color.Black.copy(alpha = 0.4f), Offset(left, ny + 2f), Size(right - left, nubH), CornerRadius(3f))
         drawRoundRect(
             Brush.horizontalGradient(listOf(Color(0xFFF2F3F5), Color(0xFFA6A9AE), Color(0xFFE2E4E7), Color(0xFF9EA1A6)), left, right),
@@ -320,7 +323,7 @@ fun VolumeSlider(volume: Float, onVolume: (Float) -> Unit, modifier: Modifier = 
         val l = measurer.measure("LEFT", small)
         val r = measurer.measure("RIGHT", small)
         drawText(l, topLeft = Offset(xs[0] - l.size.width / 2f, size.height - labelH))
-        drawText(r, topLeft = Offset(xs[1] - r.size.width / 2f + 4f, size.height - labelH))
+        drawText(r, topLeft = Offset(xs[1] - r.size.width / 2f, size.height - labelH))
     }
 }
 

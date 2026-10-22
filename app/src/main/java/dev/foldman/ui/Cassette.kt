@@ -53,9 +53,11 @@ private val WINDOW = Rect(15f, 21f, 88f, 43f)
 /**
  * The part of the cassette the case's window shows: both hubs, the tape packs and the printed
  * label around them. The rest of the tape stays hidden behind the body, as on the real thing.
+ * The crop runs 1.5mm lower than the label so the corner captions ("TYPE I NORMAL" and the
+ * source tag) sit clear of the case's overhang instead of being clipped by it.
  */
-private val CROP = Rect(8f, 12.5f, 92f, 48.5f)
-const val TAPE_WINDOW_ASPECT = 84f / 36f
+private val CROP = Rect(8f, 12.5f, 92f, 50f)
+const val TAPE_WINDOW_ASPECT = 84f / 37.5f
 
 /**
  * The window in the case with the cassette behind it. [vertical] stands it on end (label side to

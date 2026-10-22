@@ -57,7 +57,6 @@ enum class KeySymbol { STOP, REW, PLAY, FF, PAUSE, PREV, NEXT, SHUFFLE }
 @Composable
 fun TransportKeys(
     ui: DeckUi,
-    onStop: () -> Unit,
     onRewind: () -> Unit,
     onPlay: () -> Unit,
     onFastForward: () -> Unit,
@@ -89,7 +88,7 @@ fun TransportKeys(
             DeckKey(KeySymbol.FF, "FF", latched = t == Transport.FAST_FORWARDING, onPress = onFastForward, modifier = k, height = keyHeight, captionColor = cc)
         }
         DeckKey(KeySymbol.PAUSE, "PAUSE", latched = t == Transport.PAUSED, onPress = onPause, modifier = k, height = keyHeight, captionColor = cc, mark = Color(0xFF3E9C5A))
-        DeckKey(KeySymbol.STOP, "STOP·EJECT", latched = false, onPress = onStop, modifier = k, height = keyHeight, captionColor = cc, mark = Color(0xFFC8352B))
+        // No STOP·EJECT key: stopping is pause; the eject arrow by the cassette opens the shelf.
         // Folded deck only: a SHUFFLE key in the PLAY key's active language (accent underline,
         // latched down + deep-ink symbol when shuffle is on).
         if (onShuffle != null) {
