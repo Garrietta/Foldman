@@ -3,14 +3,14 @@ package dev.foldman.ui.widget
 import android.content.Context
 import android.graphics.BitmapFactory
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.BitmapImageProvider
+import androidx.glance.ColorFilter
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
+import androidx.glance.ImageProvider
 import androidx.glance.action.Action
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
@@ -22,26 +22,30 @@ import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.currentState
-import androidx.glance.unit.ColorProvider
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
+import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
+import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.size
 import androidx.glance.layout.width
+import androidx.glance.material3.GlanceTheme
+import androidx.glance.text.FontWeight
+import androidx.glance.text.Text
+import androidx.glance.text.TextStyle
+import androidx.glance.unit.ColorProvider
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.glance.text.FontWeight
-import androidx.glance.text.Text
-import androidx.glance.text.TextStyle
 import dev.foldman.MainActivity
+import dev.foldman.R
 
 /** Glance state keys. Colors ride as ARGB longs; the tape is a rendered file. */
 internal object WidgetKeys {
@@ -64,41 +68,31 @@ internal object WidgetKeys {
 /**
  * Foldman's deck on the home screen, in the Walkman idiom:
  *
- * - Top row: the song title up top and prominent, artist beneath it, and the
- *   cassette window at the top right — a mini tape whose label shows the
- *   album art and whose reels turn while a song is playing.
- * - Bottom row: four key caps (previous, play/pause, next, shuffle) spanning
- *   the full width, with engraved captions, in the deck-key style.
+ * - Left: the song title and artist pinned to the top, then four icon-only
+ *   pill controls (previous, play/pause, next, shuffle).
+ * - Right: the cassette window grown to fill the widget's full height — the
+ *   visual anchor, its reels turning while a song plays.
  *
- * Everything is tinted by the [RusticColors] derived from the album art.
+ * Theming is Material You: the background is the dynamic scheme background,
+ * and the play/pause pill wears the contrasting dynamic primary-container.
+ * Playback glyphs are Material Symbols vectors with one uniform tint, so no
+ * emoji-font variance across devices.
+ *
+ * Everything the updater writes (titles, colors, tape file) is read
+ * defensively: the widget must never throw, because Glance shows
+ * "Can't show content" for any exception out of provideContent.
  */
 class FoldmanWidget : GlanceAppWidget() {
 
     override val sizeMode: SizeMode = SizeMode.Single
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        provideContent { WalkmanContent() }
+        provideContent {
+            GlanceTheme {
+                WalkmanContent()
+            }
+        }
     }
-}
-
-private fun Preferences.rustic(): RusticColors {
-    fun c(key: Preferences.Key<Long>, fallback: Color) =
-        // The longs are stored as color.toArgb().toLong() (sign-extended ARGB).
-        // Read them back through the Int constructor: Color(ULong) expects a
-        // packed colorspace value in the high bits, and misreading ARGB as
-        // packed crashes Glance's background translation with
-        // ArrayIndexOutOfBoundsException in Color.getColorSpace (seen in the
-        // 2026-10-22 bug report: "Error in Glance App Widget", index=38).
-        get(key)?.let { Color(it.toInt()) } ?: fallback
-    val f = RusticColors.Fallback
-    return RusticColors(
-        background = c(WidgetKeys.BG, f.background),
-        keycap = c(WidgetKeys.KEYCAP, f.keycap),
-        symbol = c(WidgetKeys.SYMBOL, f.symbol),
-        accent = c(WidgetKeys.ACCENT, f.accent),
-        title = c(WidgetKeys.TITLE_C, f.title),
-        subtitle = c(WidgetKeys.SUBTITLE_C, f.subtitle),
-    )
 }
 
 @Composable
@@ -110,7 +104,6 @@ private fun WalkmanContent() {
     // throws in practice. (try/catch and runCatching are illegal around
     // @Composable invocations.) Empty state still degrades to "No tape loaded".
     val prefs: Preferences? = currentState()
-    val colors = remember(prefs) { prefs?.rustic() ?: RusticColors.Fallback }
     val title = prefs?.get(WidgetKeys.TITLE).orEmpty().ifBlank { "Foldman" }
     val artist = prefs?.get(WidgetKeys.ARTIST).orEmpty().ifBlank { "No tape loaded" }
     val isPlaying = prefs?.get(WidgetKeys.IS_PLAYING) == true
@@ -127,136 +120,129 @@ private fun WalkmanContent() {
     }
     val openApp = actionStartActivity<MainActivity>()
     val params = actionParametersOf(SourceParam to sourceName)
+    val colors = GlanceTheme.colors
+    // One uniform tint for every playback control icon.
+    val iconTint = colors.onSurface
 
-    Column(
+    Row(
         modifier = GlanceModifier.fillMaxSize()
             .cornerRadius(28.dp)
-            .background(ColorProvider(colors.background))
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .background(colors.background)
+            .padding(10.dp),
+        verticalAlignment = Alignment.Top,
     ) {
-        // Top row: title block on the left, cassette window top right.
-        Row(
+        // Left column: text block pinned to the top (aligned with the top of
+        // the cassette), icon-only pills along the bottom.
+        Column(
             modifier = GlanceModifier.defaultWeight()
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
+                .fillMaxHeight(),
         ) {
             Column(
-                modifier = GlanceModifier.defaultWeight()
-                    .clickable(openApp),
-                verticalAlignment = Alignment.CenterVertically,
+                modifier = GlanceModifier.clickable(openApp),
             ) {
                 Text(
                     title,
                     style = TextStyle(
-                        color = ColorProvider(colors.title),
-                        fontSize = 16.sp,
+                        color = colors.onBackground,
+                        fontSize = 17.sp,
                         fontWeight = FontWeight.Medium,
                     ),
-                    maxLines = 1,
+                    maxLines = 2,
                 )
-                Spacer(GlanceModifier.height(2.dp))
+                Spacer(GlanceModifier.height(3.dp))
                 Text(
                     artist,
-                    style = TextStyle(color = ColorProvider(colors.subtitle), fontSize = 12.sp),
+                    style = TextStyle(color = colors.onSurfaceVariant, fontSize = 13.sp),
                     maxLines = 1,
                 )
             }
-            Spacer(GlanceModifier.width(8.dp))
-            Box(
-                modifier = GlanceModifier.size(52.dp)
-                    .cornerRadius(13.dp)
-                    .clickable(openApp),
-                contentAlignment = Alignment.Center,
+            Spacer(GlanceModifier.defaultWeight())
+            Row(
+                modifier = GlanceModifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (tape != null) {
-                    Image(
-                        provider = BitmapImageProvider(tape),
-                        contentDescription = "Cassette",
-                        modifier = GlanceModifier.fillMaxSize(),
-                    )
-                } else {
-                    Text(
-                        "♪",
-                        style = TextStyle(
-                            color = ColorProvider(colors.subtitle),
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold,
-                        ),
-                    )
-                }
+                ControlPill(
+                    GlanceModifier.defaultWeight(), R.drawable.ic_skip_previous,
+                    colors.surfaceVariant, iconTint,
+                    actionRunCallback<WidgetPrevAction>(params),
+                )
+                Spacer(GlanceModifier.width(6.dp))
+                ControlPill(
+                    GlanceModifier.defaultWeight(),
+                    if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play,
+                    colors.primaryContainer, iconTint,
+                    actionRunCallback<WidgetPlayPauseAction>(params),
+                )
+                Spacer(GlanceModifier.width(6.dp))
+                ControlPill(
+                    GlanceModifier.defaultWeight(), R.drawable.ic_skip_next,
+                    colors.surfaceVariant, iconTint,
+                    actionRunCallback<WidgetNextAction>(params),
+                )
+                Spacer(GlanceModifier.width(6.dp))
+                ControlPill(
+                    GlanceModifier.defaultWeight(), R.drawable.ic_shuffle,
+                    if (shuffleOn) colors.primaryContainer else colors.surfaceVariant,
+                    iconTint,
+                    actionRunCallback<WidgetShuffleAction>(params),
+                )
             }
         }
-        Spacer(GlanceModifier.height(4.dp))
-        // Bottom row: the keys span the full width.
-        Row(modifier = GlanceModifier.fillMaxWidth()) {
-            DeckWidgetKey(
-                GlanceModifier.defaultWeight(), "PREV", "⏮", colors,
-                accent = false, latched = false,
-                actionRunCallback<WidgetPrevAction>(params),
-            )
-            DeckWidgetKey(
-                GlanceModifier.defaultWeight(),
-                if (isPlaying) "PAUSE" else "PLAY",
-                if (isPlaying) "⏸" else "▶",
-                colors, accent = true, latched = false,
-                actionRunCallback<WidgetPlayPauseAction>(params),
-            )
-            DeckWidgetKey(
-                GlanceModifier.defaultWeight(), "NEXT", "⏭", colors,
-                accent = false, latched = false,
-                actionRunCallback<WidgetNextAction>(params),
-            )
-            DeckWidgetKey(
-                GlanceModifier.defaultWeight(), "SHUF", "⇄", colors,
-                accent = false, latched = shuffleOn,
-                actionRunCallback<WidgetShuffleAction>(params),
-            )
+        Spacer(GlanceModifier.width(10.dp))
+        // Right: the cassette window, grown to fill the widget's full height.
+        Box(
+            modifier = GlanceModifier.width(92.dp)
+                .fillMaxHeight()
+                .cornerRadius(22.dp)
+                .clickable(openApp),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (tape != null) {
+                Image(
+                    provider = BitmapImageProvider(tape),
+                    contentDescription = "Cassette",
+                    modifier = GlanceModifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit,
+                )
+            } else {
+                Image(
+                    provider = ImageProvider(R.drawable.ic_music_note),
+                    contentDescription = "No tape loaded",
+                    modifier = GlanceModifier.size(40.dp),
+                    colorFilter = ColorFilter.tint(colors.onSurfaceVariant),
+                )
+            }
         }
     }
 }
 
 /**
- * One deck key: an engraved caption over a rounded metal cap with its symbol.
- * Glance cannot draw the canvas key, so the cap is a rounded box in the
- * rustic keycap tone; the play key and a latched shuffle wear the accent.
+ * One icon-only pill control: a Material Symbols vector centered vertically
+ * and horizontally in a rounded container. The play/pause pill (and a latched
+ * shuffle) wear the contrasting dynamic primary-container; the rest sit on
+ * surface-variant. Every icon shares one uniform tint.
  */
 @Composable
-private fun DeckWidgetKey(
+private fun ControlPill(
     modifier: GlanceModifier,
-    caption: String,
-    symbol: String,
-    colors: RusticColors,
-    accent: Boolean,
-    latched: Boolean,
+    iconRes: Int,
+    container: ColorProvider,
+    iconTint: ColorProvider,
     action: Action,
 ) {
-    val hot = accent || latched
-    Column(
-        modifier = modifier.padding(horizontal = 2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Box(
+        modifier = modifier
+            .height(48.dp)
+            .cornerRadius(24.dp)
+            .background(container)
+            .clickable(action),
+        contentAlignment = Alignment.Center,
     ) {
-        Text(
-            caption,
-            style = TextStyle(color = ColorProvider(colors.subtitle), fontSize = 7.sp),
-            maxLines = 1,
+        Image(
+            provider = ImageProvider(iconRes),
+            contentDescription = null,
+            modifier = GlanceModifier.size(24.dp),
+            colorFilter = ColorFilter.tint(iconTint),
         )
-        Spacer(GlanceModifier.height(2.dp))
-        Box(
-            modifier = GlanceModifier.fillMaxWidth()
-                .height(28.dp)
-                .cornerRadius(9.dp)
-                .background(ColorProvider(if (hot) colors.accent else colors.keycap))
-                .clickable(action),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                symbol,
-                style = TextStyle(
-                    color = ColorProvider(if (hot) colors.title else colors.symbol),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-            )
-        }
     }
 }

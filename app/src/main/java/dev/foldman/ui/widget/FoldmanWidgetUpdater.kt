@@ -119,7 +119,7 @@ object FoldmanWidgetUpdater {
         colors: RusticColors,
         snapshot: WidgetSnapshot,
     ): String? = runCatching {
-        val tape = CassetteRenderer.render(colors, snapshot.artwork, snapshot.reelAngleDeg, 220)
+        val tape = CassetteRenderer.render(colors, snapshot.artwork, snapshot.reelAngleDeg, 288)
         val file = File(context.filesDir, "foldman_widget_tape.png")
         FileOutputStream(file).use { out ->
             tape.compress(Bitmap.CompressFormat.PNG, 90, out)

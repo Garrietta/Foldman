@@ -91,6 +91,8 @@ dependencies {
     // Home-screen widget (Glance) and ListenableFuture await() for its media-controller actions.
     // Glance's Preferences state APIs live in DataStore, not in the glance artifacts.
     implementation("androidx.glance:glance-appwidget:1.1.1")
+    // Material You dynamic colors for the widget (GlanceTheme).
+    implementation("androidx.glance:glance-material3:1.1.1")
     implementation("androidx.datastore:datastore-preferences:1.1.7")
     // Metadata disk cache (deck/MetadataCache.kt) serializes Koda's Song/playlist models.
     implementation(kodaLibs.kotlinx.serialization.json)
