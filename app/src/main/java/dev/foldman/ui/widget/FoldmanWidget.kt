@@ -124,8 +124,8 @@ private fun dynamicPalette(): WidgetPalette {
                 WidgetPalette(
                     background = sys(android.R.color.system_neutral1_900),
                     onBackground = sys(android.R.color.system_neutral1_100),
-                    surfaceVariant = sys(android.R.color.system_neutral_variant_700),
-                    onSurfaceVariant = sys(android.R.color.system_neutral_variant_200),
+                    surfaceVariant = sys(android.R.color.system_neutral2_700),
+                    onSurfaceVariant = sys(android.R.color.system_neutral2_200),
                     primaryContainer = sys(android.R.color.system_accent1_700),
                     onSurface = sys(android.R.color.system_neutral1_100),
                 )
@@ -133,8 +133,8 @@ private fun dynamicPalette(): WidgetPalette {
                 WidgetPalette(
                     background = sys(android.R.color.system_neutral1_50),
                     onBackground = sys(android.R.color.system_neutral1_900),
-                    surfaceVariant = sys(android.R.color.system_neutral_variant_100),
-                    onSurfaceVariant = sys(android.R.color.system_neutral_variant_700),
+                    surfaceVariant = sys(android.R.color.system_neutral2_100),
+                    onSurfaceVariant = sys(android.R.color.system_neutral2_700),
                     primaryContainer = sys(android.R.color.system_accent1_100),
                     onSurface = sys(android.R.color.system_neutral1_900),
                 )
