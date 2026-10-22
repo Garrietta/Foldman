@@ -188,57 +188,61 @@ private fun WalkmanContent() {
     // below absorbs any extra height via weight, while every element keeps
     // the min-fit scale, so nothing can clip. Grow and shrink both work:
     // the scale follows the rect.
-    // the scale follows the rect.
-    // Layout: left = title (top) + 4 keys (bottom); right = vertical tape
-    // spanning full height. STOP-EJECT and sliders removed.
-    Column(
+    // Layout: left = title (top) + 4 keys (bottom); right = vertical tape.
+    // STOP-EJECT and sliders removed.
+    Row(
         modifier = GlanceModifier.fillMaxSize()
             .cornerRadius(sd(26))
             .background(ColorProvider(Chrome.root))
             .padding(sd(6)),
     ) {
-        Row(modifier = GlanceModifier.fillMaxSize()) {
-            // Left: main content (title + keys).
-            Column(modifier = GlanceModifier.defaultWeight()) {
-                // Dark title container (top).
-                Column(
-                    modifier = GlanceModifier.fillMaxWidth()
-                        .defaultWeight()
-                        .cornerRadius(sd(20))
-                        .background(ColorProvider(Chrome.panel))
-                        .padding(sd(8)),
-                ) {
+        // Left: main content.
+        Column(modifier = GlanceModifier.defaultWeight()) {
+            // Dark top container: 50% of height (cut by 50% per spec).
+            // Left half: square track-info (top) + counter/RESET (below).
+            // Right half: cassette at 200% scale.
+            Column(
+                modifier = GlanceModifier.fillMaxWidth()
+                    .defaultWeight()
+                    .cornerRadius(sd(20))
+                    .background(ColorProvider(Chrome.panel))
+                    .padding(horizontal = sd(8), vertical = sd(12)),
+            ) {
                     // Title box: expanded to fill the width (tape is vertical now).
-                    Box(
-                        modifier = GlanceModifier.fillMaxWidth()
-                            .cornerRadius(sd(14))
-                            .background(ColorProvider(Chrome.titleBox))
-                            .padding(sd(10))
-                            .clickable(openApp),
-                    ) {
-                        Column {
-                            Text(
-                                title,
-                                style = TextStyle(
-                                    color = ColorProvider(Chrome.titleText),
-                                    fontSize = ss(16),
-                                    fontWeight = FontWeight.Medium,
-                                ),
-                                maxLines = 2,
-                            )
-                            Spacer(GlanceModifier.height(sd(2)))
-                            Text(
-                                artist,
-                                style = TextStyle(
-                                    color = ColorProvider(Chrome.artistText),
-                                    fontSize = ss(12)
-                                ),
-                                maxLines = 1,
-                            )
+                    Column(modifier = GlanceModifier.fillMaxWidth()) {
+                        Box(
+                            modifier = GlanceModifier.fillMaxWidth()
+                                .cornerRadius(sd(14))
+                                .background(ColorProvider(Chrome.titleBox))
+                                .padding(sd(10))
+                                .clickable(openApp),
+                        ) {
+                            Column {
+                                Text(
+                                    title,
+                                    style = TextStyle(
+                                        color = ColorProvider(Chrome.titleText),
+                                        fontSize = ss(16),
+                                        fontWeight = FontWeight.Medium,
+                                        
+                                    ),
+                                    maxLines = 2,
+                                )
+                                Spacer(GlanceModifier.height(sd(2)))
+                                Text(
+                                    artist,
+                                    style = TextStyle(
+                                        color = ColorProvider(Chrome.artistText),
+                                        fontSize = ss(12)
+                                    ),
+                                    maxLines = 1,
+                                )
+                            }
                         }
+                        Spacer(GlanceModifier.height(sd(6)))
                     }
+                    // Counter + RESET (below title).
                     Spacer(GlanceModifier.height(sd(6)))
-                    // Counter + RESET row.
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = GlanceModifier
@@ -278,64 +282,65 @@ private fun WalkmanContent() {
                         }
                     }
                 }
-                // Bottom: 4 transport keys only (PREV/PLAY/NEXT/PAUSE).
-                // STOP-EJECT and sliders removed.
-                Row(
-                    modifier = GlanceModifier.fillMaxWidth().defaultWeight(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    TransportKey(
-                        GlanceModifier.defaultWeight(), "PREV", keyBitmaps["prev"], scale,
-                        actionRunCallback<WidgetPrevAction>(params),
-                        isPressed = pressedKey == "prev",
-                    )
-                    TransportKey(
-                        GlanceModifier.defaultWeight(), "PLAY", keyBitmaps["play"], scale,
-                        actionRunCallback<WidgetPlayAction>(params),
-                        isPressed = pressedKey == "play",
-                    )
-                    TransportKey(
-                        GlanceModifier.defaultWeight(), "NEXT", keyBitmaps["next"], scale,
-                        actionRunCallback<WidgetNextAction>(params),
-                        isPressed = pressedKey == "next",
-                    )
-                    TransportKey(
-                        GlanceModifier.defaultWeight(), "PAUSE", keyBitmaps["pause"], scale,
-                        actionRunCallback<WidgetPauseAction>(params),
-                        isPressed = pressedKey == "pause",
-                    )
-                }
             }
-            Spacer(GlanceModifier.width(sd(6)))
-            // Right: vertical cassette spanning the full height.
-            Box(
-                modifier = GlanceModifier.width(sd(96))
-                    .fillMaxHeight()
-                    .cornerRadius(sd(14))
-                    .background(ColorProvider(Chrome.panel))
-                    .padding(sd(6))
-                    .clickable(openApp),
-                contentAlignment = Alignment.Center,
+            // Bottom: transport keys + slider cluster, flush against the dark
+            // container (zero gap per spec).
+            Row(
+                modifier = GlanceModifier.fillMaxWidth().defaultWeight(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (tape != null) {
-                    Image(
-                        provider = BitmapImageProvider(tape),
-                        contentDescription = "Cassette",
-                        modifier = GlanceModifier.fillMaxHeight(),
-                    )
-                } else {
-                    // Empty dark window until the updater renders the tape.
-                    Box(
-                        modifier = GlanceModifier.fillMaxHeight()
-                            .width(sd(60))
-                            .cornerRadius(sd(10))
-                            .background(ColorProvider(Chrome.titleBox)),
-                        contentAlignment = Alignment.Center,
-                    ) {}
-                }
+                TransportKey(
+                    GlanceModifier.defaultWeight(), "PREV", keyBitmaps["prev"], scale,
+                    actionRunCallback<WidgetPrevAction>(params),
+                    isPressed = pressedKey == "prev",
+                )
+                TransportKey(
+                    GlanceModifier.defaultWeight(), "PLAY", keyBitmaps["play"], scale,
+                    actionRunCallback<WidgetPlayAction>(params),
+                    isPressed = pressedKey == "play",
+                )
+                TransportKey(
+                    GlanceModifier.defaultWeight(), "NEXT", keyBitmaps["next"], scale,
+                    actionRunCallback<WidgetNextAction>(params),
+                    isPressed = pressedKey == "next",
+                )
+                TransportKey(
+                    GlanceModifier.defaultWeight(), "PAUSE", keyBitmaps["pause"], scale,
+                    actionRunCallback<WidgetPauseAction>(params),
+                    isPressed = pressedKey == "pause",
+                )
+            }
+        }  // Left column ends.
+        Spacer(GlanceModifier.width(sd(6)))
+        // Right: vertical cassette spanning the full height.
+        Box(
+            modifier = GlanceModifier.width(sd(96))
+                .fillMaxHeight()
+                .cornerRadius(sd(14))
+                .background(ColorProvider(Chrome.panel))
+                .padding(sd(6))
+                .clickable(openApp),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (tape != null) {
+                Image(
+                    provider = BitmapImageProvider(tape),
+                    contentDescription = "Cassette",
+                    modifier = GlanceModifier.fillMaxHeight(),
+                )
+            } else {
+                // Empty dark window until the updater renders the tape.
+                Box(
+                    modifier = GlanceModifier.fillMaxHeight()
+                        .width(sd(60))
+                        .cornerRadius(sd(10))
+                        .background(ColorProvider(Chrome.titleBox)),
+                    contentAlignment = Alignment.Center,
+                ) {}
             }
         }
-    }
+    }  // Outer Row ends.
+}
 
 /**
  * One square metallic transport key with its small label above: a dark
