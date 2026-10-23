@@ -281,6 +281,13 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     private var lastResumeUri: String? = null
     private var lastResumePos: Long = 0L
 
+    // Declared above init on purpose: the ticker coroutine launched in init
+    // calls tick(), which reads _themeMode. A property declared after the init
+    // block is still null when that first tick runs (NPE on startup).
+    private val _themeMode = MutableStateFlow(ThemePrefs.read(app))
+    /** The persisted theme override (System / Light / Dark); the UI resolves it against the system setting. */
+    val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
+
     init {
         prefs.getString(KEY_FOLDER, null)?.let { loadFolder(Uri.parse(it), firstLoad = true) }
         backend.refresh()
@@ -904,10 +911,6 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // region Theme
-
-    private val _themeMode = MutableStateFlow(ThemePrefs.read(app))
-    /** The persisted theme override (System / Light / Dark); the UI resolves it against the system setting. */
-    val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
 
     fun setThemeMode(mode: ThemeMode) {
         if (_themeMode.value == mode) return
