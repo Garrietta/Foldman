@@ -85,22 +85,6 @@ import dev.foldman.theme.toDarkPrimary
 import com.ivor.ivormusic.ui.player.PlayerViewModel
 import kotlinx.coroutines.launch
 
-/**
- * Queue-only panel for the unfolded portrait layout: the live Up Next list,
- * full width, no library browser (that's in the TAPES sheet).
- */
-@Composable
-private fun QueuePanel(ui: DeckUi, actions: ShelfActions, onPlayQueue: (Long) -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier.glassPanel().padding(14.dp)) {
-        Text(
-            "Up Next",
-            style = TextStyle(fontFamily = FontFamily.Default, fontSize = 15.sp, color = Color.White),
-            modifier = Modifier.padding(bottom = 8.dp),
-        )
-        QueueList(ui, onPlayQueue, showArt = true, modifier = Modifier.fillMaxSize())
-    }
-}
-
 private enum class Posture { Cover, Unfolded, UnfoldedPortrait, Tabletop }
 
 /**
@@ -323,7 +307,8 @@ fun FoldmanScreen(
                     LibraryPanel(ui, shelfActions, vm::playQueueItem, Modifier.weight(1f).fillMaxHeight())
                 }
                 // Unfolded portrait: vertical layout — deck full-width on top,
-                // queue (Up Next) full-width below, no liner notes. This is the
+                // the dual-tab library panel (Up Next / Your Library)
+                // full-width below, no liner notes. This is the
                 // "good unfolded UI" from before the posture-lock regression.
                 Posture.UnfoldedPortrait -> Column(
                     Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(12.dp),
@@ -337,7 +322,7 @@ fun FoldmanScreen(
                         onShowSettings = { showSettings = true },
                         Modifier.fillMaxWidth().weight(0.55f),
                     )
-                    QueuePanel(ui, shelfActions, vm::playQueueItem, Modifier.fillMaxWidth().weight(0.45f))
+                    LibraryPanel(ui, shelfActions, vm::playQueueItem, Modifier.fillMaxWidth().weight(0.45f))
                 }
                 Posture.Tabletop -> {
                     val (topH, gap) = with(density) {
