@@ -91,11 +91,16 @@ fun Modifier.paintedBody(color: Color, capHeight: Dp = 0.dp, corner: Dp = 34.dp,
         drawRoundRect(body, cornerRadius = r)
         drawPath(grain, Color.White.copy(alpha = 0.045f))
         if (cap > 0f) {
-            // The top cap is a separate, slightly lighter piece with a seam below it.
-            drawRoundRect(
-                Brush.verticalGradient(listOf(lerp(color, Color.White, 0.3f), lerp(color, Color.White, 0.12f)), 0f, cap),
-                size = Size(size.width, cap + r.x), cornerRadius = r,
-            )
+            if (DeckColors.dark) {
+                // Dark mode: the header cap is the same color as the body below
+                // it — no lighter piece, just the physical seam.
+            } else {
+                // The top cap is a separate, slightly lighter piece with a seam below it.
+                drawRoundRect(
+                    Brush.verticalGradient(listOf(lerp(color, Color.White, 0.3f), lerp(color, Color.White, 0.12f)), 0f, cap),
+                    size = Size(size.width, cap + r.x), cornerRadius = r,
+                )
+            }
             drawRect(lerp(color, Color.White, 0.12f), Offset(0f, cap), Size(size.width, r.x))
             drawRect(body, Offset(0f, cap), Size(size.width, r.x))
             drawLine(Color.Black.copy(alpha = 0.35f), Offset(0f, cap), Offset(size.width, cap), 2f)

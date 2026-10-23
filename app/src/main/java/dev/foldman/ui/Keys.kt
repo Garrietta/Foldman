@@ -71,7 +71,9 @@ fun TransportKeys(
 ) {
     val t = ui.transport
     // Captions sit on the silver strip when stacked, on the dark key well otherwise.
-    val cc = if (vertical) DeckColors.Engrave else Color(0xFF9EA1A7)
+    // The stacked captions use the engraved-lettering color so SHUFFLE always
+    // matches VOLUME / OPERATE / MIC (light in dark mode, dark in light mode).
+    val cc = if (vertical) EngravedCaps.color else Color(0xFF9EA1A7)
     val keys: @Composable (Modifier, Modifier) -> Unit = { k, play ->
         if (onPrevTrack != null) {
             DeckKey(KeySymbol.PREV, "PREV", latched = false, onPress = onPrevTrack, modifier = k, height = keyHeight, captionColor = cc)

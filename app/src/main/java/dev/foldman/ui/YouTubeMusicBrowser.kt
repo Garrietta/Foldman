@@ -310,7 +310,7 @@ private fun PlaylistRow(
     onOpen: () -> Unit,
     onShuffle: () -> Unit,
 ) {
-    val itemStyle = if (onPaper) TextStyle(fontFamily = FontFamily.Default, fontSize = 19.sp) else Title.copy(fontSize = 12.sp)
+    val itemStyle = if (onPaper) TextStyle(fontFamily = FontFamily.Default, fontSize = 19.sp, color = DeckColors.Ink) else Title.copy(fontSize = 12.sp)
     val itemSubStyle = if (onPaper) Typed.copy(fontSize = 10.sp, color = DeckColors.Ink.copy(alpha = 0.55f))
         else Sub.copy(fontSize = 10.sp)
     val glyphStyle = if (onPaper) Typed.copy(color = DeckColors.Ink.copy(alpha = 0.5f)) else Sub
@@ -334,7 +334,7 @@ private fun PlaylistRow(
 
 @Composable
 private fun ArtistRow(artist: com.ivor.ivormusic.data.ArtistItem, onPaper: Boolean, onOpen: () -> Unit) {
-    val itemStyle = if (onPaper) TextStyle(fontFamily = FontFamily.Default, fontSize = 19.sp) else Title.copy(fontSize = 12.sp)
+    val itemStyle = if (onPaper) TextStyle(fontFamily = FontFamily.Default, fontSize = 19.sp, color = DeckColors.Ink) else Title.copy(fontSize = 12.sp)
     val itemSubStyle = if (onPaper) Typed.copy(fontSize = 10.sp, color = DeckColors.Ink.copy(alpha = 0.55f))
         else Sub.copy(fontSize = 10.sp)
     val glyphStyle = if (onPaper) Typed.copy(color = DeckColors.Ink.copy(alpha = 0.5f)) else Sub
@@ -361,7 +361,7 @@ private fun ArtistRow(artist: com.ivor.ivormusic.data.ArtistItem, onPaper: Boole
 
 @Composable
 private fun SongRow(song: Song, onPaper: Boolean, onPlay: () -> Unit) {
-    val itemStyle = if (onPaper) TextStyle(fontFamily = FontFamily.Default, fontSize = 19.sp) else Title.copy(fontSize = 12.sp)
+    val itemStyle = if (onPaper) TextStyle(fontFamily = FontFamily.Default, fontSize = 19.sp, color = DeckColors.Ink) else Title.copy(fontSize = 12.sp)
     val itemSubStyle = if (onPaper) Typed.copy(fontSize = 10.sp, color = DeckColors.Ink.copy(alpha = 0.55f))
         else Sub.copy(fontSize = 10.sp)
     val glyphStyle = if (onPaper) Typed.copy(color = DeckColors.Ink.copy(alpha = 0.5f)) else Sub
