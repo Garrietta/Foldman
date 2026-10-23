@@ -310,18 +310,19 @@ private fun DrawScope.drawLabel(ui: DeckUi, palette: LabelPalette, measurer: Tex
         // Circled side-A marker, part of the centered unit. It sits on the
         // dark title scrim, so it stays light with a dark outline on art.
         val markerColor = if (art != null) Color.White else handColor
+        val markerPrint = print.copy(color = markerColor)
         val markerStroke = if (art != null) {
             print.copy(color = Color.Black.copy(alpha = 0.8f), drawStyle = Stroke(width = 0.7f))
-        } else print
+        } else markerPrint
         drawCircle(markerColor, aR, Offset(startX + aR, edgeY), style = Stroke(0.35f))
-        val aLayout = measure("A", 3.4f, 5f, print)
+        val aLayout = measure("A", 3.4f, 5f, markerPrint)
         val aStrokeLayout = measure("A", 3.4f, 5f, markerStroke)
         withTransform({
             translate(startX + aR - aLayout.size.width / u / 2f, edgeY - aLayout.size.height / u / 2f)
             scale(1f / u, 1f / u, Offset.Zero)
         }) {
             if (art != null) drawText(aStrokeLayout)
-            drawText(aLayout.copy(color = markerColor))
+            drawText(aLayout)
         }
         // Script, vertically centered on the edge.
         // Opposite-tone stroke underlay for legibility when over art.
