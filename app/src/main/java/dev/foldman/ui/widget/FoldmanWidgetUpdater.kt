@@ -285,13 +285,15 @@ object FoldmanWidgetUpdater {
 
     /**
      * Renders the inset title panel (brushed silver + inner shadow) once per
-     * theme. Design size: ~294dp x ~94dp at 2x; 16dp corner radius -> 32px.
+     * theme. Design size: ~294dp x ~94dp at 2x; 26dp corner radius -> 52px
+     * (concentric with the 36dp widget corner minus the 10dp outer padding).
      */
     private fun writeTitlePanel(context: Context, dark: Boolean): String? = runCatching {
-        // v3: light + dark variants; larger corner radius for a smooth top edge.
-        val file = File(context.filesDir, "foldman_widget_title_panel_v3_${if (dark) "dark" else "light"}.png")
+        // v4: light + dark variants; concentric corner radius so the panel
+        // no longer cuts into the widget's own corner.
+        val file = File(context.filesDir, "foldman_widget_title_panel_v4_${if (dark) "dark" else "light"}.png")
         if (!file.exists()) {
-            val panel = CassetteRenderer.renderTitlePanel(588, 188, 44f, dark)
+            val panel = CassetteRenderer.renderTitlePanel(588, 188, 52f, dark)
             val ok = writePngAtomic(file, panel)
             if (!panel.isRecycled) panel.recycle()
             if (!ok) return@runCatching null
@@ -304,14 +306,14 @@ object FoldmanWidgetUpdater {
      * distinct primary color. The enamel follows the album art — the light
      * primary role in light mode, the dark role in dark mode — and falls back
      * to the fixed enamel blue with no art. Design size: 128dp x 188dp at 2x;
-     * 14dp corner radius -> 28px.
+     * 26dp corner radius -> 52px (concentric with the widget corner).
      */
     private fun writeBluePanel(context: Context, primaryArgb: Int, dark: Boolean): String? = runCatching {
-        // v3: one cached render per distinct themed color.
+        // v4: one cached render per distinct themed color; concentric radius.
         val themed = if (dark) darkenArgb(primaryArgb) else primaryArgb
-        val file = File(context.filesDir, "foldman_widget_blue_panel_v3_%08X.png".format(themed))
+        val file = File(context.filesDir, "foldman_widget_blue_panel_v4_%08X.png".format(themed))
         if (!file.exists()) {
-            val panel = CassetteRenderer.renderBluePanel(256, 376, 28f, themed)
+            val panel = CassetteRenderer.renderBluePanel(256, 376, 52f, themed)
             val ok = writePngAtomic(file, panel)
             if (!panel.isRecycled) panel.recycle()
             if (!ok) return@runCatching null

@@ -291,13 +291,13 @@ private fun WalkmanContent(dark: Boolean) {
         } else {
             Box(
                 modifier = GlanceModifier.fillMaxSize()
-                    .cornerRadius(sd(26))
+                    .cornerRadius(sd(36))
                     .background(ColorProvider(chrome.root)),
             ) {}
         }
         Row(
             modifier = GlanceModifier.fillMaxSize()
-                .padding(sd(6)),
+                .padding(sd(10)),
         ) {
         // Left: main content.
         Column(modifier = GlanceModifier.defaultWeight()) {
@@ -318,13 +318,13 @@ private fun WalkmanContent(dark: Boolean) {
                 } else {
                     Box(
                         modifier = GlanceModifier.fillMaxSize()
-                            .cornerRadius(sd(16))
+                            .cornerRadius(sd(26))
                             .background(ColorProvider(chrome.titlePanel)),
                     ) {}
                 }
                 Column(
                     modifier = GlanceModifier.fillMaxSize()
-                        .padding(sd(10)),
+                        .padding(start = sd(14), top = sd(10), end = sd(10), bottom = sd(10)),
                 ) {
                 // Small "— STEREO —" caps label at the top-right of the panel.
                 Box(
@@ -367,8 +367,11 @@ private fun WalkmanContent(dark: Boolean) {
             // Transport keys: full deck keys (slot + cap + symbol) rendered with
             // the in-app DeckKey pressed language. PLAY latches recessed with
             // the orange underline while playing; PAUSE latches while paused.
+            // Nudged down a touch so each label+key combo sits centered
+            // between the widget's bottom edge and the song-text box above.
             Row(
-                modifier = GlanceModifier.fillMaxWidth().defaultWeight(),
+                modifier = GlanceModifier.fillMaxWidth().defaultWeight()
+                    .padding(top = sd(8)),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TransportKey(
@@ -401,7 +404,7 @@ private fun WalkmanContent(dark: Boolean) {
                 )
             }
         }  // Left column ends.
-        Spacer(GlanceModifier.width(sd(6)))
+        Spacer(GlanceModifier.width(sd(8)))
         // Right: enamel-blue panel (rendered bitmap: richer cobalt gradient
         // with edge shadow) with the vertical cassette (the app's actual tape
         // artwork) and the white FOLDMAN wordmark at the bottom. Falls back
@@ -424,7 +427,7 @@ private fun WalkmanContent(dark: Boolean) {
             } else {
                 Box(
                     modifier = GlanceModifier.fillMaxSize()
-                        .cornerRadius(sd(14))
+                        .cornerRadius(sd(26))
                         .background(ColorProvider(panelFallback)),
                 ) {}
             }
