@@ -113,6 +113,7 @@ object FoldmanWidgetUpdater {
         val tapePath = writeTape(appContext, reels.leftAngle, reels.rightAngle)
         val artworkPath = writeArtwork(appContext, snapshot)
         val keyPaths = writeKeys(appContext)
+        val chromePath = writeChrome(appContext)
         val widget = FoldmanWidget()
         val manager = GlanceAppWidgetManager(appContext)
         for (appWidgetId in ids) {
@@ -127,6 +128,8 @@ object FoldmanWidgetUpdater {
                 else state.remove(WidgetKeys.ARTWORK_PATH)
                 if (keyPaths != null) state[WidgetKeys.KEY_PATHS] = keyPaths
                 else state.remove(WidgetKeys.KEY_PATHS)
+                if (chromePath != null) state[WidgetKeys.CHROME_PATH] = chromePath
+                else state.remove(WidgetKeys.CHROME_PATH)
                 state[WidgetKeys.IS_PLAYING] = snapshot.isPlaying
                 state[WidgetKeys.SOURCE] = snapshot.activeSource.name
                 state[WidgetKeys.QUEUE_INDEX] = snapshot.queueIndex
@@ -210,6 +213,23 @@ object FoldmanWidgetUpdater {
             tape.compress(Bitmap.CompressFormat.PNG, 90, out)
         }
         if (!tape.isRecycled) tape.recycle()
+        file.absolutePath
+    }.getOrNull()
+
+    /**
+     * Renders the brushed-chrome root background once (versioned filename so
+     * design changes are picked up). Static — never re-rendered per tick.
+     */
+    private fun writeChrome(context: Context): String? = runCatching {
+        val file = File(context.filesDir, "foldman_widget_chrome_v1.png")
+        if (!file.exists()) {
+            // 2x the 440x200 design size; 26dp corner radius -> 52px.
+            val chrome = CassetteRenderer.renderBrushedPanel(880, 400, 52f)
+            FileOutputStream(file).use { out ->
+                chrome.compress(Bitmap.CompressFormat.PNG, 90, out)
+            }
+            if (!chrome.isRecycled) chrome.recycle()
+        }
         file.absolutePath
     }.getOrNull()
 

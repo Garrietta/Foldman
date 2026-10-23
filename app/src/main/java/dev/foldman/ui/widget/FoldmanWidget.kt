@@ -56,6 +56,8 @@ internal object WidgetKeys {
     val SLIDERS_PATH = stringPreferencesKey("sliders_path")
     val ARTWORK_PATH = stringPreferencesKey("artwork_path")
     val KEY_PATHS = stringPreferencesKey("key_paths")
+    /** Rendered brushed-chrome root background (static; written once). */
+    val CHROME_PATH = stringPreferencesKey("chrome_path")
     val IS_PLAYING = booleanPreferencesKey("is_playing")
     val SHUFFLE = booleanPreferencesKey("shuffle")
     val HAS_NEXT = booleanPreferencesKey("has_next")
@@ -65,22 +67,25 @@ internal object WidgetKeys {
     val PRESSED_KEY = stringPreferencesKey("pressed_key")
 }
 
-/** Fixed brushed-chrome palette, matching Garrett's widget mockup. */
+/** Fixed palette in the app deck's material language (never album-art derived). */
 private object Chrome {
-    val root = Color(0xFFB7BCC2)
-    val panel = Color(0xFF3D4A5E)
+    // Brushed chrome root is a rendered bitmap (see CHROME_PATH); this is the fallback.
+    val root = Color(0xFFC3C5C9)
+    /** Deck enamel blue — the app deck's face color. */
+    val panel = Color(0xFF2F6FB5)
     val titleBox = Color(0xFF101216)
     val titleText = Color(0xFFFFFFFF)
     val artistText = Color(0xFF9AA0A8)
     val brandText = Color(0xFFEDEFF2)
     val brandSub = Color(0xFF8B95A1)
     val keycap = Color(0xFFD8DCE0)
-    val keyBorder = Color(0xFF5F666D)
+    val keyBorder = Color(0xFF54575C)
     val keyPressed = Color(0xFF3A3F45)
     val glyph = Color(0xFF2B2F34)
     val playGreen = Color(0xFF35A852)
     val pauseOrange = Color(0xFFE8821A)
-    val label = Color(0xFF3A3F45)
+    /** Engraved small-caps labels, like the deck's silver strip. */
+    val label = Color(0xFF3A3C41)
     val counterBg = Color(0xFF0B0C0E)
     val resetBg = Color(0xFF2A2E34)
     val resetText = Color(0xFFC9CDD2)
@@ -181,6 +186,13 @@ private fun WalkmanContent() {
             BitmapFactory.decodeFile(path)?.takeIf { it.width > 0 && it.height > 0 }
         }.getOrNull()
     }
+    // Brushed-chrome root background, rendered once by the updater in the
+    // deck's material language. Falls back to the flat metal tone.
+    val chromeBg = prefs?.get(WidgetKeys.CHROME_PATH)?.let { path ->
+        runCatching {
+            BitmapFactory.decodeFile(path)?.takeIf { it.width > 0 && it.height > 0 }
+        }.getOrNull()
+    }
     val openApp = actionStartActivity<MainActivity>()
     val params = actionParametersOf(SourceParam to sourceName)
 
@@ -202,14 +214,31 @@ private fun WalkmanContent() {
     // below absorbs any extra height via weight, while every element keeps
     // the min-fit scale, so nothing can clip. Grow and shrink both work:
     // the scale follows the rect.
+    // Root chrome: brushed aluminium rendered in the deck's material
+    // language (rounded corners baked into the bitmap); flat metal fallback.
     // Layout: left = title (top) + 4 keys (bottom); right = vertical tape.
     // STOP-EJECT and sliders removed.
-    Row(
-        modifier = GlanceModifier.fillMaxSize()
-            .cornerRadius(sd(26))
-            .background(ColorProvider(Chrome.root))
-            .padding(sd(6)),
+    Box(
+        modifier = GlanceModifier.fillMaxSize(),
     ) {
+        if (chromeBg != null) {
+            Image(
+                provider = BitmapImageProvider(chromeBg),
+                contentDescription = null,
+                modifier = GlanceModifier.fillMaxSize(),
+                contentScale = ContentScale.FillBounds,
+            )
+        } else {
+            Box(
+                modifier = GlanceModifier.fillMaxSize()
+                    .cornerRadius(sd(26))
+                    .background(ColorProvider(Chrome.root)),
+            ) {}
+        }
+        Row(
+            modifier = GlanceModifier.fillMaxSize()
+                .padding(sd(6)),
+        ) {
         // Left: main content.
         Column(modifier = GlanceModifier.defaultWeight()) {
             // Dark top container: 50% of height (cut by 50% per spec).
@@ -356,6 +385,7 @@ private fun WalkmanContent() {
             }
         }
     }  // Outer Row ends.
+    }  // Chrome Box ends.
 }
 
 /**
@@ -383,7 +413,7 @@ private fun TransportKey(
             style = TextStyle(
                 color = ColorProvider(Chrome.label),
                 fontSize = ss(8),
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.Bold,
             ),
             maxLines = 1,
         )

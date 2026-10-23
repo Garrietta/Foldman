@@ -41,6 +41,88 @@ object CassetteRenderer {
     private val TAPE_LINE = 0xFF3A3F46.toInt()
     private val ACCENT_RED = 0xFFC0392B.toInt()
     private val LABEL_INK = 0xFF3A3F45.toInt()
+    // App deck metal tones (DeckColors), for the brushed widget chrome.
+    private val METAL_HI = 0xFFE4E5E7.toInt()
+    private val METAL_MID = 0xFFC3C5C9.toInt()
+    private val METAL_MIDLO = 0xFFB6B8BC.toInt()
+    private val METAL_LO = 0xFF8F9297.toInt()
+
+    /**
+     * Brushed-aluminium panel in the app deck's material language
+     * (DeckColors.Metal tones + hairline brushing + diagonal sheen), with
+     * rounded corners and transparent outside so no Glance clipping is needed.
+     * Used as the widget's root chrome background.
+     */
+    fun renderBrushedPanel(widthPx: Int, heightPx: Int, cornerPx: Float): Bitmap {
+        val w = widthPx.coerceAtLeast(1)
+        val h = heightPx.coerceAtLeast(1)
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val wf = w.toFloat()
+        val hf = h.toFloat()
+        val r = cornerPx.coerceIn(0f, minOf(wf, hf) / 2f)
+        // Base vertical gradient, like the deck chassis.
+        val body = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(
+                0f, 0f, 0f, hf,
+                intArrayOf(METAL_HI, METAL_MID, METAL_MIDLO, METAL_LO),
+                floatArrayOf(0f, 0.18f, 0.75f, 1f),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRoundRect(RectF(0f, 0f, wf, hf), r, r, body)
+        // Hairline brushing: deterministic (fixed seed) so it never shimmers between redraws.
+        val rnd = java.util.Random(7)
+        val light = Paint().apply {
+            color = android.graphics.Color.WHITE
+            alpha = 18
+            strokeWidth = 1f
+        }
+        val dark = Paint().apply {
+            color = android.graphics.Color.BLACK
+            alpha = 14
+            strokeWidth = 1f
+        }
+        var y = 0f
+        var i = 0
+        while (y < hf) {
+            val x0 = rnd.nextFloat() * wf * 0.3f
+            val x1 = wf - rnd.nextFloat() * wf * 0.3f
+            // Clip hairlines to the rounded rect: draw them, then they'll be
+            // covered outside by the transparent clear below. Instead, inset
+            // the line endpoints away from the corners.
+            val p = if (i % 2 == 0) light else dark
+            canvas.drawLine(x0, y, x1, y, p)
+            y += 1f + rnd.nextFloat() * 2f
+            i++
+        }
+        // Diagonal sheen.
+        val sheen = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(
+                0f, 0f, wf, hf,
+                intArrayOf(
+                    android.graphics.Color.TRANSPARENT,
+                    0x29FFFFFF,
+                    android.graphics.Color.TRANSPARENT,
+                ),
+                floatArrayOf(0f, 0.5f, 1f),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRoundRect(RectF(0f, 0f, wf, hf), r, r, sheen)
+        // Punch the rounded corners transparent: redraw nothing outside —
+        // instead, clear via an EvenOdd path covering the square minus the round rect.
+        val clear = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+        }
+        val outside = Path().apply {
+            fillType = Path.FillType.EVEN_ODD
+            addRect(RectF(0f, 0f, wf, hf), Path.Direction.CW)
+            addRoundRect(RectF(0f, 0f, wf, hf), r, r, Path.Direction.CW)
+        }
+        canvas.drawPath(outside, clear)
+        return bmp
+    }
 
     /**
      * Renders the cassette rotated 90° clockwise for vertical placement.
@@ -210,7 +292,9 @@ object CassetteRenderer {
     }
 
     /**
-     * Renders a metallic transport key cap with a vector-drawn symbol.
+     * Renders a metallic transport key cap with a vector-drawn symbol, in the
+     * app deck's key language (DeckKey): vertical silver gradient, grip
+     * ribbing, engraved symbol in DeckColors.Engrave.
      * @param symbol one of "prev", "play", "next", "pause", "stop"
      */
     fun renderTransportKey(symbol: String, sizePx: Int): Bitmap {
@@ -221,26 +305,36 @@ object CassetteRenderer {
         val cx = sf / 2f
         val cy = sf / 2f
 
-        // Metallic cap: rounded rect with vertical gradient.
+        // Metallic cap: vertical silver gradient like the deck keys.
         val capPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(
                 0f, 0f, 0f, sf,
-                intArrayOf(0xFFE8E8E8.toInt(), 0xFFB0B0B0.toInt(), 0xFFD0D0D0.toInt()),
+                intArrayOf(0xFFF7F8F9.toInt(), 0xFFCFD1D5.toInt(), 0xFFA9ACB1.toInt()),
                 floatArrayOf(0f, 0.5f, 1f),
                 Shader.TileMode.CLAMP
             )
         }
         val radius = sf * 0.18f
         canvas.drawRoundRect(RectF(0f, 0f, sf, sf), radius, radius, capPaint)
+        // Fine ribbing across the top of the cap for grip, like DeckKey.
+        val rib = Paint().apply {
+            color = android.graphics.Color.BLACK
+            alpha = 18
+            strokeWidth = 1f
+        }
+        for (i in 1..4) {
+            val y = sf * 0.08f * i
+            canvas.drawLine(sf * 0.12f, y, sf * 0.88f, y, rib)
+        }
         // Subtle inner shadow at bottom.
         val shadow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0x40000000
         }
         canvas.drawRoundRect(RectF(0f, sf * 0.7f, sf, sf), radius, radius, shadow)
 
-        // Symbol in dark engraved tone.
+        // Symbol engraved in DeckColors.Engrave.
         val ink = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0xFF2A2A2A.toInt()
+            color = 0xFF3A3C41.toInt()
             style = Paint.Style.FILL
         }
         val u = sf * 0.22f  // symbol unit size
