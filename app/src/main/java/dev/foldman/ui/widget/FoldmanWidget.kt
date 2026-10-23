@@ -239,7 +239,7 @@ private fun WalkmanContent(dark: Boolean) {
     val bluePanelBg = decodePanel(WidgetKeys.BLUE_PANEL_PATH)
     // The theme primary for the enamel fallback: extracted from the album art
     // by the updater (fixed enamel blue when absent), dark role in dark mode.
-    val primaryArgb = prefs?.get(WidgetKeys.PRIMARY) ?: 0xFF2A66B8
+    val primaryArgb = prefs?.get(WidgetKeys.PRIMARY) ?: 0xFF2A66B8.toInt()
     val panelFallback = Color(if (dark) darkenArgb(primaryArgb) else primaryArgb)
     val openApp = actionStartActivity<MainActivity>()
     val params = actionParametersOf(SourceParam to sourceName)

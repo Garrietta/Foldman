@@ -55,7 +55,7 @@ fun resolveDark(themeMode: ThemeMode, systemDark: Boolean): Boolean = when (them
 val FallbackEnamel = Color(0xFF2F6FB5)
 
 /** ARGB-int twin of [FallbackEnamel], for the widget's canvas renderers. */
-const val FALLBACK_ENAMEL_ARGB = 0xFF2F6FB5
+val FALLBACK_ENAMEL_ARGB: Int = 0xFF2F6FB5.toInt()
 
 /**
  * The DARK primary role: the extracted art color with its value roughly
