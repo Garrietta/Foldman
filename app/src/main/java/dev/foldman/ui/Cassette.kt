@@ -326,11 +326,14 @@ private fun DrawScope.drawLabel(ui: DeckUi, palette: LabelPalette, measurer: Tex
     }
 
     // Bottom labels: heavy opaque band guarantees legibility over any art.
+    // The band butts up against the bottom of the tape window (y=43) instead
+    // of overlapping into it, so on the stood-on-end cassette the side bar
+    // sits cleanly beside the window.
     if (art != null) {
         // Solid black band behind the bottom label row.
         drawRoundRect(
             color = Color.Black,
-            topLeft = Offset(8f, 41.5f),
+            topLeft = Offset(8f, 43f),
             size = Size(84f, 5.5f),
             cornerRadius = CornerRadius(1.5f, 1.5f),
         )
@@ -348,8 +351,9 @@ private fun DrawScope.drawLabel(ui: DeckUi, palette: LabelPalette, measurer: Tex
     } else tagBase.copy(color = ink)
     val tag = tagBase.copy(color = tagColor)
     val srcLabel = when (ui.source) { Source.LOCAL -> "FM 60"; Source.YT_MUSIC -> "YT ∞"; Source.PODCASTS -> "RSS ∞" }
-    // Black band center: the band is drawn at y 41.5..47 when art is present.
-    val bandCenterY = 41.5f + 5.5f / 2f
+    // Black band center: the band is drawn at y 43..48.5 when art is present,
+    // butted up against the bottom of the tape window (y=43).
+    val bandCenterY = 43f + 5.5f / 2f
     if (art != null) {
         textCenteredY(srcLabel, 79f, bandCenterY, 2.6f, 14f, tagStroke)
         textCenteredY("TYPE I  NORMAL", 12f, bandCenterY, 2.2f, 30f, tagStroke.copy(fontWeight = FontWeight.Bold))

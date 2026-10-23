@@ -612,11 +612,13 @@ object CassetteRenderer {
         canvas.drawText("A", 86f, 12.8f, aPaint)
 
         // Bottom labels: solid opaque band when over artwork, so they never
-        // sit on busy art.
+        // sit on busy art. The band butts up against the bottom of the tape
+        // window (y=43) instead of overlapping into it, so the vertical side
+        // bar sits cleanly beside the window.
         val overArt = artwork != null && !artwork.isRecycled
         if (overArt) {
             p.color = 0xFF000000.toInt()
-            canvas.drawRoundRect(RectF(5.5f, 44.5f, 94.5f, 53.5f), 1.5f, 1.5f, p)
+            canvas.drawRoundRect(RectF(5.5f, 43f, 94.5f, 48.5f), 1.5f, 1.5f, p)
         }
         val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
@@ -624,10 +626,10 @@ object CassetteRenderer {
             textSize = 3f
             textAlign = Paint.Align.LEFT
         }
-        // Center the labels on the black band (y 44.5..53.5): the baseline sits
+        // Center the labels on the black band (y 43..48.5): the baseline sits
         // half the em box below the band center, so the caps land centered in
         // the bar instead of hugging its edge once the face is stood on end.
-        val bandCenterY = (44.5f + 53.5f) / 2f
+        val bandCenterY = (43f + 48.5f) / 2f
         val labelFm = labelPaint.fontMetrics
         val labelBaselineY = bandCenterY - (labelFm.ascent + labelFm.descent) / 2f
         canvas.drawText(sourceTag, 9f, labelBaselineY, labelPaint)
