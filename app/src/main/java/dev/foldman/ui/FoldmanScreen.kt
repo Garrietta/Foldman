@@ -2,7 +2,7 @@ package dev.foldman.ui
 
 import android.content.Context
 import android.view.HapticFeedbackConstants
-import androidx.compose.animation.core.animateColorAsState
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background

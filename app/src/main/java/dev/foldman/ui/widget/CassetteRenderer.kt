@@ -78,10 +78,10 @@ object CassetteRenderer {
      * rounded corners and transparent outside so no Glance clipping is needed.
      * Used as the widget's root chrome background.
      *
-     * [dark] selects the dark gunmetal variant (dark mode); the light brushed
+     * [darkTheme] selects the dark gunmetal variant (dark mode); the light brushed
      * aluminium otherwise.
      */
-    fun renderBrushedPanel(widthPx: Int, heightPx: Int, cornerPx: Float, dark: Boolean = false): Bitmap {
+    fun renderBrushedPanel(widthPx: Int, heightPx: Int, cornerPx: Float, darkTheme: Boolean = false): Bitmap {
         val w = widthPx.coerceAtLeast(1)
         val h = heightPx.coerceAtLeast(1)
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
@@ -90,7 +90,7 @@ object CassetteRenderer {
         val hf = h.toFloat()
         val r = cornerPx.coerceIn(0f, minOf(wf, hf) / 2f)
         // Base vertical gradient, like the deck chassis — dark gunmetal in dark mode.
-        val tones = if (dark) {
+        val tones = if (darkTheme) {
             intArrayOf(0xFF43464D.toInt(), 0xFF26282D.toInt(), 0xFF1B1D21.toInt(), 0xFF0E0F12.toInt())
         } else {
             intArrayOf(METAL_HI, METAL_MID, METAL_MIDLO, METAL_LO)
@@ -157,9 +157,9 @@ object CassetteRenderer {
      * The inset title panel: brushed metal with the subtle inner shadow that
      * sells the "inset" look. Deterministic brushing (fixed seed) so it never
      * shimmers between redraws. Rendered once and cached by the updater; the
-     * widget draws its text on top. [dark] selects the dark variant.
+     * widget draws its text on top. [darkTheme] selects the dark variant.
      */
-    fun renderTitlePanel(widthPx: Int, heightPx: Int, cornerPx: Float, dark: Boolean = false): Bitmap {
+    fun renderTitlePanel(widthPx: Int, heightPx: Int, cornerPx: Float, darkTheme: Boolean = false): Bitmap {
         val w = widthPx.coerceAtLeast(1)
         val h = heightPx.coerceAtLeast(1)
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
@@ -169,7 +169,7 @@ object CassetteRenderer {
         val r = cornerPx.coerceIn(0f, minOf(wf, hf) / 2f)
         val panel = RectF(0f, 0f, wf, hf)
         // Brushed-metal base, lighter at the top — dark gunmetal in dark mode.
-        val baseTones = if (dark) {
+        val baseTones = if (darkTheme) {
             intArrayOf(0xFF33363C.toInt(), 0xFF222429.toInt(), 0xFF141518.toInt())
         } else {
             intArrayOf(0xFFF7F8FA.toInt(), 0xFFE8EAEE.toInt(), 0xFFD5D8DE.toInt())
@@ -240,7 +240,7 @@ object CassetteRenderer {
         val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = 1.5f
-            color = if (dark) 0xFF0C0D0F.toInt() else 0xFF8F949B.toInt()
+            color = if (darkTheme) 0xFF0C0D0F.toInt() else 0xFF8F949B.toInt()
         }
         canvas.drawRoundRect(RectF(1f, 1f, wf - 1f, hf - 1f), r, r, edge)
         // Punch the rounded corners transparent.
