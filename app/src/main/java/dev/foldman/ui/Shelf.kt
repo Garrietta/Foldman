@@ -1,5 +1,12 @@
 package dev.foldman.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -42,6 +49,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -233,6 +243,23 @@ fun TapeShelf(
     // grow-with-scroll behavior; defaults to a private state as before.
     val list = listState ?: rememberLazyListState()
     var lastSource by remember { mutableStateOf(ui.source) }
+    // Now-playing bar collapse: the bar hides on upward scroll (browsing the
+    // library) and returns on downward scroll. Observed through nested scroll
+    // so only touch scrolling collapses it — programmatic list jumps (track
+    // tap auto-scroll, source switches) never do.
+    var tab by remember { mutableStateOf(0) }
+    var barVisible by remember { mutableStateOf(true) }
+    val collapseConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y < -0.5f) barVisible = false
+                else if (available.y > 0.5f) barVisible = true
+                return Offset.Zero
+            }
+        }
+    }
+    // Switching tabs is a fresh context: bring the bar back.
+    LaunchedEffect(tab) { barVisible = true }
     LaunchedEffect(ui.source, ui.trackIndex) {
         val switched = ui.source != lastSource
         lastSource = ui.source
@@ -267,7 +294,8 @@ fun TapeShelf(
         Spacer(Modifier.height(12.dp))
         // Inner: cream inset panel containing everything below the drag handle.
         // Symmetrical inset on left/right/bottom; top corners rounded concentric
-        // with the sheet's own radii.
+        // with the sheet's own radii. The collapse connection watches touch
+        // scrolling in either tab's list to hide/show the now-playing bar.
         Column(
             Modifier
                 .fillMaxWidth()
@@ -276,14 +304,28 @@ fun TapeShelf(
                 .padding(bottom = 12.dp)
                 .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 12.dp, bottomEnd = 12.dp))
                 .background(DeckColors.Paper)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp)
+                .nestedScroll(collapseConnection),
         ) {
         // Now-playing bar: below the drag handle, above the tab switcher —
-        // visible on both tabs.
-        NowPlayingBar(ui, actions)
-        Spacer(Modifier.height(10.dp))
+        // visible on both tabs; collapses away on upward scroll.
+        AnimatedVisibility(
+            visible = barVisible,
+            enter = expandVertically(
+                animationSpec = spring(dampingRatio = 0.75f, stiffness = 450f),
+                expandFrom = Alignment.Top,
+            ) + fadeIn(animationSpec = tween(180)),
+            exit = shrinkVertically(
+                animationSpec = spring(dampingRatio = 0.75f, stiffness = 450f),
+                shrinkTowards = Alignment.Top,
+            ) + fadeOut(animationSpec = tween(150)),
+        ) {
+            Column {
+                NowPlayingBar(ui, actions)
+                Spacer(Modifier.height(10.dp))
+            }
+        }
         // Fixed tab switcher: Tapes (sources + browser) or Queue (live queue).
-        var tab by remember { mutableStateOf(0) }
         Row(
             Modifier
                 .fillMaxWidth()
