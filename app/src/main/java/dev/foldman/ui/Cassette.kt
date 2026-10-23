@@ -276,6 +276,16 @@ private fun DrawScope.drawLabel(ui: DeckUi, palette: LabelPalette, measurer: Tex
         val layout = measure(s, sizeMm, maxWidthMm, style)
         withTransform({ translate(x, y); scale(1f / u, 1f / u, Offset.Zero) }) { drawText(layout) }
     }
+    // Like [text], but centers the measured line vertically on [centerY] instead
+    // of anchoring its top at y. Used for the bottom labels so they sit centered
+    // in the black band — on the stood-on-end cassette that reads as centered
+    // horizontally within the vertical bar, instead of hugging its edge.
+    fun textCenteredY(s: String, x: Float, centerY: Float, sizeMm: Float, maxWidthMm: Float, style: TextStyle) {
+        if (s.isBlank()) return
+        val layout = measure(s, sizeMm, maxWidthMm, style)
+        val h = layout.size.height / u
+        withTransform({ translate(x, centerY - h / 2f); scale(1f / u, 1f / u, Offset.Zero) }) { drawText(layout) }
+    }
     val handColor = ink
     val hand = TextStyle(fontFamily = FontFamily.Cursive, color = handColor, fontWeight = FontWeight.Bold)
     val print = TextStyle(fontFamily = FontFamily.SansSerif, color = handColor, fontWeight = FontWeight.Bold, letterSpacing = (0.3f * u).toSp())
@@ -337,12 +347,14 @@ private fun DrawScope.drawLabel(ui: DeckUi, palette: LabelPalette, measurer: Tex
     } else tagBase.copy(color = ink)
     val tag = tagBase.copy(color = tagColor)
     val srcLabel = when (ui.source) { Source.LOCAL -> "FM 60"; Source.YT_MUSIC -> "YT ∞"; Source.PODCASTS -> "RSS ∞" }
+    // Black band center: the band is drawn at y 41.5..47 when art is present.
+    val bandCenterY = 41.5f + 5.5f / 2f
     if (art != null) {
-        text(srcLabel, 79f, 44.2f, 2.6f, 14f, tagStroke)
-        text("TYPE I  NORMAL", 12f, 44.6f, 2.2f, 30f, tagStroke.copy(fontWeight = FontWeight.Bold))
+        textCenteredY(srcLabel, 79f, bandCenterY, 2.6f, 14f, tagStroke)
+        textCenteredY("TYPE I  NORMAL", 12f, bandCenterY, 2.2f, 30f, tagStroke.copy(fontWeight = FontWeight.Bold))
     }
-    text(srcLabel, 79f, 44.2f, 2.6f, 14f, tag)
-    text("TYPE I  NORMAL", 12f, 44.6f, 2.2f, 30f, tag.copy(fontWeight = FontWeight.Bold))
+    textCenteredY(srcLabel, 79f, bandCenterY, 2.6f, 14f, tag)
+    textCenteredY("TYPE I  NORMAL", 12f, bandCenterY, 2.2f, 30f, tag.copy(fontWeight = FontWeight.Bold))
 }
 
 private fun placeholderTitle(ui: DeckUi) = when (ui.source) {

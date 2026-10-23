@@ -599,9 +599,15 @@ object CassetteRenderer {
             textSize = 3f
             textAlign = Paint.Align.LEFT
         }
-        canvas.drawText(sourceTag, 9f, 50f, labelPaint)
+        // Center the labels on the black band (y 44.5..53.5): the baseline sits
+        // half the em box below the band center, so the caps land centered in
+        // the bar instead of hugging its edge once the face is stood on end.
+        val bandCenterY = (44.5f + 53.5f) / 2f
+        val labelFm = labelPaint.fontMetrics
+        val labelBaselineY = bandCenterY - (labelFm.ascent + labelFm.descent) / 2f
+        canvas.drawText(sourceTag, 9f, labelBaselineY, labelPaint)
         labelPaint.textAlign = Paint.Align.RIGHT
-        canvas.drawText("TYPE I NORMAL", 91f, 50f, labelPaint)
+        canvas.drawText("TYPE I NORMAL", 91f, labelBaselineY, labelPaint)
 
         // Bottom bridge.
         p.color = lerpColor(shell, 0xFF000000.toInt(), 0.28f)
