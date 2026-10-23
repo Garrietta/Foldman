@@ -1108,16 +1108,18 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         // Push now-playing state to the home-screen widget. Gated on track /
-        // transport / artwork / shuffle / volume changes — never on position ticks.
-        // The theme mode and the extracted primary ride along so the widget
-        // re-renders its chrome and enamel when either changes.
+        // transport / artwork / shuffle / volume / theme changes — never on position ticks.
+        // The effective dark flag (not just the override) rides along so the
+        // widget re-renders its chrome and enamel promptly when the system
+        // theme flips under the SYSTEM setting.
+        val app = getApplication<Application>()
+        val effectiveDark = ThemePrefs.isDark(app)
         val widgetKey = listOf(
             np.title, np.artist, transport, source, _shuffleOn.value, np.artwork, volume,
-            state.currentQueueId, _themeMode.value, primaryAccent,
+            state.currentQueueId, _themeMode.value, effectiveDark, primaryAccent,
         )
         if (widgetKey != lastWidgetKey) {
             lastWidgetKey = widgetKey
-            val app = getApplication<Application>()
             viewModelScope.launch {
                 // The widget shows the sticky tape values, not the live backend
                 // state, so the widget label survives pauses like the deck does.
