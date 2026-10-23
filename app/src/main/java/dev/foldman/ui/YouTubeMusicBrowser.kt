@@ -8,6 +8,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -33,6 +35,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -212,13 +215,24 @@ fun LazyListScope.youtubeMusicItems(
                         shrinkTowards = Alignment.Top,
                     ) + fadeOut(animationSpec = tween(150)),
                 ) {
+                // The field must scroll to the top on EVERY tap: onFocusChanged
+                // only fires when focus *changes*, so a tap on an already-focused
+                // field would do nothing — the press interaction covers that.
+                val fieldInteraction = remember { MutableInteractionSource() }
+                val fieldPressed by fieldInteraction.collectIsPressedAsState()
+                LaunchedEffect(fieldPressed) { if (fieldPressed) onSearchFocus() }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = ui.query,
                         onValueChange = actions.queryChanged,
                         modifier = Modifier
                             .weight(1f)
-                            .onFocusChanged { if (it.isFocused) onSearchFocus() },
+                            // NOTE: hasFocus, not isFocused. This modifier sits on
+                            // the field's outer node; the inner text field takes
+                            // the actual focus, so isFocused is always false here
+                            // and the callback would never fire.
+                            .onFocusChanged { if (it.hasFocus) onSearchFocus() },
+                        interactionSource = fieldInteraction,
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         label = { Text("Search songs", style = accountStyle) },
