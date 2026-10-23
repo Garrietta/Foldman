@@ -119,8 +119,9 @@ class DeckAnimations {
     /** 1 = cassette out of the bay, 0 = seated. */
     val insert = Animatable(1f)
     /**
-     * Insert direction: +1 = the new tape drops in from the top (NEXT),
-     * -1 = it floats up from the bottom (PREVIOUS).
+     * Insert direction: -1 = the new tape rises from the bottom (NEXT),
+     * +1 = it drops from the top (PREVIOUS). The tape follows the finger:
+     * swipe up for next, swipe down for previous.
      */
     var insertDir by mutableFloatStateOf(1f)
     /** Short hop when STOP/EJECT is pressed with the tape already stopped. */

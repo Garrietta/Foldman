@@ -89,8 +89,9 @@ fun TapeWindow(ui: DeckUi, anim: DeckAnimations, modifier: Modifier = Modifier, 
         drawPath(innerPath, Color(0xFF0C0C0D))
         val slide = anim.insert.value
         val pop = anim.pop.value
-        // Directional insert: NEXT drops the new tape from the top, PREVIOUS
-        // floats it up from the bottom. (On the stood-on-end canvas, +x is up.)
+        // Directional insert: the tape follows the finger — NEXT (swipe up)
+        // rises from below, PREVIOUS (swipe down) drops from above.
+        // (On the stood-on-end canvas, +x is up.)
         val dir = anim.insertDir
         clipPath(innerPath) {
             // In and out through the ends of the case (the left/right of the canvas when stood on end).
