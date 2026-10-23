@@ -269,11 +269,12 @@ object FoldmanWidgetUpdater {
      * filename so a theme flip re-renders). Static — never re-rendered per tick.
      */
     private fun writeChrome(context: Context, dark: Boolean): String? = runCatching {
-        // v2: light brushed aluminium + dark gunmetal variants.
-        val file = File(context.filesDir, "foldman_widget_chrome_v2_${if (dark) "dark" else "light"}.png")
+        // v3: light brushed aluminium + dark gunmetal variants; larger corner
+        // radius for a smooth top edge with no sharp inflection.
+        val file = File(context.filesDir, "foldman_widget_chrome_v3_${if (dark) "dark" else "light"}.png")
         if (!file.exists()) {
-            // 2x the 440x200 design size; 26dp corner radius -> 52px.
-            val chrome = CassetteRenderer.renderBrushedPanel(880, 400, 52f, dark)
+            // 2x the 440x200 design size; 36dp corner radius -> 72px.
+            val chrome = CassetteRenderer.renderBrushedPanel(880, 400, 72f, dark)
             FileOutputStream(file).use { out ->
                 chrome.compress(Bitmap.CompressFormat.PNG, 90, out)
             }
@@ -287,10 +288,10 @@ object FoldmanWidgetUpdater {
      * theme. Design size: ~294dp x ~94dp at 2x; 16dp corner radius -> 32px.
      */
     private fun writeTitlePanel(context: Context, dark: Boolean): String? = runCatching {
-        // v2: light + dark variants.
-        val file = File(context.filesDir, "foldman_widget_title_panel_v2_${if (dark) "dark" else "light"}.png")
+        // v3: light + dark variants; larger corner radius for a smooth top edge.
+        val file = File(context.filesDir, "foldman_widget_title_panel_v3_${if (dark) "dark" else "light"}.png")
         if (!file.exists()) {
-            val panel = CassetteRenderer.renderTitlePanel(588, 188, 32f, dark)
+            val panel = CassetteRenderer.renderTitlePanel(588, 188, 44f, dark)
             val ok = writePngAtomic(file, panel)
             if (!panel.isRecycled) panel.recycle()
             if (!ok) return@runCatching null
