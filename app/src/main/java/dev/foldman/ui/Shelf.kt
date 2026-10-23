@@ -60,6 +60,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.Velocity
 import dev.foldman.deck.DeckUi
 import dev.foldman.deck.LocalTrack
 import dev.foldman.deck.Source
@@ -270,7 +271,9 @@ fun TapeShelf(
     // The Tracks header stays locked above the scrolling tracks. Downward
     // scroll reverses the stages. Only UserInput scrolling drives it —
     // programmatic list jumps (track-tap auto-scroll, source switches) never
-    // collapse.
+    // collapse. Pull-down ordering: downward drags/flings are consumed until
+    // every stage has re-expanded, so the drawer's drag-to-close can never
+    // start while any stage is still collapsed.
     var collapseStage by remember { mutableStateOf(0) }
     var accDy by remember { mutableStateOf(0f) }
     val density = LocalDensity.current
@@ -294,21 +297,43 @@ fun TapeShelf(
                         accDy = accDy.coerceAtLeast(-stepPx)
                     }
                 } else if (available.y > 0.5f) {
-                    if (collapseStage == 1) {
-                        collapseStage = 0
-                        accDy = 0f
-                    } else if (collapseStage > 1) {
-                        accDy += available.y
-                        while (collapseStage > 1 && accDy >= stepPx) {
-                            collapseStage--
-                            accDy -= stepPx
+                    if (collapseStage > 0) {
+                        // Pull-down ordering: every collapsed stage must fully
+                        // re-expand (3 -> 2 -> 1 -> 0) BEFORE the drawer's
+                        // drag-to-close may take over. Consume the downward
+                        // drag so the sheet can never start closing while any
+                        // stage is still collapsed; once stage == 0 the drag
+                        // passes through to the list / sheet as before.
+                        if (collapseStage == 1) {
+                            collapseStage = 0
+                            accDy = 0f
+                        } else {
+                            accDy += available.y
+                            while (collapseStage > 1 && accDy >= stepPx) {
+                                collapseStage--
+                                accDy -= stepPx
+                            }
+                            accDy = accDy.coerceAtMost(stepPx)
                         }
-                        accDy = accDy.coerceAtMost(stepPx)
-                    } else {
-                        accDy = 0f
+                        return Offset(0f, available.y)
                     }
+                    accDy = 0f
                 }
                 return Offset.Zero
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                // A downward fling must never close the drawer while stages
+                // are still collapsed (fling deltas arrive as SideEffect, so
+                // onPreScroll never sees them): swallow the fling and expand
+                // everything instead.
+                return if (available.y > 0f && collapseStage > 0) {
+                    collapseStage = 0
+                    accDy = 0f
+                    available
+                } else {
+                    Velocity.Zero
+                }
             }
         }
     }
