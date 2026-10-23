@@ -287,7 +287,40 @@ fun TapeShelf(
     var collapseStage by remember { mutableStateOf(0) }
     var accDy by remember { mutableStateOf(0f) }
     val density = LocalDensity.current
-    val collapseConnection = remember(density, list, queueList, tab) {
+    // Gesture-origin gating for the sheet's drag-to-close, split across two
+    // connections:
+    // - collapseUpConnection (outer cream panel): upward touch drags collapse
+    //   the chrome stages, wherever in the panel they start.
+    // - expandDownConnection (the content lists only): downward touch drags
+    //   re-expand the stages once the visible list is back at the top. A
+    //   downward swipe that starts in the list content is fully consumed here —
+    //   it scrolls / re-expands and then ENDS; it can never flow through into
+    //   closing the sheet in the same motion. Only a downward swipe starting
+    //   in the top zone (now-playing bar, tab switcher, dropdown, drag handle)
+    //   bypasses this connection and reaches the sheet's drag-to-close.
+    val collapseUpConnection = remember(density) {
+        // Sustained scroll needed per stage beyond the first (~120dp).
+        val stepPx = with(density) { 120.dp.toPx() }
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source != NestedScrollSource.UserInput || available.y >= -0.5f) return Offset.Zero
+                if (collapseStage == 0) {
+                    // Stage 1 hides immediately, as before.
+                    collapseStage = 1
+                    accDy = 0f
+                } else {
+                    accDy += available.y
+                    while (collapseStage < 3 && accDy <= -stepPx) {
+                        collapseStage++
+                        accDy += stepPx
+                    }
+                    accDy = accDy.coerceAtLeast(-stepPx)
+                }
+                return Offset.Zero
+            }
+        }
+    }
+    val expandDownConnection = remember(density, list, queueList, tab) {
         // Sustained scroll needed per stage beyond the first (~120dp).
         val stepPx = with(density) { 120.dp.toPx() }
         // The list the user is actually looking at; stage re-expansion only
@@ -299,71 +332,56 @@ fun TapeShelf(
         }
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (source != NestedScrollSource.UserInput) return Offset.Zero
-                if (available.y < -0.5f) {
-                    if (collapseStage == 0) {
-                        // Stage 1 hides immediately, as before.
-                        collapseStage = 1
+                if (source != NestedScrollSource.UserInput || available.y <= 0.5f) return Offset.Zero
+                // Not at the top yet: the pull just scrolls the list (pass through).
+                if (!activeListAtTop()) return Offset.Zero
+                if (collapseStage > 0) {
+                    // At the top with collapsed stages: consume the pull to
+                    // re-expand them, so the sheet can never start closing
+                    // while any stage is still collapsed.
+                    if (collapseStage == 1) {
+                        collapseStage = 0
                         accDy = 0f
                     } else {
                         accDy += available.y
-                        while (collapseStage < 3 && accDy <= -stepPx) {
-                            collapseStage++
-                            accDy += stepPx
+                        while (collapseStage > 1 && accDy >= stepPx) {
+                            collapseStage--
+                            accDy -= stepPx
                         }
-                        accDy = accDy.coerceAtLeast(-stepPx)
+                        accDy = accDy.coerceAtMost(stepPx)
                     }
-                } else if (available.y > 0.5f) {
-                    // Gated on the visible list being at the top: until then
-                    // the pull just scrolls the list (pass through). Once at
-                    // position 0, consume the drag to re-expand the stages so
-                    // the sheet can never start closing while collapsed.
-                    if (collapseStage > 0 && activeListAtTop()) {
-                        if (collapseStage == 1) {
-                            collapseStage = 0
-                            accDy = 0f
-                        } else {
-                            accDy += available.y
-                            while (collapseStage > 1 && accDy >= stepPx) {
-                                collapseStage--
-                                accDy -= stepPx
-                            }
-                            accDy = accDy.coerceAtMost(stepPx)
-                        }
-                        return Offset(0f, available.y)
-                    }
+                } else {
                     accDy = 0f
                 }
-                return Offset.Zero
+                // Fully expanded: swallow the drag. A content-zone swipe ends
+                // here — it must never reach the sheet's drag-to-close.
+                return Offset(0f, available.y)
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
-                // A downward fling at the top of the list must never close
-                // the drawer while stages are still collapsed (fling deltas
-                // arrive as SideEffect, so onPreScroll never sees them):
-                // swallow it and expand everything instead. Mid-list flings
-                // pass through so the list flings back to the top first.
-                return if (available.y > 0f && collapseStage > 0 && activeListAtTop()) {
+                // A downward fling at the top of the content list must never
+                // close the sheet (fling deltas arrive as SideEffect, so
+                // onPreScroll never sees them): expand any collapsed stages,
+                // then swallow. Mid-list flings pass through so the list flings
+                // back to the top first.
+                if (available.y <= 0f || !activeListAtTop()) return Velocity.Zero
+                if (collapseStage > 0) {
                     collapseStage = 0
                     accDy = 0f
-                    available
-                } else {
-                    Velocity.Zero
                 }
+                return available
             }
 
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
                 // A downward fling that reaches the top with leftover velocity
-                // would hand that velocity to the drawer's drag-to-close:
-                // swallow it and expand everything instead, preserving the
-                // list-top -> expand -> dismiss ordering.
-                return if (available.y > 0f && collapseStage > 0) {
+                // would hand that velocity to the sheet's drag-to-close:
+                // swallow it instead, preserving the list-top -> expand ordering.
+                if (available.y <= 0f || !activeListAtTop()) return Velocity.Zero
+                if (collapseStage > 0) {
                     collapseStage = 0
                     accDy = 0f
-                    available
-                } else {
-                    Velocity.Zero
                 }
+                return available
             }
         }
     }
@@ -414,7 +432,7 @@ fun TapeShelf(
                 .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 12.dp, bottomEnd = 12.dp))
                 .background(DeckColors.Paper)
                 .padding(horizontal = 14.dp, vertical = 12.dp)
-                .nestedScroll(collapseConnection),
+                .nestedScroll(collapseUpConnection),
         ) {
         // Now-playing bar: below the drag handle, above the tab switcher —
         // visible on both tabs; stage 1 of the collapse hides it on upward scroll.
@@ -524,7 +542,8 @@ fun TapeShelf(
                 // (The per-source "tap to load" state lives here, not in the header.)
                 LazyColumn(
                     state = list,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    modifier = Modifier.weight(1f).fillMaxWidth()
+                        .nestedScroll(expandDownConnection),
                 ) {
                     when (ui.source) {
                         Source.LOCAL -> localItems(ui, actions, paperWrap)
@@ -556,7 +575,8 @@ fun TapeShelf(
             // Queue tab: the live playing queue, same data as Up Next.
             QueueList(
                 ui, onPlay = actions.playQueueItem, showArt = true,
-                modifier = Modifier.weight(1f).fillMaxWidth(),
+                modifier = Modifier.weight(1f).fillMaxWidth()
+                    .nestedScroll(expandDownConnection),
                 onPaper = true,
                 listState = queueList,
             )
