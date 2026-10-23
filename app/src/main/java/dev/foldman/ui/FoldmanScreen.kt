@@ -373,42 +373,16 @@ fun FoldmanScreen(
                     // padding on the content below.
                     contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
                 ) {
-                    // The sheet grows with upward scroll, stopping right before the
-                    // status bar, and shrinks back on downward scroll at the top.
+                    // The sheet opens directly at full expansion and stays there —
+                    // no half-stop, no grow/shrink detent. The staged collapse
+                    // inside TapeShelf is untouched and governs scroll behavior.
                     val shelfListState = rememberLazyListState()
                     // M3's default drag handle (4.dp bar + 2x22.dp padding = 48.dp, per
                     // material3 1.4.0 tokens) sits above our content inside the sheet
                     // surface; the cap accounts for it so the surface stops exactly at
                     // the status bar's bottom edge.
                     val handlePx = with(density) { 48.dp.toPx() }
-                    val minHpx = with(density) { (screenH * 0.8f).toPx() }
-                    val maxHpx = (with(density) { screenH.toPx() } - statusBarPx - handlePx - navBarPx)
-                        .coerceAtLeast(minHpx)
-                    var sheetHpx by remember { mutableStateOf<Float?>(null) }
-                    val growConnection = remember(minHpx, maxHpx) {
-                        object : NestedScrollConnection {
-                            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                                val cur = sheetHpx ?: minHpx
-                                return when {
-                                    // Drag up: the window grows with the gesture.
-                                    available.y < 0 && cur < maxHpx -> {
-                                        val take = minOf(-available.y, maxHpx - cur)
-                                        sheetHpx = cur + take
-                                        Offset(0f, -take)
-                                    }
-                                    // Drag down at the very top of the list: shrink back down.
-                                    available.y > 0 && cur > minHpx &&
-                                        shelfListState.firstVisibleItemIndex == 0 &&
-                                        shelfListState.firstVisibleItemScrollOffset == 0 -> {
-                                        val take = minOf(available.y, cur - minHpx)
-                                        sheetHpx = cur - take
-                                        Offset(0f, take)
-                                    }
-                                    else -> Offset.Zero
-                                }
-                            }
-                        }
-                    }
+                    val sheetHpx = with(density) { screenH.toPx() } - statusBarPx - handlePx - navBarPx
                     TapeShelf(
                         ui,
                         ShelfActions(
@@ -425,8 +399,7 @@ fun FoldmanScreen(
                             podcasts = podcastActions,
                         ),
                         Modifier.fillMaxWidth()
-                            .height(with(density) { (sheetHpx ?: minHpx).toDp() })
-                            .nestedScroll(growConnection)
+                            .height(with(density) { sheetHpx.toDp() })
                             .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)),
                         listState = shelfListState,
                     )

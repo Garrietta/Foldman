@@ -257,8 +257,8 @@ fun TapeShelf(
     modifier: Modifier = Modifier,
     listState: LazyListState? = null,
 ) {
-    // Hoisted so the sheet container can watch the scroll position for the
-    // grow-with-scroll behavior; defaults to a private state as before.
+    // Hoisted so the collapse connection can gate stage re-expansion on the
+    // scroll position; defaults to a private state as before.
     val list = listState ?: rememberLazyListState()
     // The Queue tab's list, hoisted so the collapse connection can gate
     // stage re-expansion on the *visible* list being back at the top.
