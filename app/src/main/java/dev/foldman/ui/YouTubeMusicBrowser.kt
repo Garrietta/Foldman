@@ -1,5 +1,12 @@
 package dev.foldman.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -79,6 +86,10 @@ fun LazyListScope.youtubeMusicItems(
     actions: YouTubeMusicActions,
     onPaper: Boolean = false,
     hideSearch: Boolean = false,
+    /** Stage-3 collapse: the search field folds away, leaving the locked Tracks header. */
+    searchCollapsed: Boolean = false,
+    /** The sheet pins its own locked Tracks header above the list; skip the in-list one. */
+    hideTracksHeader: Boolean = false,
     wrap: @Composable (@Composable () -> Unit) -> Unit = { content -> content() },
 ) {
     val openPlaylist = ui.openPlaylist
@@ -167,6 +178,18 @@ fun LazyListScope.youtubeMusicItems(
         if (!hideSearch) {
             item(key = "yt-search") {
             wrap {
+                // Stage 3 of the sheet's collapse: the search field folds away.
+                AnimatedVisibility(
+                    visible = !searchCollapsed,
+                    enter = expandVertically(
+                        animationSpec = spring(dampingRatio = 0.75f, stiffness = 450f),
+                        expandFrom = Alignment.Top,
+                    ) + fadeIn(animationSpec = tween(180)),
+                    exit = shrinkVertically(
+                        animationSpec = spring(dampingRatio = 0.75f, stiffness = 450f),
+                        shrinkTowards = Alignment.Top,
+                    ) + fadeOut(animationSpec = tween(150)),
+                ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = ui.query,
@@ -199,6 +222,7 @@ fun LazyListScope.youtubeMusicItems(
                     ) {
                         Text("Search", style = linkStyle)
                     }
+                }
                 }
             }
         }
@@ -257,18 +281,10 @@ fun LazyListScope.youtubeMusicItems(
                 }
             }
         } else if (openPlaylist != null) {
-            item(key = "yt-tracks-header") {
-                wrap {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Tracks", modifier = Modifier.weight(1f), style = sectionStyle)
-                        if (ui.playlistTracks.isNotEmpty()) {
-                            ShuffleButton(onClick = { openPlaylist?.let(actions.shufflePlaylist) }, onPaper = onPaper)
-                            Text(
-                                "Play all",
-                                style = linkStyle,
-                                modifier = Modifier.clickable(onClick = { actions.playSongs(ui.playlistTracks, 0) }).padding(4.dp),
-                            )
-                        }
+            if (!hideTracksHeader) {
+                item(key = "yt-tracks-header") {
+                    wrap {
+                        TracksHeaderRow(ui, actions, onPaper)
                     }
                 }
             }
@@ -289,6 +305,29 @@ fun LazyListScope.youtubeMusicItems(
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * The Tracks header row: section title plus the Shuffle / Play-all affordances.
+ * Shared by the in-list header and the sheet's locked (pinned) header above the
+ * scrollable track list.
+ */
+@Composable
+fun TracksHeaderRow(ui: YouTubeMusicUi, actions: YouTubeMusicActions, onPaper: Boolean) {
+    val sectionStyle = if (onPaper) Typed.copy(fontWeight = FontWeight.Bold) else Header
+    val linkStyle = if (onPaper) TextStyle(fontFamily = FontFamily.Default, color = DeckColors.AccentDeep)
+        else Sub.copy(color = DeckColors.Accent, fontWeight = FontWeight.SemiBold)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("Tracks", modifier = Modifier.weight(1f), style = sectionStyle)
+        if (ui.playlistTracks.isNotEmpty()) {
+            ShuffleButton(onClick = { ui.openPlaylist?.let(actions.shufflePlaylist) }, onPaper = onPaper)
+            Text(
+                "Play all",
+                style = linkStyle,
+                modifier = Modifier.clickable(onClick = { actions.playSongs(ui.playlistTracks, 0) }).padding(4.dp),
+            )
         }
     }
 }
