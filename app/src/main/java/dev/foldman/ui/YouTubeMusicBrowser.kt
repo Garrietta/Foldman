@@ -225,11 +225,36 @@ fun LazyListScope.youtubeMusicItems(
         }
 
         if (ui.searched && openPlaylist == null) {
-            item(key = "yt-results-header") {
-                wrap { Text("Search results", style = sectionStyle) }
+            if (ui.searchArtists.isNotEmpty()) {
+                item(key = "yt-results-artists-header") {
+                    wrap { Text("Artists", style = sectionStyle) }
+                }
+                itemsIndexed(ui.searchArtists, key = { _, artist -> artist.id }) { _, artist ->
+                    wrap { ArtistRow(artist, onPaper = onPaper, onOpen = { actions.searchArtist(artist) }) }
+                }
             }
-            itemsIndexed(ui.searchResults, key = { index, song -> "${song.id}-$index" }) { index, song ->
-                wrap { SongRow(song, onPaper = onPaper, onPlay = { actions.playSongs(ui.searchResults, index) }) }
+            if (ui.searchAlbums.isNotEmpty()) {
+                item(key = "yt-results-albums-header") {
+                    wrap { Text("Albums", style = sectionStyle) }
+                }
+                itemsIndexed(ui.searchAlbums, key = { _, album -> album.id }) { _, album ->
+                    wrap {
+                        PlaylistRow(
+                            album,
+                            onPaper = onPaper,
+                            onOpen = { actions.openPlaylist(album) },
+                            onShuffle = { actions.shufflePlaylist(album) },
+                        )
+                    }
+                }
+            }
+            if (ui.searchResults.isNotEmpty()) {
+                item(key = "yt-results-header") {
+                    wrap { Text("Songs", style = sectionStyle) }
+                }
+                itemsIndexed(ui.searchResults, key = { index, song -> "${song.id}-$index" }) { index, song ->
+                    wrap { SongRow(song, onPaper = onPaper, onPlay = { actions.playSongs(ui.searchResults, index) }) }
+                }
             }
         } else if (openPlaylist != null) {
             item(key = "yt-tracks-header") {
@@ -303,6 +328,33 @@ private fun PlaylistRow(
             Text(playlist.uploaderName, style = itemSubStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         ShuffleButton(onClick = onShuffle, onPaper = onPaper)
+        Text("›", style = glyphStyle.copy(fontSize = 20.sp))
+    }
+}
+
+@Composable
+private fun ArtistRow(artist: com.ivor.ivormusic.data.ArtistItem, onPaper: Boolean, onOpen: () -> Unit) {
+    val itemStyle = if (onPaper) TextStyle(fontFamily = FontFamily.Default, fontSize = 19.sp) else Title.copy(fontSize = 12.sp)
+    val itemSubStyle = if (onPaper) Typed.copy(fontSize = 10.sp, color = DeckColors.Ink.copy(alpha = 0.55f))
+        else Sub.copy(fontSize = 10.sp)
+    val glyphStyle = if (onPaper) Typed.copy(color = DeckColors.Ink.copy(alpha = 0.5f)) else Sub
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onOpen)
+            .padding(horizontal = 6.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        UrlThumb(artist.thumbnailUrl, Modifier.size(38.dp))
+        Column(Modifier.weight(1f).padding(start = 8.dp)) {
+            Text(artist.name, style = itemStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val sub = listOfNotNull(
+                "Artist",
+                artist.subscriberCount?.takeIf { it.isNotBlank() },
+            ).joinToString(" • ")
+            Text(sub, style = itemSubStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
         Text("›", style = glyphStyle.copy(fontSize = 20.sp))
     }
 }

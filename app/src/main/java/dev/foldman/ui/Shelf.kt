@@ -68,6 +68,7 @@ class ShelfActions(
 class YouTubeMusicActions(
     val queryChanged: (String) -> Unit,
     val search: () -> Unit,
+    val searchArtist: (com.ivor.ivormusic.data.ArtistItem) -> Unit,
     val openPlaylist: (PlaylistDisplayItem) -> Unit,
     val closePlaylist: () -> Unit,
     val playSongs: (List<Song>, Int) -> Unit,
