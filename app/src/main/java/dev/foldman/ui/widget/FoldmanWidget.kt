@@ -304,9 +304,13 @@ private fun WalkmanContent(dark: Boolean) {
             // Light inset title panel (mockup): brushed silver with inner
             // shadow (rendered bitmap), dark all-caps text, STEREO label
             // top-right. Falls back to the flat silver tone.
+            // Tapping the title opens the app — only the transport keys are
+            // headless. (The clickable was lost in the mockup rebuild; the
+            // cassette panel kept its own.)
             Box(
                 modifier = GlanceModifier.fillMaxWidth()
-                    .defaultWeight(),
+                    .defaultWeight()
+                    .clickable(openApp),
             ) {
                 if (titlePanelBg != null) {
                     Image(
