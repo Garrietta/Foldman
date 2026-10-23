@@ -15,6 +15,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -173,6 +176,12 @@ fun LazyListScope.youtubeMusicItems(
                         shape = RoundedCornerShape(12.dp),
                         label = { Text("Search songs", style = accountStyle) },
                         textStyle = TextStyle(color = ink, fontSize = 14.sp),
+                        // The soft keyboard's Search key must run the query too —
+                        // without this, tapping it does nothing at all.
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(
+                            onSearch = { actions.search() },
+                        ),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = ink,
                             unfocusedTextColor = ink,

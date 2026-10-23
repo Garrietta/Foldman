@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -52,6 +54,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -342,6 +345,9 @@ private fun LibrarySearchBar(query: String, onQueryChange: (String) -> Unit, onS
             shape = RoundedCornerShape(12.dp),
             placeholder = { Text("Search songs", style = Sub) },
             textStyle = TextStyle(color = Title.color, fontSize = 14.sp),
+            // The soft keyboard's Search key must run the query too.
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { onSearch() }),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedTextColor = Title.color,
                 unfocusedTextColor = Title.color,
