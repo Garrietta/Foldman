@@ -171,6 +171,10 @@ private fun WalkmanContent() {
             }
         } ?: emptyMap()
     val pressedKey = prefs?.get(WidgetKeys.PRESSED_KEY)
+    // Latched transport state: PLAY stays recessed while playing, PAUSE stays
+    // recessed while paused — driven by the actual playback state in Glance
+    // state, not just the momentary tap. Null (never reported) latches neither.
+    val isPlaying = prefs?.get(WidgetKeys.IS_PLAYING)
     // Album artwork for the dimmed backdrop layer.
     val artwork = prefs?.get(WidgetKeys.ARTWORK_PATH)?.let { path ->
         runCatching {
@@ -307,7 +311,7 @@ private fun WalkmanContent() {
                 TransportKey(
                     GlanceModifier.defaultWeight(), "PLAY", keyBitmaps["play"], scale,
                     actionRunCallback<WidgetPlayAction>(params),
-                    isPressed = pressedKey == "play",
+                    isPressed = pressedKey == "play" || isPlaying == true,
                 )
                 TransportKey(
                     GlanceModifier.defaultWeight(), "NEXT", keyBitmaps["next"], scale,
@@ -317,7 +321,7 @@ private fun WalkmanContent() {
                 TransportKey(
                     GlanceModifier.defaultWeight(), "PAUSE", keyBitmaps["pause"], scale,
                     actionRunCallback<WidgetPauseAction>(params),
-                    isPressed = pressedKey == "pause",
+                    isPressed = pressedKey == "pause" || isPlaying == false,
                 )
             }
         }  // Left column ends.
