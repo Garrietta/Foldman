@@ -79,6 +79,17 @@ data class DeckUi(
     val volume: Float = 0.5f,
     val queue: List<QueueEntry> = emptyList(),
     val currentQueueId: Long = -1,
+    /**
+     * Bumps every time genuinely new playback starts. The tape in the deck is
+     * sticky: the label, source tag and swap animation follow this version,
+     * not the live transport, so pauses and resumes don't re-drop the tape.
+     */
+    val tapeVersion: Long = 0,
+    /**
+     * The source whose label the tape shows. Sticky like the title — it only
+     * changes when a new tape drops in, never on pause/resume or seek.
+     */
+    val tapeSource: Source = Source.LOCAL,
     val keySounds: Boolean = true,
     val haptics: Boolean = true,
     val shuffleOn: Boolean = false,
@@ -280,6 +291,14 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     /** Last persisted resume snapshot for headless widget playback (LOCAL). */
     private var lastResumeUri: String? = null
     private var lastResumePos: Long = 0L
+    /**
+     * Sticky tape identity, updated only when genuinely new playback starts
+     * (see tick()). Drives DeckUi.tapeVersion/tapeSource so the tape label
+     * and swap animation don't flicker on pause, resume or seek.
+     */
+    private var tapeSource: Source? = null
+    private var tapeQueueId: Long = -1L
+    private var tapeVersion = 0L
 
     // Declared above init on purpose: the ticker coroutine launched in init
     // calls tick(), which reads _themeMode. A property declared after the init
@@ -1014,7 +1033,19 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             else -> Transport.PAUSED
         }
         val np = state.nowPlaying
-        updateLabel(np)
+        // New playback starts a new tape: the source switched, or a different
+        // queue entry began playing (or is about to, while the play key is
+        // still down). Pause, resume and seek never re-drop the tape.
+        val effectiveQueueId = if (source == Source.LOCAL) state.trackIndex.toLong() else state.currentQueueId
+        val isNewPlayback = effectiveQueueId != -1L &&
+            (source != tapeSource || effectiveQueueId != tapeQueueId) &&
+            (transport == Transport.PLAYING || playPending)
+        if (isNewPlayback) {
+            tapeSource = source
+            tapeQueueId = effectiveQueueId
+            tapeVersion++
+            updateLabel(np)
+        }
         val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
         val volume = audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / max
         val prev = _ui.value
@@ -1022,9 +1053,11 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             source = source,
             transport = transport,
             status = state.status,
-            title = np.title.orEmpty(),
-            artist = np.artist.orEmpty(),
-            album = np.album.orEmpty(),
+            // Sticky tape label: only the new-playback branch above refreshes
+            // the title/artist/album, so the tape keeps its print while paused.
+            title = if (isNewPlayback) np.title.orEmpty() else prev.title,
+            artist = if (isNewPlayback) np.artist.orEmpty() else prev.artist,
+            album = if (isNewPlayback) np.album.orEmpty() else prev.album,
             artwork = artBitmap,
             label = label,
             positionMs = if (winding != 0) windPosition else backend.positionMs(),
@@ -1039,6 +1072,8 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             volume = if (kotlin.math.abs(prev.volume - volume) * max < 1f) prev.volume else volume,
             queue = if (source == Source.LOCAL) localQueue() else state.queue,
             currentQueueId = if (source == Source.LOCAL) state.trackIndex.toLong() else state.currentQueueId,
+            tapeVersion = tapeVersion,
+            tapeSource = tapeSource ?: Source.LOCAL,
             keySounds = prefs.getBoolean(KEY_SOUNDS, true),
             haptics = prefs.getBoolean(KEY_HAPTICS, true),
             shuffleOn = _shuffleOn.value,
@@ -1084,16 +1119,19 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             lastWidgetKey = widgetKey
             val app = getApplication<Application>()
             viewModelScope.launch {
+                // The widget shows the sticky tape values, not the live backend
+                // state, so the widget label survives pauses like the deck does.
+                val uiSnapshot = _ui.value
                 // Queue index for the widget counter (1-based for display: track 357 -> "0357").
                 val qIndex = state.queue.indexOfFirst { it.id == state.currentQueueId }
                     .takeIf { it >= 0 } ?: 0
                 FoldmanWidgetUpdater.update(app, WidgetSnapshot(
-                    title = np.title.orEmpty().ifBlank { "Foldman" },
-                    artist = np.artist.orEmpty(),
-                    artwork = np.artwork,
+                    title = uiSnapshot.title.ifBlank { "Foldman" },
+                    artist = uiSnapshot.artist,
+                    artwork = artSource as? android.graphics.Bitmap,
                     isPlaying = transport == Transport.PLAYING,
                     shuffleOn = _shuffleOn.value,
-                    activeSource = WidgetSource.fromDeckName(source.name),
+                    activeSource = WidgetSource.fromDeckName((tapeSource ?: source).name),
                     durationMs = np.durationMs,
                     volume = volume,
                     queueIndex = qIndex,

@@ -362,45 +362,6 @@ private fun WalkmanContent(dark: Boolean) {
                     maxLines = 1,
                 )
                 Spacer(GlanceModifier.defaultWeight())
-                // Counter + RESET (below title).
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = GlanceModifier
-                                .cornerRadius(sd(10))
-                                .background(ColorProvider(chrome.counterBg))
-                                .padding(horizontal = sd(8), vertical = sd(4)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            val qIdx = prefs?.get(WidgetKeys.QUEUE_INDEX) ?: 0
-                            // 1-based, 4 digits: track 357 -> "0357".
-                            val counterText = "%04d".format((qIdx + 1).coerceIn(1, 9999))
-                                .let { it[0] + " " + it[1] + " " + it[2] + " " + it[3] }
-                            Text(
-                                counterText,
-                                style = TextStyle(
-                                    color = ColorProvider(Color.White),
-                                    fontSize = ss(14),
-                                ),
-                            )
-                        }
-                        Spacer(GlanceModifier.width(sd(6)))
-                        Box(
-                            modifier = GlanceModifier
-                                .cornerRadius(sd(10))
-                                .background(ColorProvider(chrome.resetBg))
-                                .padding(horizontal = sd(10), vertical = sd(6))
-                                .clickable(openApp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                "RESET",
-                                style = TextStyle(
-                                    color = ColorProvider(chrome.resetText),
-                                    fontSize = ss(10),
-                                ),
-                            )
-                        }
-                    }
                 }  // Title content column ends.
             }  // Title panel box ends.
             // Transport keys: full deck keys (slot + cap + symbol) rendered with

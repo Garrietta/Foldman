@@ -148,20 +148,17 @@ fun FoldmanScreen(
     var showSettings by rememberSaveable { mutableStateOf(false) }
     val feel by rememberUpdatedState(ui)
 
-    // A new tape drops into the deck on every track change (and when the app opens):
-    // the same loading animation replays for NEXT/PREVIOUS, key press or swipe.
-    // currentQueueId is the stable per-track identity (unlike the index, it does
-    // not move when the queue is shuffled), and it changes with the source too,
-    // so source switches still fire exactly once.
+    // A new tape drops into the deck when the sticky tape version bumps (see
+    // DeckViewModel.tick): the same loading animation replays for NEXT/PREVIOUS,
+    // key press or swipe — but never for pause, resume or seek.
     // Directional: the tape follows the finger — NEXT (swipe up) rises from
     // below, PREVIOUS (swipe down) drops from above.
-    var lastDirSource by remember { mutableStateOf<Source?>(null) }
     var lastQueuePos by remember { mutableStateOf<Int?>(null) }
-    LaunchedEffect(ui.source, ui.currentQueueId) {
+    LaunchedEffect(ui.tapeVersion) {
         val pos = ui.queue.indexOfFirst { it.id == ui.currentQueueId }
         val n = ui.queue.size
-        anim.insertDir = if (ui.source != lastDirSource || lastQueuePos == null || pos < 0 || n <= 1) {
-            -1f // First load or source switch: the default rise from the bottom.
+        anim.insertDir = if (lastQueuePos == null || pos < 0 || n <= 1) {
+            -1f // First load: the default rise from the bottom.
         } else {
             val prev = lastQueuePos!!
             when {
@@ -171,7 +168,6 @@ fun FoldmanScreen(
                 else -> 1f // PREVIOUS: queue index shrank.
             }
         }
-        lastDirSource = ui.source
         lastQueuePos = pos
         anim.insert.snapTo(1f)
         anim.insert.animateTo(0f, spring(dampingRatio = 0.62f, stiffness = 220f))
@@ -739,7 +735,23 @@ private fun DeckBand(
                 Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                     TapeWindow(ui, anim)
                 }
-                Spacer(Modifier.width(14.dp))
+                // Tape label in the deck chrome: the source tag and "TYPE I NORMAL"
+                // moved off the cassette face (Garrett's directive) to beside the window.
+                Column(
+                    Modifier.fillMaxHeight(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    val tapeLabel = when (ui.tapeSource) {
+                        Source.LOCAL -> "FM 60"
+                        Source.YT_MUSIC -> "YT ∞"
+                        Source.PODCASTS -> "RSS ∞"
+                    }
+                    Text(tapeLabel, style = EngravedCaps.copy(fontSize = 11.sp), maxLines = 1)
+                    Spacer(Modifier.height(4.dp))
+                    Text("TYPE I NORMAL", style = EngravedCaps.copy(fontSize = 8.sp), maxLines = 1)
+                }
+                Spacer(Modifier.width(8.dp))
                 // Nudged right so the enlarged tape window keeps its clearance.
                 EjectArrow({ deck.stop() }, Modifier.size(26.dp, 50.dp).offset(x = 6.dp))
             }

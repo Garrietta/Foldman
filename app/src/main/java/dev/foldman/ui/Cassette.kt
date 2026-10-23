@@ -277,16 +277,6 @@ private fun DrawScope.drawLabel(ui: DeckUi, palette: LabelPalette, measurer: Tex
         val layout = measure(s, sizeMm, maxWidthMm, style)
         withTransform({ translate(x, y); scale(1f / u, 1f / u, Offset.Zero) }) { drawText(layout) }
     }
-    // Like [text], but centers the measured line vertically on [centerY] instead
-    // of anchoring its top at y. Used for the bottom labels so they sit centered
-    // in the black band — on the stood-on-end cassette that reads as centered
-    // horizontally within the vertical bar, instead of hugging its edge.
-    fun textCenteredY(s: String, x: Float, centerY: Float, sizeMm: Float, maxWidthMm: Float, style: TextStyle) {
-        if (s.isBlank()) return
-        val layout = measure(s, sizeMm, maxWidthMm, style)
-        val h = layout.size.height / u
-        withTransform({ translate(x, centerY - h / 2f); scale(1f / u, 1f / u, Offset.Zero) }) { drawText(layout) }
-    }
     val handColor = ink
     val hand = TextStyle(fontFamily = FontFamily.Cursive, color = handColor, fontWeight = FontWeight.Bold)
     val print = TextStyle(fontFamily = FontFamily.SansSerif, color = handColor, fontWeight = FontWeight.Bold, letterSpacing = (0.3f * u).toSp())
@@ -325,41 +315,9 @@ private fun DrawScope.drawLabel(ui: DeckUi, palette: LabelPalette, measurer: Tex
         }) { drawText(layout) }
     }
 
-    // Bottom labels: heavy opaque band guarantees legibility over any art.
-    // The band butts up against the bottom of the tape window (y=43) instead
-    // of overlapping into it, so on the stood-on-end cassette the side bar
-    // sits cleanly beside the window.
-    if (art != null) {
-        // Solid black band behind the bottom label row.
-        drawRoundRect(
-            color = Color.Black,
-            topLeft = Offset(8f, 43f),
-            size = Size(84f, 5.5f),
-            cornerRadius = CornerRadius(1.5f, 1.5f),
-        )
-    }
-    val tagBase = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Black)
-    // Bottom labels always sit on the dark scrim band, so they stay white
-    // with a dark outline no matter the cover.
-    val tagColor = if (art != null) Color.White else ink
-    // Stroke (outline) for the labels when over art.
-    val tagStroke = if (art != null) {
-        tagBase.copy(
-            color = Color.Black.copy(alpha = 0.8f),
-            drawStyle = Stroke(width = 0.95f),
-        )
-    } else tagBase.copy(color = ink)
-    val tag = tagBase.copy(color = tagColor)
-    val srcLabel = when (ui.source) { Source.LOCAL -> "FM 60"; Source.YT_MUSIC -> "YT ∞"; Source.PODCASTS -> "RSS ∞" }
-    // Black band center: the band is drawn at y 43..48.5 when art is present,
-    // butted up against the bottom of the tape window (y=43).
-    val bandCenterY = 43f + 5.5f / 2f
-    if (art != null) {
-        textCenteredY(srcLabel, 79f, bandCenterY, 2.6f, 14f, tagStroke)
-        textCenteredY("TYPE I  NORMAL", 12f, bandCenterY, 2.2f, 30f, tagStroke.copy(fontWeight = FontWeight.Bold))
-    }
-    textCenteredY(srcLabel, 79f, bandCenterY, 2.6f, 14f, tag)
-    textCenteredY("TYPE I  NORMAL", 12f, bandCenterY, 2.2f, 30f, tag.copy(fontWeight = FontWeight.Bold))
+    // Bottom labels removed per Garrett's directive: the black band and the
+    // source/"TYPE I NORMAL" tags no longer print on the cassette face.
+    // The source tag now lives in the deck chrome beside the tape window.
 }
 
 private fun placeholderTitle(ui: DeckUi) = when (ui.source) {

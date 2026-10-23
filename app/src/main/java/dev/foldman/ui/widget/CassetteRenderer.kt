@@ -611,30 +611,9 @@ object CassetteRenderer {
         }
         canvas.drawText("A", 86f, 12.8f, aPaint)
 
-        // Bottom labels: solid opaque band when over artwork, so they never
-        // sit on busy art. The band butts up against the bottom of the tape
-        // window (y=43) instead of overlapping into it, so the vertical side
-        // bar sits cleanly beside the window.
-        val overArt = artwork != null && !artwork.isRecycled
-        if (overArt) {
-            p.color = 0xFF000000.toInt()
-            canvas.drawRoundRect(RectF(5.5f, 43f, 94.5f, 48.5f), 1.5f, 1.5f, p)
-        }
-        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
-            color = if (overArt) 0xFFFFFFFF.toInt() else DECK_INK
-            textSize = 3f
-            textAlign = Paint.Align.LEFT
-        }
-        // Center the labels on the black band (y 43..48.5): the baseline sits
-        // half the em box below the band center, so the caps land centered in
-        // the bar instead of hugging its edge once the face is stood on end.
-        val bandCenterY = (43f + 48.5f) / 2f
-        val labelFm = labelPaint.fontMetrics
-        val labelBaselineY = bandCenterY - (labelFm.ascent + labelFm.descent) / 2f
-        canvas.drawText(sourceTag, 9f, labelBaselineY, labelPaint)
-        labelPaint.textAlign = Paint.Align.RIGHT
-        canvas.drawText("TYPE I NORMAL", 91f, labelBaselineY, labelPaint)
+        // Bottom labels removed per Garrett's directive: the black band and the
+        // source/"TYPE I NORMAL" tags no longer print on the cassette face.
+        // The source tag now lives in the deck chrome beside the tape window.
 
         // Bottom bridge.
         p.color = lerpColor(shell, 0xFF000000.toInt(), 0.28f)

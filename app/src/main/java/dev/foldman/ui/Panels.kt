@@ -264,6 +264,9 @@ internal fun QueueList(
 @Composable
 fun LibraryPanel(ui: DeckUi, actions: ShelfActions, onPlayQueue: (Long) -> Unit, modifier: Modifier = Modifier) {
     var tab by remember { mutableStateOf(0) }
+    // Tapping a source shows its browsable library, not the queue: switching
+    // the source flips the panel to the Your Library tab.
+    LaunchedEffect(ui.source) { tab = 1 }
     var queueQuery by remember { mutableStateOf("") }
     var libraryQuery by remember { mutableStateOf("") }
     Column(modifier.glassPanel().padding(14.dp)) {
