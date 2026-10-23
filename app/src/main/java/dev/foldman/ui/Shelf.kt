@@ -22,7 +22,10 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,6 +53,7 @@ import dev.foldman.deck.DeckUi
 import dev.foldman.deck.LocalTrack
 import dev.foldman.deck.Source
 import dev.foldman.deck.SourceStatus
+import dev.foldman.deck.Transport
 import com.ivor.ivormusic.data.PlaylistDisplayItem
 import com.ivor.ivormusic.data.PodcastEpisode
 import com.ivor.ivormusic.data.PodcastFeed
@@ -60,6 +64,10 @@ class ShelfActions(
     val pickFolder: () -> Unit,
     val playTrack: (Int) -> Unit,
     val playQueueItem: (Long) -> Unit,
+    val togglePlay: () -> Unit,
+    val next: () -> Unit,
+    val previous: () -> Unit,
+    val seekTo: (Long) -> Unit,
     val toggleShuffle: () -> Unit,
     val youtubeMusic: YouTubeMusicActions,
     val podcasts: PodcastActions,
@@ -87,6 +95,124 @@ class PodcastActions(
     val addFeed: () -> Unit,
     val showAddDialog: (Boolean) -> Unit,
 )
+
+/**
+ * Now-playing bar pinned at the top of the TAPES sheet's cream panel, above
+ * the tab switcher and visible on both tabs: what's playing plus play/pause,
+ * next, previous, a shuffle toggle, and a seekbar. Cream/brown sheet
+ * language, default font.
+ */
+@Composable
+private fun NowPlayingBar(ui: DeckUi, actions: ShelfActions) {
+    val cream = Color(0xFFE8DCC8)
+    val darkBrown = Color(0xFF2A1F17)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(darkBrown)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Text(
+            ui.title.ifBlank { "Nothing playing" },
+            style = TextStyle(
+                fontFamily = FontFamily.Default,
+                color = cream,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            ui.artist.ifBlank { ui.album },
+            style = TextStyle(
+                fontFamily = FontFamily.Default,
+                color = cream.copy(alpha = 0.65f),
+                fontSize = 12.sp,
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(4.dp))
+        // Seekbar: the drag position leads while scrubbing, the live position
+        // follows otherwise; the seek fires once on release.
+        var dragPos by remember { mutableStateOf<Long?>(null) }
+        val dur = ui.durationMs.coerceAtLeast(0L)
+        val shown = (dragPos ?: ui.positionMs).coerceIn(0L, dur.coerceAtLeast(1L))
+        Slider(
+            value = shown.toFloat(),
+            onValueChange = { dragPos = it.toLong() },
+            onValueChangeFinished = {
+                dragPos?.let { actions.seekTo(it) }
+                dragPos = null
+            },
+            valueRange = 0f..dur.coerceAtLeast(1L).toFloat(),
+            enabled = dur > 0,
+            colors = SliderDefaults.colors(
+                thumbColor = cream,
+                activeTrackColor = cream,
+                inactiveTrackColor = cream.copy(alpha = 0.25f),
+            ),
+        )
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                formatSheetTime(shown),
+                style = TextStyle(fontFamily = FontFamily.Default, color = cream.copy(alpha = 0.65f), fontSize = 11.sp),
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                formatSheetTime(dur),
+                style = TextStyle(fontFamily = FontFamily.Default, color = cream.copy(alpha = 0.65f), fontSize = 11.sp),
+            )
+        }
+        Spacer(Modifier.height(2.dp))
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SheetTransportButton(KeySymbol.PREV, onClick = actions.previous)
+            SheetTransportButton(
+                if (ui.transport == Transport.PLAYING) KeySymbol.PAUSE else KeySymbol.PLAY,
+                onClick = actions.togglePlay,
+            )
+            SheetTransportButton(KeySymbol.NEXT, onClick = actions.next)
+            SheetTransportButton(KeySymbol.SHUFFLE, onClick = actions.toggleShuffle, active = ui.shuffleOn)
+        }
+    }
+}
+
+/** A small round transport button in the sheet's cream/brown language. */
+@Composable
+private fun SheetTransportButton(symbol: KeySymbol, onClick: () -> Unit, active: Boolean = false) {
+    val cream = Color(0xFFE8DCC8)
+    Box(
+        Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(if (active) Color(0xFF5A422C) else Color(0xFF3A2C20))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.size(22.dp)) {
+            drawSymbol(
+                symbol,
+                Offset(size.width / 2f, size.height / 2f),
+                size.minDimension * 0.16f,
+                if (active) Color(0xFFF2B33D) else cream,
+            )
+        }
+    }
+}
+
+private fun formatSheetTime(ms: Long): String {
+    val s = (ms / 1000).coerceAtLeast(0)
+    return "%d:%02d".format(s / 60, s % 60)
+}
 
 /**
  * The tape shelf: a spine for each source (tap one to load it into the deck) above the J-card of
@@ -152,6 +278,10 @@ fun TapeShelf(
                 .background(DeckColors.Paper)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
         ) {
+        // Now-playing bar: below the drag handle, above the tab switcher —
+        // visible on both tabs.
+        NowPlayingBar(ui, actions)
+        Spacer(Modifier.height(10.dp))
         // Fixed tab switcher: Tapes (sources + browser) or Queue (live queue).
         var tab by remember { mutableStateOf(0) }
         Row(

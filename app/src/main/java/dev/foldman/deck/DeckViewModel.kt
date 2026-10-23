@@ -345,6 +345,13 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         tick()
     }
 
+    /** Seek the current source to an absolute position (sheet now-playing bar). */
+    fun seekTo(positionMs: Long) {
+        if (winding != 0) finishWinding()
+        backend.seekTo(positionMs.coerceAtLeast(0L))
+        tick()
+    }
+
     private fun startWinding(direction: Int) {
         if (winding == direction) return
         if (_ui.value.status != SourceStatus.Ready) return
