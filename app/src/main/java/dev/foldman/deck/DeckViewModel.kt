@@ -103,6 +103,8 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     private val _youtubeMusic = MutableStateFlow(YouTubeMusicUi())
     val youtubeMusic: StateFlow<YouTubeMusicUi> = _youtubeMusic.asStateFlow()
     private var youtubeJob: Job? = null
+    /** Debounce for live search-as-you-type; cancelled on each keystroke. */
+    private var searchDebounceJob: Job? = null
     /** Disk cache for YouTube Music library metadata: stale-while-revalidate. */
     private val metadataCache = MetadataCache(app)
     private val podcastRepository = PodcastRepository(app)
@@ -518,9 +520,46 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     fun setYouTubeMusicQuery(query: String) {
         _youtubeMusic.value = _youtubeMusic.value.copy(query = query)
         tick()
+        // Live search: debounce keystrokes so each pause in typing (not each
+        // keystroke) fires one search; a new keystroke cancels the pending
+        // one and any in-flight request.
+        searchDebounceJob?.cancel()
+        if (query.isBlank()) {
+            // Cleared all the way: drop the search and return to the library.
+            youtubeJob?.cancel()
+            _youtubeMusic.value = _youtubeMusic.value.copy(
+                searched = false,
+                searchResults = emptyList(),
+                searchAlbums = emptyList(),
+                searchArtists = emptyList(),
+                loading = false,
+                message = null,
+            )
+            tick()
+            return
+        }
+        searchDebounceJob = viewModelScope.launch {
+            delay(400)
+            runYouTubeSearch()
+        }
     }
 
+    /** Explicit search (Search button / keyboard action): runs immediately, no debounce. */
     fun searchYouTubeMusic() {
+        if (_youtubeMusic.value.query.isBlank()) return
+        searchDebounceJob?.cancel()
+        runYouTubeSearch()
+    }
+
+    /** Tapping an artist result searches that artist's name. */
+    fun searchArtist(artist: com.ivor.ivormusic.data.ArtistItem) {
+        _youtubeMusic.value = _youtubeMusic.value.copy(query = artist.name)
+        tick()
+        searchDebounceJob?.cancel()
+        runYouTubeSearch()
+    }
+
+    private fun runYouTubeSearch() {
         val query = _youtubeMusic.value.query.trim()
         if (query.isEmpty()) return
         youtubeJob?.cancel()
@@ -529,6 +568,8 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
                 loading = true,
                 searched = true,
                 searchResults = emptyList(),
+                searchAlbums = emptyList(),
+                searchArtists = emptyList(),
                 openPlaylist = null,
                 playlistTracks = emptyList(),
                 message = null,
@@ -541,11 +582,21 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
                 val songs = withTimeoutOrNull(20_000) {
                     youtubeRepository.search(query)
                 }
+                val albums = withTimeoutOrNull(20_000) {
+                    youtubeRepository.searchAlbums(query)
+                }
+                val artists = withTimeoutOrNull(20_000) {
+                    youtubeRepository.searchArtists(query)
+                }
+                val albumList = albums.orEmpty()
+                val artistList = artists.orEmpty()
                 _youtubeMusic.value = _youtubeMusic.value.copy(
                     searchResults = songs.orEmpty(),
+                    searchAlbums = albumList,
+                    searchArtists = artistList,
                     message = when {
                         songs == null -> "Search timed out. Check your connection and try again."
-                        songs.isEmpty() -> "No songs found."
+                        songs.isEmpty() && albumList.isEmpty() && artistList.isEmpty() -> "No results found."
                         else -> null
                     },
                 )
@@ -645,8 +696,13 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         )
         try {
             // Bounded like search: a hung fetch must not wedge loading=true.
+            // Album results carry browse IDs (MPREb…), which need the album
+            // endpoint rather than the playlist endpoint.
             val songs = withTimeoutOrNull(30_000) {
-                withContext(Dispatchers.IO) { youtubeRepository.getPlaylist(playlist.id) }
+                withContext(Dispatchers.IO) {
+                    if (playlist.id.startsWith("MPREb")) youtubeRepository.getAlbumSongs(playlist.id)
+                    else youtubeRepository.getPlaylist(playlist.id)
+                }
             }.orEmpty()
             // Same guard as the library list: don't let an empty/failed fetch
             // wipe the cached tracks.
