@@ -750,14 +750,15 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
      * follows that service via [youtubeBackend].
      */
     @androidx.media3.common.util.UnstableApi
-    fun playKodaSongs(songs: List<Song>, startIndex: Int, player: PlayerViewModel, forSource: Source) {
+    fun playKodaSongs(songs: List<Song>, startIndex: Int, player: PlayerViewModel, forSource: Source, startPositionMs: Long = 0L) {
         val startSong = songs.getOrNull(startIndex) ?: return
         selectSource(forSource)
         if (winding != 0) finishWinding()
         stopped = false
         playRequestedAt = SystemClock.elapsedRealtime()
         lastKodaSongs = songs
-        player.playQueue(songs, startSong)
+        if (startPositionMs > 0) player.playQueueAtPosition(songs, startSong, startPositionMs)
+        else player.playQueue(songs, startSong)
         youtubeBackend.refresh()
         tick()
     }
@@ -820,7 +821,12 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             "playPodcastEpisode: mapped ${songs.size} songs, index=$index " +
                 "songUri=${songs.getOrNull(index)?.uri}",
         )
-        playKodaSongs(songs, index, player, Source.PODCASTS)
+        // Resume where he left off: a saved position restarts the episode
+        // there; a finished episode has no saved position and starts at 0.
+        // Marked handled so the tick() auto-resume doesn't seek twice.
+        podcastResumeAppliedFor = "podcast:${episode.id}"
+        val savedPos = prefs.getLong(podcastPositionKey(episode.id), 0L)
+        playKodaSongs(songs, index, player, Source.PODCASTS, savedPos)
     }
 
     private fun podcastSongs(feedId: String): List<Song> {
@@ -1072,7 +1078,69 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
         }
+        // Podcast resume: persist the episode position, resume on return.
+        handlePodcastResume(state)
     }
+
+    // region Podcast resume
+
+    /** Last podcast episode seen by the resume handler; null when not on a podcast. */
+    private var lastPodcastMediaId: String? = null
+    /** Episode the explicit play path already positioned; the tick won't re-seek it. */
+    private var podcastResumeAppliedFor: String? = null
+    private var lastPodcastSaveAt = 0L
+
+    private fun podcastPositionKey(episodeId: String) = "podcast_pos_$episodeId"
+
+    /**
+     * Podcast resume, run from the 100ms tick(). When a new episode starts —
+     * explicit tap, NEXT, or auto-advance — with a saved position, seek to it.
+     * While an episode plays, its position is persisted (throttled); an
+     * episode played through to the end has its saved position cleared so it
+     * restarts at 0. Positions live in SharedPreferences, so they survive
+     * app restarts.
+     */
+    private fun handlePodcastResume(state: BackendState) {
+        if (source != Source.PODCASTS) {
+            lastPodcastMediaId = null
+            return
+        }
+        val mediaId = backend.currentMediaId()
+        if (mediaId == null || !mediaId.startsWith("podcast:")) {
+            lastPodcastMediaId = null
+            return
+        }
+        val episodeId = mediaId.removePrefix("podcast:")
+        val key = podcastPositionKey(episodeId)
+        if (mediaId != lastPodcastMediaId) {
+            // New episode: resume where he left off.
+            lastPodcastMediaId = mediaId
+            if (podcastResumeAppliedFor != mediaId) {
+                podcastResumeAppliedFor = mediaId
+                val saved = prefs.getLong(key, 0L)
+                if (saved > 3000 && backend.positionMs() < 3000 && winding == 0) {
+                    backend.seekTo(saved)
+                }
+            }
+            return
+        }
+        // Same episode: periodically persist the position.
+        if (winding != 0) return
+        val pos = backend.positionMs()
+        val dur = state.nowPlaying.durationMs
+        // Played through to the end: reset to 0.
+        if (dur > 30_000 && pos >= dur - 10_000) {
+            if (prefs.contains(key)) prefs.edit { remove(key) }
+            return
+        }
+        if (pos < 5000) return
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastPodcastSaveAt < 10_000) return
+        lastPodcastSaveAt = now
+        prefs.edit { putLong(key, pos) }
+    }
+
+    // endregion
 
     private fun updateLabel(np: NowPlaying) {
         val bitmap = np.artwork

@@ -44,6 +44,8 @@ data class YouTubeMusicUi(
     val accountName: String? = null,
     val query: String = "",
     val searchResults: List<com.ivor.ivormusic.data.Song> = emptyList(),
+    val searchAlbums: List<com.ivor.ivormusic.data.PlaylistDisplayItem> = emptyList(),
+    val searchArtists: List<com.ivor.ivormusic.data.ArtistItem> = emptyList(),
     val searched: Boolean = false,
     val playlists: List<com.ivor.ivormusic.data.PlaylistDisplayItem> = emptyList(),
     val openPlaylist: com.ivor.ivormusic.data.PlaylistDisplayItem? = null,
@@ -98,6 +100,8 @@ data class BackendState(
 interface DeckBackend {
     val state: StateFlow<BackendState>
     fun positionMs(): Long
+    /** Media id of the currently loaded queue item, when the backend exposes one. */
+    fun currentMediaId(): String? = null
     fun play()
     fun pause()
     fun seekTo(positionMs: Long)

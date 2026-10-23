@@ -135,6 +135,8 @@ class YouTubeMusicBackend(private val context: Context) : DeckBackend {
 
     override fun positionMs(): Long = browser?.currentPosition ?: 0L
 
+    override fun currentMediaId(): String? = browser?.currentMediaItem?.mediaId
+
     override fun play() {
         val player = browser ?: return refresh()
         if (player.playbackState == Player.STATE_IDLE) player.prepare()
