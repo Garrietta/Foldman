@@ -596,10 +596,12 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         runYouTubeSearch()
     }
 
-    /** Tapping an artist result searches that artist's name. */
+    /**
+     * Tapping an artist result re-runs the current search — the typed query
+     * is left exactly as the user typed it, never rewritten to the artist's
+     * name.
+     */
     fun searchArtist(artist: com.ivor.ivormusic.data.ArtistItem) {
-        _youtubeMusic.value = _youtubeMusic.value.copy(query = artist.name)
-        tick()
         searchDebounceJob?.cancel()
         runYouTubeSearch()
     }
