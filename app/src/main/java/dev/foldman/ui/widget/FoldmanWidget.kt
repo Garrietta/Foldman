@@ -61,6 +61,10 @@ internal object WidgetKeys {
     val KEY_PATHS_DOWN = stringPreferencesKey("key_paths_down")
     /** Rendered brushed-chrome root background (static; written once). */
     val CHROME_PATH = stringPreferencesKey("chrome_path")
+    /** Rendered inset title panel (brushed silver + inner shadow; static). */
+    val TITLE_PANEL_PATH = stringPreferencesKey("title_panel_path")
+    /** Rendered enamel-blue tape panel (static). */
+    val BLUE_PANEL_PATH = stringPreferencesKey("blue_panel_path")
     val IS_PLAYING = booleanPreferencesKey("is_playing")
     val SHUFFLE = booleanPreferencesKey("shuffle")
     val HAS_NEXT = booleanPreferencesKey("has_next")
@@ -74,15 +78,15 @@ internal object WidgetKeys {
 private object Chrome {
     // Brushed chrome root is a rendered bitmap (see CHROME_PATH); this is the fallback.
     val root = Color(0xFFC3C5C9)
-    /** Deck enamel blue — the right tape panel. */
-    val panel = Color(0xFF2F6FB5)
+    /** Deck enamel blue — the right tape panel (fallback; the rendered bitmap is richer). */
+    val panel = Color(0xFF2A66B8)
     val titleBox = Color(0xFF101216)
     val titleText = Color(0xFFFFFFFF)
     val artistText = Color(0xFF9AA0A8)
     /** Light silver/white inset title panel (mockup): dark text on it. */
     val titlePanel = Color(0xFFE9EBEE)
-    val titleTextDark = Color(0xFF1A1C1E)
-    val artistTextDark = Color(0xFF5A5E64)
+    val titleTextDark = Color(0xFF141618)
+    val artistTextDark = Color(0xFF4A4E54)
     val stereoLabel = Color(0xFF6B7076)
     val brandText = Color(0xFFEDEFF2)
     val brandSub = Color(0xFF8B95A1)
@@ -205,6 +209,16 @@ private fun WalkmanContent() {
             BitmapFactory.decodeFile(path)?.takeIf { it.width > 0 && it.height > 0 }
         }.getOrNull()
     }
+    // Rendered inset title panel (brushed silver + inner shadow) and
+    // enamel-blue tape panel (edge shadow). Static, written once.
+    fun decodePanel(key: androidx.datastore.preferences.core.Preferences.Key<String>): Bitmap? =
+        prefs?.get(key)?.let { path ->
+            runCatching {
+                BitmapFactory.decodeFile(path)?.takeIf { it.width > 0 && it.height > 0 }
+            }.getOrNull()
+        }
+    val titlePanelBg = decodePanel(WidgetKeys.TITLE_PANEL_PATH)
+    val bluePanelBg = decodePanel(WidgetKeys.BLUE_PANEL_PATH)
     val openApp = actionStartActivity<MainActivity>()
     val params = actionParametersOf(SourceParam to sourceName)
 
@@ -253,14 +267,31 @@ private fun WalkmanContent() {
         ) {
         // Left: main content.
         Column(modifier = GlanceModifier.defaultWeight()) {
-            // Light inset title panel (mockup): dark text, STEREO label top-right.
-            Column(
+            // Light inset title panel (mockup): brushed silver with inner
+            // shadow (rendered bitmap), dark all-caps text, STEREO label
+            // top-right. Falls back to the flat silver tone.
+            Box(
                 modifier = GlanceModifier.fillMaxWidth()
-                    .defaultWeight()
-                    .cornerRadius(sd(16))
-                    .background(ColorProvider(Chrome.titlePanel))
-                    .padding(sd(10)),
+                    .defaultWeight(),
             ) {
+                if (titlePanelBg != null) {
+                    Image(
+                        provider = BitmapImageProvider(titlePanelBg),
+                        contentDescription = null,
+                        modifier = GlanceModifier.fillMaxSize(),
+                        contentScale = ContentScale.FillBounds,
+                    )
+                } else {
+                    Box(
+                        modifier = GlanceModifier.fillMaxSize()
+                            .cornerRadius(sd(16))
+                            .background(ColorProvider(Chrome.titlePanel)),
+                    ) {}
+                }
+                Column(
+                    modifier = GlanceModifier.fillMaxSize()
+                        .padding(sd(10)),
+                ) {
                 // Small "— STEREO —" caps label at the top-right of the panel.
                 Box(
                     modifier = GlanceModifier.fillMaxWidth(),
@@ -278,20 +309,21 @@ private fun WalkmanContent() {
                 }
                 Spacer(GlanceModifier.height(sd(2)))
                 Text(
-                    title,
+                    title.uppercase(),
                     style = TextStyle(
                         color = ColorProvider(Chrome.titleTextDark),
-                        fontSize = ss(16),
-                        fontWeight = FontWeight.Medium,
+                        fontSize = ss(19),
+                        fontWeight = FontWeight.Bold,
                     ),
                     maxLines = 2,
                 )
                 Spacer(GlanceModifier.height(sd(2)))
                 Text(
-                    artist,
+                    artist.uppercase(),
                     style = TextStyle(
                         color = ColorProvider(Chrome.artistTextDark),
-                        fontSize = ss(12)
+                        fontSize = ss(12),
+                        fontWeight = FontWeight.Medium,
                     ),
                     maxLines = 1,
                 )
@@ -335,7 +367,8 @@ private fun WalkmanContent() {
                             )
                         }
                     }
-            }
+                }  // Title content column ends.
+            }  // Title panel box ends.
             // Transport keys: full deck keys (slot + cap + symbol) rendered with
             // the in-app DeckKey pressed language. PLAY latches recessed with
             // the orange underline while playing; PAUSE latches while paused.
@@ -370,21 +403,35 @@ private fun WalkmanContent() {
             }
         }  // Left column ends.
         Spacer(GlanceModifier.width(sd(6)))
-        // Right: enamel-blue panel with the vertical cassette (the app's
-        // actual tape artwork) and the white FOLDMAN wordmark at the bottom.
+        // Right: enamel-blue panel (rendered bitmap: richer cobalt gradient
+        // with edge shadow) with the vertical cassette (the app's actual tape
+        // artwork) and the white FOLDMAN wordmark at the bottom. Falls back
+        // to the flat blue tone.
         // (Glance Box in a Row stretches vertically to fill the Row's height.)
         // The tape bitmap is rendered at the inner box's aspect (112:188), so
-        // Fit fills the width and the 8dp padding is a uniform blue border.
+        // Fit fills the width and the 6dp padding is a uniform blue border.
         Box(
             modifier = GlanceModifier.width(sd(128))
-                .cornerRadius(sd(14))
-                .background(ColorProvider(Chrome.panel))
-                .padding(sd(8))
                 .clickable(openApp),
             contentAlignment = Alignment.Center,
         ) {
+            if (bluePanelBg != null) {
+                Image(
+                    provider = BitmapImageProvider(bluePanelBg),
+                    contentDescription = null,
+                    modifier = GlanceModifier.fillMaxSize(),
+                    contentScale = ContentScale.FillBounds,
+                )
+            } else {
+                Box(
+                    modifier = GlanceModifier.fillMaxSize()
+                        .cornerRadius(sd(14))
+                        .background(ColorProvider(Chrome.panel)),
+                ) {}
+            }
             Column(
-                modifier = GlanceModifier.fillMaxSize(),
+                modifier = GlanceModifier.fillMaxSize()
+                    .padding(sd(6)),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box(
@@ -406,7 +453,7 @@ private fun WalkmanContent() {
                     "FOLDMAN",
                     style = TextStyle(
                         color = ColorProvider(Color.White),
-                        fontSize = ss(13),
+                        fontSize = ss(16),
                         fontWeight = FontWeight.Bold,
                     ),
                     maxLines = 1,
@@ -445,7 +492,7 @@ private fun TransportKey(
             label,
             style = TextStyle(
                 color = ColorProvider(Chrome.label),
-                fontSize = ss(8),
+                fontSize = ss(9),
                 fontWeight = FontWeight.Bold,
             ),
             maxLines = 1,

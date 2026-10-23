@@ -118,6 +118,8 @@ object FoldmanWidgetUpdater {
         val tapePath = writeTape(appContext, snapshot)
         val (keyPathsUp, keyPathsDown) = writeKeys(appContext)
         val chromePath = writeChrome(appContext)
+        val titlePanelPath = writeTitlePanel(appContext)
+        val bluePanelPath = writeBluePanel(appContext)
         val widget = FoldmanWidget()
         val manager = GlanceAppWidgetManager(appContext)
         for (appWidgetId in ids) {
@@ -134,6 +136,10 @@ object FoldmanWidgetUpdater {
                 else state.remove(WidgetKeys.KEY_PATHS_DOWN)
                 if (chromePath != null) state[WidgetKeys.CHROME_PATH] = chromePath
                 else state.remove(WidgetKeys.CHROME_PATH)
+                if (titlePanelPath != null) state[WidgetKeys.TITLE_PANEL_PATH] = titlePanelPath
+                else state.remove(WidgetKeys.TITLE_PANEL_PATH)
+                if (bluePanelPath != null) state[WidgetKeys.BLUE_PANEL_PATH] = bluePanelPath
+                else state.remove(WidgetKeys.BLUE_PANEL_PATH)
                 state[WidgetKeys.IS_PLAYING] = snapshot.isPlaying
                 state[WidgetKeys.SOURCE] = snapshot.activeSource.name
                 state[WidgetKeys.QUEUE_INDEX] = snapshot.queueIndex
@@ -196,7 +202,8 @@ object FoldmanWidgetUpdater {
         for (sym in symbols) {
             for ((state, pressed) in listOf("up" to false, "down" to true)) {
                 // Versioned filename: a redesign re-renders once, then it's cached.
-                val file = File(context.filesDir, "foldman_widget_key_v4_${sym}_$state.png")
+                // v5: corrected prev/next glyphs + stronger bevel/borders.
+                val file = File(context.filesDir, "foldman_widget_key_v5_${sym}_$state.png")
                 if (!file.exists()) {
                     val bmp = CassetteRenderer.renderTransportKey(sym, 144, pressed)
                     writePngAtomic(file, bmp)
@@ -245,6 +252,36 @@ object FoldmanWidgetUpdater {
                 chrome.compress(Bitmap.CompressFormat.PNG, 90, out)
             }
             if (!chrome.isRecycled) chrome.recycle()
+        }
+        file.absolutePath
+    }.getOrNull()
+
+    /**
+     * Renders the inset title panel (brushed silver + inner shadow) once.
+     * Design size: ~294dp x ~94dp at 2x; 16dp corner radius -> 32px.
+     */
+    private fun writeTitlePanel(context: Context): String? = runCatching {
+        val file = File(context.filesDir, "foldman_widget_title_panel_v1.png")
+        if (!file.exists()) {
+            val panel = CassetteRenderer.renderTitlePanel(588, 188, 32f)
+            val ok = writePngAtomic(file, panel)
+            if (!panel.isRecycled) panel.recycle()
+            if (!ok) return@runCatching null
+        }
+        file.absolutePath
+    }.getOrNull()
+
+    /**
+     * Renders the enamel-blue tape panel (richer gradient + edge shadow)
+     * once. Design size: 128dp x 188dp at 2x; 14dp corner radius -> 28px.
+     */
+    private fun writeBluePanel(context: Context): String? = runCatching {
+        val file = File(context.filesDir, "foldman_widget_blue_panel_v1.png")
+        if (!file.exists()) {
+            val panel = CassetteRenderer.renderBluePanel(256, 376, 28f)
+            val ok = writePngAtomic(file, panel)
+            if (!panel.isRecycled) panel.recycle()
+            if (!ok) return@runCatching null
         }
         file.absolutePath
     }.getOrNull()

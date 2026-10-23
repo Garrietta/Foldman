@@ -143,6 +143,196 @@ object CassetteRenderer {
         return bmp
     }
 
+    /**
+     * The light inset title panel: brushed silver with the subtle inner
+     * shadow that sells the "inset" look. Deterministic brushing (fixed
+     * seed) so it never shimmers between redraws. Rendered once and cached
+     * by the updater; the widget draws its text on top.
+     */
+    fun renderTitlePanel(widthPx: Int, heightPx: Int, cornerPx: Float): Bitmap {
+        val w = widthPx.coerceAtLeast(1)
+        val h = heightPx.coerceAtLeast(1)
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val wf = w.toFloat()
+        val hf = h.toFloat()
+        val r = cornerPx.coerceIn(0f, minOf(wf, hf) / 2f)
+        val panel = RectF(0f, 0f, wf, hf)
+        // Bright brushed-silver base, lighter at the top.
+        val base = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(
+                0f, 0f, 0f, hf,
+                intArrayOf(
+                    0xFFF7F8FA.toInt(),
+                    0xFFE8EAEE.toInt(),
+                    0xFFD5D8DE.toInt(),
+                ),
+                floatArrayOf(0f, 0.55f, 1f),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRoundRect(panel, r, r, base)
+        // Hairline brushing, lighter than the chrome root.
+        val rnd = java.util.Random(21)
+        val light = Paint().apply {
+            color = android.graphics.Color.WHITE
+            alpha = 22
+            strokeWidth = 1f
+        }
+        val dark = Paint().apply {
+            color = android.graphics.Color.BLACK
+            alpha = 10
+            strokeWidth = 1f
+        }
+        var y = 0f
+        var i = 0
+        while (y < hf) {
+            val x0 = rnd.nextFloat() * wf * 0.3f
+            val x1 = wf - rnd.nextFloat() * wf * 0.3f
+            canvas.drawLine(x0, y, x1, y, if (i % 2 == 0) light else dark)
+            y += 1f + rnd.nextFloat() * 2f
+            i++
+        }
+        // Inner shadow: dark along the top and left edges (the inset read),
+        // faint light lift along the bottom edge.
+        canvas.save()
+        val clip = Path().apply {
+            addRoundRect(panel, r, r, Path.Direction.CW)
+        }
+        canvas.clipPath(clip)
+        val topShadow = Paint().apply {
+            shader = LinearGradient(
+                0f, 0f, 0f, hf * 0.30f,
+                intArrayOf(0x4D000000.toInt(), 0x00000000),
+                null, Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRect(RectF(0f, 0f, wf, hf * 0.30f), topShadow)
+        val leftShadow = Paint().apply {
+            shader = LinearGradient(
+                0f, 0f, wf * 0.16f, 0f,
+                intArrayOf(0x33000000.toInt(), 0x00000000),
+                null, Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRect(RectF(0f, 0f, wf * 0.16f, hf), leftShadow)
+        val bottomLift = Paint().apply {
+            shader = LinearGradient(
+                0f, hf * 0.80f, 0f, hf,
+                intArrayOf(0x00000000, 0x59FFFFFF.toInt()),
+                null, Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRect(RectF(0f, hf * 0.80f, wf, hf), bottomLift)
+        canvas.restore()
+        // Crisp 1px dark outline for a clean edge.
+        val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 1.5f
+            color = 0xFF8F949B.toInt()
+        }
+        canvas.drawRoundRect(RectF(1f, 1f, wf - 1f, hf - 1f), r, r, edge)
+        // Punch the rounded corners transparent.
+        val clear = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+        }
+        val outside = Path().apply {
+            fillType = Path.FillType.EVEN_ODD
+            addRect(RectF(0f, 0f, wf, hf), Path.Direction.CW)
+            addRoundRect(RectF(0f, 0f, wf, hf), r, r, Path.Direction.CW)
+        }
+        canvas.drawPath(outside, clear)
+        return bmp
+    }
+
+    /**
+     * The enamel-blue tape panel: richer cobalt gradient with a subtle edge
+     * shadow on all four sides for depth, plus a faint top highlight lip.
+     * Rendered once and cached by the updater; the widget draws the tape
+     * and wordmark on top.
+     */
+    fun renderBluePanel(widthPx: Int, heightPx: Int, cornerPx: Float): Bitmap {
+        val w = widthPx.coerceAtLeast(1)
+        val h = heightPx.coerceAtLeast(1)
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val wf = w.toFloat()
+        val hf = h.toFloat()
+        val r = cornerPx.coerceIn(0f, minOf(wf, hf) / 2f)
+        val panel = RectF(0f, 0f, wf, hf)
+        // Richer enamel blue: brighter crown, deep foot.
+        val base = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(
+                0f, 0f, 0f, hf,
+                intArrayOf(
+                    0xFF3E82CC.toInt(),
+                    0xFF2F6CB8.toInt(),
+                    0xFF23549E.toInt(),
+                ),
+                floatArrayOf(0f, 0.55f, 1f),
+                Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRoundRect(panel, r, r, base)
+        // Edge shadow on all four sides for depth, clipped to the panel.
+        canvas.save()
+        val clip = Path().apply {
+            addRoundRect(panel, r, r, Path.Direction.CW)
+        }
+        canvas.clipPath(clip)
+        val edgeLen = minOf(wf, hf) * 0.14f
+        val top = Paint().apply {
+            shader = LinearGradient(
+                0f, 0f, 0f, edgeLen,
+                intArrayOf(0x66000000.toInt(), 0x00000000),
+                null, Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRect(RectF(0f, 0f, wf, edgeLen), top)
+        val bottom = Paint().apply {
+            shader = LinearGradient(
+                0f, hf - edgeLen, 0f, hf,
+                intArrayOf(0x00000000, 0x66000000.toInt()),
+                null, Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRect(RectF(0f, hf - edgeLen, wf, hf), bottom)
+        val left = Paint().apply {
+            shader = LinearGradient(
+                0f, 0f, edgeLen, 0f,
+                intArrayOf(0x4D000000.toInt(), 0x00000000),
+                null, Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRect(RectF(0f, 0f, edgeLen, hf), left)
+        val right = Paint().apply {
+            shader = LinearGradient(
+                wf - edgeLen, 0f, wf, 0f,
+                intArrayOf(0x00000000, 0x4D000000.toInt()),
+                null, Shader.TileMode.CLAMP,
+            )
+        }
+        canvas.drawRect(RectF(wf - edgeLen, 0f, wf, hf), right)
+        // Faint top highlight lip.
+        val lip = Paint().apply {
+            color = 0x66FFFFFF.toInt()
+            strokeWidth = maxOf(1f, hf * 0.004f)
+        }
+        canvas.drawLine(r * 0.6f, 2f, wf - r * 0.6f, 2f, lip)
+        canvas.restore()
+        // Punch the rounded corners transparent.
+        val clear = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+        }
+        val outside = Path().apply {
+            fillType = Path.FillType.EVEN_ODD
+            addRect(RectF(0f, 0f, wf, hf), Path.Direction.CW)
+            addRoundRect(RectF(0f, 0f, wf, hf), r, r, Path.Direction.CW)
+        }
+        canvas.drawPath(outside, clear)
+        return bmp
+    }
+
     // ------------------------------------------------------------------
     // App-faithful cassette face.
     // ------------------------------------------------------------------
@@ -546,10 +736,17 @@ object CassetteRenderer {
             val p = Paint(Paint.ANTI_ALIAS_FLAG)
 
             // Slot: the recess the key sits in. Darker when latched.
+            // Deep, near-black slot with a crisp outer border for the
+            // mockup's heavier key outlines.
             val slotR = s * 0.18f
             p.style = Paint.Style.FILL
-            p.color = if (pressed) 0xFF0E0F12.toInt() else 0xFF22252A.toInt()
+            p.color = if (pressed) 0xFF0B0C0F.toInt() else 0xFF1B1E23.toInt()
             canvas.drawRoundRect(RectF(0f, 0f, s, s), slotR, slotR, p)
+            p.style = Paint.Style.STROKE
+            p.strokeWidth = maxOf(1.5f, s * 0.014f)
+            p.color = 0xFF0A0B0D.toInt()
+            canvas.drawRoundRect(RectF(1f, 1f, s - 1f, s - 1f), slotR, slotR, p)
+            p.style = Paint.Style.FILL
             // Slot top inner shadow for depth.
             p.shader = LinearGradient(
                 0f, 0f, 0f, s * 0.35f,
@@ -560,14 +757,15 @@ object CassetteRenderer {
             p.shader = null
 
             // Cap: sinks and darkens when pressed (app DeckKey depth).
+            // Stronger bevel: brighter crown, darker foot, dark outline.
             val darken = if (pressed) 0.12f else 0f
             val inset = s * (if (pressed) 0.15f else 0.11f)
             val sink = if (pressed) s * 0.025f else 0f
             val cap = RectF(inset, inset + sink, s - inset, s - inset + sink)
             val capR = s * 0.13f
-            val hi = lerpColor(0xFFF7F8F9.toInt(), 0xFF000000.toInt(), darken)
-            val mid = lerpColor(0xFFCFD1D5.toInt(), 0xFF000000.toInt(), darken)
-            val lo = lerpColor(0xFFA9ACB1.toInt(), 0xFF000000.toInt(), darken)
+            val hi = lerpColor(0xFFFAFBFC.toInt(), 0xFF000000.toInt(), darken)
+            val mid = lerpColor(0xFFC9CCD1.toInt(), 0xFF000000.toInt(), darken)
+            val lo = lerpColor(0xFF9BA0A7.toInt(), 0xFF000000.toInt(), darken)
             p.shader = LinearGradient(
                 0f, cap.top, 0f, cap.bottom,
                 intArrayOf(hi, mid, lo),
@@ -576,6 +774,12 @@ object CassetteRenderer {
             )
             canvas.drawRoundRect(cap, capR, capR, p)
             p.shader = null
+            // Dark outline around the cap for a crisp edge.
+            p.style = Paint.Style.STROKE
+            p.strokeWidth = maxOf(1f, s * 0.010f)
+            p.color = lerpColor(0xFF4A4E55.toInt(), 0xFF000000.toInt(), darken)
+            canvas.drawRoundRect(cap, capR, capR, p)
+            p.style = Paint.Style.FILL
 
             // Grip ribbing.
             p.color = lerpColor(0xFF9AA0A6.toInt(), 0xFF000000.toInt(), darken * 0.5f)
@@ -637,24 +841,25 @@ object CassetteRenderer {
         val h = size / 2f
         when (symbol) {
             "prev" -> {
-                // Bar + left triangle.
+                // Bar + left-pointing triangle: the previous-track glyph.
                 val barW = size * 0.16f
                 canvas.drawRect(RectF(cx - h, cy - h, cx - h + barW, cy + h), p)
                 val tri = Path().apply {
-                    moveTo(cx - h + barW * 1.4f, cy - h)
-                    lineTo(cx - h + barW * 1.4f, cy + h)
-                    lineTo(cx + h, cy)
+                    moveTo(cx + h - barW * 1.4f, cy - h)
+                    lineTo(cx + h - barW * 1.4f, cy + h)
+                    lineTo(cx - h, cy)
                     close()
                 }
                 canvas.drawPath(tri, p)
             }
             "next" -> {
+                // Right-pointing triangle + bar: the next-track glyph.
                 val barW = size * 0.16f
                 canvas.drawRect(RectF(cx + h - barW, cy - h, cx + h, cy + h), p)
                 val tri = Path().apply {
-                    moveTo(cx + h - barW * 1.4f, cy - h)
-                    lineTo(cx + h - barW * 1.4f, cy + h)
-                    lineTo(cx - h, cy)
+                    moveTo(cx - h + barW * 1.4f, cy - h)
+                    lineTo(cx - h + barW * 1.4f, cy + h)
+                    lineTo(cx + h, cy)
                     close()
                 }
                 canvas.drawPath(tri, p)
