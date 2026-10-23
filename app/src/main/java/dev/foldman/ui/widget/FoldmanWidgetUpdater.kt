@@ -135,34 +135,43 @@ object FoldmanWidgetUpdater {
         val widget = FoldmanWidget()
         val manager = GlanceAppWidgetManager(appContext)
         for (appWidgetId in ids) {
-            val glanceId = runCatching { manager.getGlanceIdBy(appWidgetId) }.getOrNull()
-                ?: continue
-            updateAppWidgetState(appContext, glanceId) { state ->
-                state[WidgetKeys.TITLE] = snapshot.title
-                state[WidgetKeys.ARTIST] = snapshot.artist
-                if (tapePath != null) state[WidgetKeys.TAPE_PATH] = tapePath
-                else state.remove(WidgetKeys.TAPE_PATH)
-                if (keyPathsUp != null) state[WidgetKeys.KEY_PATHS_UP] = keyPathsUp
-                else state.remove(WidgetKeys.KEY_PATHS_UP)
-                if (keyPathsDown != null) state[WidgetKeys.KEY_PATHS_DOWN] = keyPathsDown
-                else state.remove(WidgetKeys.KEY_PATHS_DOWN)
-                if (chromePath != null) state[WidgetKeys.CHROME_PATH] = chromePath
-                else state.remove(WidgetKeys.CHROME_PATH)
-                if (titlePanelPath != null) state[WidgetKeys.TITLE_PANEL_PATH] = titlePanelPath
-                else state.remove(WidgetKeys.TITLE_PANEL_PATH)
-                if (bluePanelPath != null) state[WidgetKeys.BLUE_PANEL_PATH] = bluePanelPath
-                else state.remove(WidgetKeys.BLUE_PANEL_PATH)
-                state[WidgetKeys.IS_PLAYING] = snapshot.isPlaying
-                state[WidgetKeys.SOURCE] = snapshot.activeSource.name
-                state[WidgetKeys.QUEUE_INDEX] = snapshot.queueIndex
-                // The extracted primary, for the Glance-side enamel fallback and
-                // any future art-driven tinting.
-                state[WidgetKeys.PRIMARY] = snapshot.primaryArgb
-                // Recompose triggers; the rotation itself is baked into the tape PNG.
-                state[WidgetKeys.REEL_ANGLE_LEFT] = reels.leftAngle
-                state[WidgetKeys.REEL_ANGLE_RIGHT] = reels.rightAngle
+            // The widget must never take the app down: a Glance/DataStore IO
+            // failure here would otherwise propagate through the caller's
+            // coroutine (the startup tick) and crash the process.
+            runCatching {
+                val glanceId = manager.getGlanceIdBy(appWidgetId)
+                updateAppWidgetState(appContext, glanceId) { state ->
+                    state[WidgetKeys.TITLE] = snapshot.title
+                    state[WidgetKeys.ARTIST] = snapshot.artist
+                    if (tapePath != null) state[WidgetKeys.TAPE_PATH] = tapePath
+                    else state.remove(WidgetKeys.TAPE_PATH)
+                    if (keyPathsUp != null) state[WidgetKeys.KEY_PATHS_UP] = keyPathsUp
+                    else state.remove(WidgetKeys.KEY_PATHS_UP)
+                    if (keyPathsDown != null) state[WidgetKeys.KEY_PATHS_DOWN] = keyPathsDown
+                    else state.remove(WidgetKeys.KEY_PATHS_DOWN)
+                    if (chromePath != null) state[WidgetKeys.CHROME_PATH] = chromePath
+                    else state.remove(WidgetKeys.CHROME_PATH)
+                    if (titlePanelPath != null) state[WidgetKeys.TITLE_PANEL_PATH] = titlePanelPath
+                    else state.remove(WidgetKeys.TITLE_PANEL_PATH)
+                    if (bluePanelPath != null) state[WidgetKeys.BLUE_PANEL_PATH] = bluePanelPath
+                    else state.remove(WidgetKeys.BLUE_PANEL_PATH)
+                    state[WidgetKeys.IS_PLAYING] = snapshot.isPlaying
+                    state[WidgetKeys.SOURCE] = snapshot.activeSource.name
+                    state[WidgetKeys.QUEUE_INDEX] = snapshot.queueIndex
+                    // The extracted primary, for the Glance-side enamel fallback and
+                    // any future art-driven tinting.
+                    state[WidgetKeys.PRIMARY] = snapshot.primaryArgb
+                    // The theme the chrome/title/enamel bitmaps were just rendered
+                    // with: the widget derives its text colors from this so they
+                    // always match the bitmaps, even if the system theme flips
+                    // between pushes.
+                    state[WidgetKeys.CHROME_DARK] = dark
+                    // Recompose triggers; the rotation itself is baked into the tape PNG.
+                    state[WidgetKeys.REEL_ANGLE_LEFT] = reels.leftAngle
+                    state[WidgetKeys.REEL_ANGLE_RIGHT] = reels.rightAngle
+                }
+                widget.update(appContext, glanceId)
             }
-            runCatching { widget.update(appContext, glanceId) }
         }
     }
 

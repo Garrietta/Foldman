@@ -76,6 +76,13 @@ internal object WidgetKeys {
     val PRESSED_KEY = stringPreferencesKey("pressed_key")
     /** The theme primary extracted from the album art (ARGB); drives the enamel fallback. */
     val PRIMARY = intPreferencesKey("primary_argb")
+    /**
+     * The theme the chrome/title-panel/enamel bitmaps were rendered with.
+     * The widget's text colors follow this (not the live system theme) so a
+     * theme flip between updater pushes can never show light text on a light
+     * panel or vice versa.
+     */
+    val CHROME_DARK = booleanPreferencesKey("chrome_dark")
 }
 
 /**
@@ -164,13 +171,18 @@ private const val DESIGN_H = 200f
 
 @Composable
 private fun WalkmanContent(dark: Boolean) {
-    val chrome: WidgetChrome = if (dark) DarkChrome else LightChrome
     // The widget must never throw: Glance shows "Can't show content" for any
     // exception out of provideContent, so every risky read below degrades to
     // the idle rendering. (try/catch and runCatching are illegal around
     // @Composable invocations.) Glance always provides the state inside
     // provideContent, so the nullable read never throws in practice.
     val prefs: Preferences? = currentState()
+    // The chrome bitmaps (root, title panel) are rendered per theme by the
+    // updater; the text colors follow the RENDERED theme stored in state, not
+    // the live system theme. A system theme flip between updater pushes would
+    // otherwise pair light text with a light panel (or dark on dark).
+    val chromeDark = prefs?.get(WidgetKeys.CHROME_DARK) ?: dark
+    val chrome: WidgetChrome = if (chromeDark) DarkChrome else LightChrome
     val title = prefs?.get(WidgetKeys.TITLE).orEmpty().ifBlank { "Foldman" }
     val artist = prefs?.get(WidgetKeys.ARTIST).orEmpty().ifBlank { "No tape loaded" }
     val sourceName = prefs?.get(WidgetKeys.SOURCE) ?: WidgetSource.LOCAL.name
@@ -240,7 +252,7 @@ private fun WalkmanContent(dark: Boolean) {
     // The theme primary for the enamel fallback: extracted from the album art
     // by the updater (fixed enamel blue when absent), dark role in dark mode.
     val primaryArgb = prefs?.get(WidgetKeys.PRIMARY) ?: 0xFF2A66B8.toInt()
-    val panelFallback = Color(if (dark) darkenArgb(primaryArgb) else primaryArgb)
+    val panelFallback = Color(if (chromeDark) darkenArgb(primaryArgb) else primaryArgb)
     val openApp = actionStartActivity<MainActivity>()
     val params = actionParametersOf(SourceParam to sourceName)
 
