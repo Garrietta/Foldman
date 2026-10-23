@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -35,10 +36,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -51,6 +54,7 @@ import com.ivor.ivormusic.data.PlaylistDisplayItem
 import com.ivor.ivormusic.data.Song
 import com.ivor.ivormusic.ui.auth.YouTubeAuthDialog
 import dev.foldman.deck.YouTubeMusicUi
+import kotlinx.coroutines.launch
 
 /**
  * The YouTube Music shelf: sign-in, search, your playlists and their tracks.
@@ -68,14 +72,30 @@ fun YouTubeMusicBrowser(
     onPaper: Boolean = false,
     hideSearch: Boolean = false,
 ) {
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
     LazyColumn(
+        state = listState,
         modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(bottom = 8.dp),
     ) {
-        youtubeMusicItems(ui, actions, onPaper = onPaper, hideSearch = hideSearch)
+        youtubeMusicItems(
+            ui, actions, onPaper = onPaper, hideSearch = hideSearch,
+            // Focusing the field scrolls it to the top of the visible list so
+            // the results get the full space below, above the keyboard.
+            onSearchFocus = { scope.launch { listState.scrollToItem(searchFieldItemIndex(ui)) } },
+        )
     }
 }
+
+/**
+ * Index of the "yt-search" item in [youtubeMusicItems], for focus scrolling.
+ * Item order is fixed: "yt-title" always, then "yt-back" only when a playlist
+ * is open. Only valid when the field exists (signed in, not hidden).
+ */
+internal fun searchFieldItemIndex(ui: YouTubeMusicUi): Int =
+    1 + if (ui.openPlaylist != null) 1 else 0
 
 /**
  * The YouTube Music browser as items of a lazy list, so the TAPES sheet can share one scroll
@@ -90,6 +110,8 @@ fun LazyListScope.youtubeMusicItems(
     searchCollapsed: Boolean = false,
     /** The sheet pins its own locked Tracks header above the list; skip the in-list one. */
     hideTracksHeader: Boolean = false,
+    /** Fired when the search field gains focus — the host scrolls it to the top. */
+    onSearchFocus: () -> Unit = {},
     wrap: @Composable (@Composable () -> Unit) -> Unit = { content -> content() },
 ) {
     val openPlaylist = ui.openPlaylist
@@ -194,7 +216,9 @@ fun LazyListScope.youtubeMusicItems(
                     OutlinedTextField(
                         value = ui.query,
                         onValueChange = actions.queryChanged,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .onFocusChanged { if (it.isFocused) onSearchFocus() },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         label = { Text("Search songs", style = accountStyle) },

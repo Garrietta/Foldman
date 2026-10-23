@@ -39,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,6 +71,7 @@ import com.ivor.ivormusic.data.PlaylistDisplayItem
 import com.ivor.ivormusic.data.PodcastEpisode
 import com.ivor.ivormusic.data.PodcastFeed
 import com.ivor.ivormusic.data.Song
+import kotlinx.coroutines.launch
 
 class ShelfActions(
     val selectSource: (Source) -> Unit,
@@ -260,6 +262,7 @@ fun TapeShelf(
     // Hoisted so the collapse connection can gate stage re-expansion on the
     // scroll position; defaults to a private state as before.
     val list = listState ?: rememberLazyListState()
+    val scope = rememberCoroutineScope()
     // The Queue tab's list, hoisted so the collapse connection can gate
     // stage re-expansion on the *visible* list being back at the top.
     val queueList = rememberLazyListState()
@@ -529,6 +532,11 @@ fun TapeShelf(
                             onPaper = true, wrap = paperWrap,
                             searchCollapsed = collapseStage >= 3,
                             hideTracksHeader = ui.youtubeMusic.openPlaylist != null,
+                            // Focusing the field scrolls it to the top of the
+                            // visible list so results get the full space below.
+                            onSearchFocus = {
+                                scope.launch { list.scrollToItem(searchFieldItemIndex(ui.youtubeMusic)) }
+                            },
                         )
                         Source.PODCASTS -> podcastItems(ui.podcasts, actions.podcasts, onPaper = true, wrap = paperWrap)
                     }
