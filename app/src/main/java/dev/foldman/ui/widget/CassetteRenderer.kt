@@ -21,8 +21,8 @@ import kotlin.math.min
  *   and splines, label with the real artwork (or paper stripes), script
  *   title, source tag, screws, bottom bridge. Drawn in cassette-millimetre
  *   space (100 x 64) and scaled to the bitmap.
- * - [renderVerticalTapeFace]: the face rotated 90° clockwise for the widget's
- *   vertical tape column.
+ * - [renderVerticalTapeFace]: the face rotated 90° counter-clockwise for the widget's
+ *   vertical tape column (mirrors the in-app cassette's orientation).
  * - [renderTransportKey]: a full deck key (slot + cap + symbol). The
  *   [pressed] variant mimics the in-app DeckKey's pressed state: the cap
  *   sinks into a darker slot, the metal darkens, and latched PLAY gets the
@@ -379,7 +379,9 @@ object CassetteRenderer {
     }
 
     /**
-     * The face rotated 90° clockwise for the widget's vertical tape column.
+     * The face rotated 90° counter-clockwise for the widget's vertical tape
+     * column — the same rigid rotation of the in-app cassette, so the tape
+     * mirrors the app's orientation and artwork layout exactly.
      */
     fun renderVerticalTapeFace(
         title: String,
@@ -401,7 +403,7 @@ object CassetteRenderer {
             leftDeltaDeg, rightDeltaDeg,
             heightPx, widthPx,
         )
-        val matrix = Matrix().apply { postRotate(90f) }
+        val matrix = Matrix().apply { postRotate(270f) }
         val rotated = Bitmap.createBitmap(
             horizontal, 0, 0, horizontal.width, horizontal.height, matrix, true,
         )
