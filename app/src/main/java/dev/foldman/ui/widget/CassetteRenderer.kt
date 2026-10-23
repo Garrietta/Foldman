@@ -330,7 +330,11 @@ object CassetteRenderer {
             val scale = maxOf(lw / aw, lh / ah)
             val sw = lw / scale
             val sh = lh / scale
-            val src = RectF((aw - sw) / 2f, (ah - sh) / 2f, (aw + sw) / 2f, (ah + sh) / 2f)
+            // drawBitmap takes an Int Rect for the source.
+            val src = android.graphics.Rect(
+                ((aw - sw) / 2f).toInt(), ((ah - sh) / 2f).toInt(),
+                ((aw + sw) / 2f).toInt(), ((ah + sh) / 2f).toInt(),
+            )
             canvas.drawBitmap(artwork, src, LABEL_RECT, p)
         } else {
             // Paper label with stripes, like the app's LabelPalette fallback.
@@ -587,7 +591,7 @@ object CassetteRenderer {
             p.style = Paint.Style.FILL
 
             // Top highlight lip on the cap (fainter when pressed).
-            p.color = if (pressed) 0x40FFFFFF else 0xB3FFFFFF
+            p.color = if (pressed) 0x40FFFFFF.toInt() else 0xB3FFFFFF.toInt()
             p.style = Paint.Style.STROKE
             p.strokeWidth = maxOf(1f, s * 0.012f)
             canvas.drawRoundRect(
