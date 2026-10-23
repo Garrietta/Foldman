@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -236,6 +237,8 @@ internal fun QueueList(
     modifier: Modifier = Modifier,
     /** True on the cream sheet: titles render dark for contrast. */
     onPaper: Boolean = false,
+    /** Hoisted scroll state; defaults to a private one as before. */
+    listState: LazyListState? = null,
 ) {
     if (ui.queue.isEmpty()) {
         val empty = when {
@@ -247,7 +250,7 @@ internal fun QueueList(
         Text(empty, style = if (onPaper) Sub.copy(color = DeckColors.Ink) else Sub)
         return
     }
-    val list = rememberLazyListState()
+    val list = listState ?: rememberLazyListState()
     val currentIndex = ui.queue.indexOfFirst { it.id == ui.currentQueueId }
     LaunchedEffect(currentIndex) { if (currentIndex >= 0) list.animateScrollToItem(currentIndex) }
     LazyColumn(state = list, modifier = modifier) {
