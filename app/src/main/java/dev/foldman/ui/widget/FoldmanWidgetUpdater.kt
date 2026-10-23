@@ -110,9 +110,13 @@ object FoldmanWidgetUpdater {
             stopTicker()
             return
         }
-        val tapePath = writeTape(appContext, reels.leftAngle, reels.rightAngle)
-        val artworkPath = writeArtwork(appContext, snapshot)
-        val keyPaths = writeKeys(appContext)
+        // The tape is the only per-tick render, and it's written atomically
+        // (temp file + rename) so the widget never reads a half-written PNG —
+        // that's what made it flash while playing. Keys and chrome are static
+        // and written once. (The separate artwork file was decoded but never
+        // displayed; the cassette renderer takes the artwork bitmap directly.)
+        val tapePath = writeTape(appContext, snapshot)
+        val (keyPathsUp, keyPathsDown) = writeKeys(appContext)
         val chromePath = writeChrome(appContext)
         val widget = FoldmanWidget()
         val manager = GlanceAppWidgetManager(appContext)
@@ -124,10 +128,10 @@ object FoldmanWidgetUpdater {
                 state[WidgetKeys.ARTIST] = snapshot.artist
                 if (tapePath != null) state[WidgetKeys.TAPE_PATH] = tapePath
                 else state.remove(WidgetKeys.TAPE_PATH)
-                if (artworkPath != null) state[WidgetKeys.ARTWORK_PATH] = artworkPath
-                else state.remove(WidgetKeys.ARTWORK_PATH)
-                if (keyPaths != null) state[WidgetKeys.KEY_PATHS] = keyPaths
-                else state.remove(WidgetKeys.KEY_PATHS)
+                if (keyPathsUp != null) state[WidgetKeys.KEY_PATHS_UP] = keyPathsUp
+                else state.remove(WidgetKeys.KEY_PATHS_UP)
+                if (keyPathsDown != null) state[WidgetKeys.KEY_PATHS_DOWN] = keyPathsDown
+                else state.remove(WidgetKeys.KEY_PATHS_DOWN)
                 if (chromePath != null) state[WidgetKeys.CHROME_PATH] = chromePath
                 else state.remove(WidgetKeys.CHROME_PATH)
                 state[WidgetKeys.IS_PLAYING] = snapshot.isPlaying
@@ -176,44 +180,56 @@ object FoldmanWidgetUpdater {
                 .getAppWidgetIds(ComponentName(context, FoldmanWidgetReceiver::class.java))
         }.getOrNull() ?: IntArray(0)
 
-    private fun writeArtwork(context: Context, snapshot: WidgetSnapshot): String? =
-        runCatching {
-            val art = snapshot.artwork ?: return@runCatching null
-            val file = File(context.filesDir, "foldman_widget_artwork.png")
-            FileOutputStream(file).use { out ->
-                art.compress(Bitmap.CompressFormat.PNG, 100, out)
-            }
-            file.absolutePath
-        }.getOrNull()
-
-    private fun writeKeys(context: Context): String? = runCatching {
-        val symbols = listOf("prev", "play", "next", "pause", "stop")
-        val paths = symbols.map { sym ->
-            val bmp = CassetteRenderer.renderTransportKey(sym, 144)
-            val file = File(context.filesDir, "foldman_widget_key_$sym.png")
-            FileOutputStream(file).use { out ->
-                bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
-            }
-            file.absolutePath
+    /** Atomic PNG write: temp file + rename, so readers never see a torn frame. */
+    private fun writePngAtomic(file: File, bmp: Bitmap): Boolean = runCatching {
+        val tmp = File(file.parent, "${file.name}.tmp")
+        FileOutputStream(tmp).use { out ->
+            bmp.compress(Bitmap.CompressFormat.PNG, 90, out)
         }
-        paths.joinToString("|")
-    }.getOrNull()
+        tmp.renameTo(file)
+    }.getOrDefault(false)
 
-    private fun writeTape(
-        context: Context,
-        leftAngleDeg: Float,
-        rightAngleDeg: Float,
-    ): String? = runCatching {
-        // Aspect matches the navy panel's inner box (112:188 design dp), so
+    private fun writeKeys(context: Context): Pair<String?, String?> {
+        val symbols = listOf("prev", "play", "next", "pause")
+        val ups = mutableListOf<String>()
+        val downs = mutableListOf<String>()
+        for (sym in symbols) {
+            for ((state, pressed) in listOf("up" to false, "down" to true)) {
+                // Versioned filename: a redesign re-renders once, then it's cached.
+                val file = File(context.filesDir, "foldman_widget_key_v4_${sym}_$state.png")
+                if (!file.exists()) {
+                    val bmp = CassetteRenderer.renderTransportKey(sym, 144, pressed)
+                    writePngAtomic(file, bmp)
+                    bmp.recycle()
+                }
+                if (pressed) downs.add(file.absolutePath) else ups.add(file.absolutePath)
+            }
+        }
+        return ups.joinToString("|") to downs.joinToString("|")
+    }
+
+    private fun writeTape(context: Context, snapshot: WidgetSnapshot): String? = runCatching {
+        // Aspect matches the blue panel's inner box (112:188 design dp), so
         // ContentScale.Fit fills the panel width and the panel's uniform 8dp
-        // padding becomes the thin navy border on all four sides.
-        val tape = CassetteRenderer.renderVerticalCassette(leftAngleDeg, rightAngleDeg, 336, 564)
+        // padding becomes the thin blue border on all four sides.
+        val tape = CassetteRenderer.renderVerticalTapeFace(
+            title = snapshot.title,
+            artist = snapshot.artist,
+            artwork = snapshot.artwork,
+            source = snapshot.activeSource,
+            leftAngleDeg = reels.leftAngle,
+            rightAngleDeg = reels.rightAngle,
+            leftRadiusMm = reels.leftRadius,
+            rightRadiusMm = reels.rightRadius,
+            leftDeltaDeg = reels.leftDelta,
+            rightDeltaDeg = reels.rightDelta,
+            widthPx = 336,
+            heightPx = 564,
+        )
         val file = File(context.filesDir, "foldman_widget_tape.png")
-        FileOutputStream(file).use { out ->
-            tape.compress(Bitmap.CompressFormat.PNG, 90, out)
-        }
-        if (!tape.isRecycled) tape.recycle()
-        file.absolutePath
+        val ok = writePngAtomic(file, tape)
+        tape.recycle()
+        if (ok) file.absolutePath else null
     }.getOrNull()
 
     /**

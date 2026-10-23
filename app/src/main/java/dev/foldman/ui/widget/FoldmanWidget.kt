@@ -56,6 +56,9 @@ internal object WidgetKeys {
     val SLIDERS_PATH = stringPreferencesKey("sliders_path")
     val ARTWORK_PATH = stringPreferencesKey("artwork_path")
     val KEY_PATHS = stringPreferencesKey("key_paths")
+    /** Up/down (latched) transport-key bitmap paths, written once. */
+    val KEY_PATHS_UP = stringPreferencesKey("key_paths_up")
+    val KEY_PATHS_DOWN = stringPreferencesKey("key_paths_down")
     /** Rendered brushed-chrome root background (static; written once). */
     val CHROME_PATH = stringPreferencesKey("chrome_path")
     val IS_PLAYING = booleanPreferencesKey("is_playing")
@@ -71,11 +74,16 @@ internal object WidgetKeys {
 private object Chrome {
     // Brushed chrome root is a rendered bitmap (see CHROME_PATH); this is the fallback.
     val root = Color(0xFFC3C5C9)
-    /** Deck enamel blue — the app deck's face color. */
+    /** Deck enamel blue — the right tape panel. */
     val panel = Color(0xFF2F6FB5)
     val titleBox = Color(0xFF101216)
     val titleText = Color(0xFFFFFFFF)
     val artistText = Color(0xFF9AA0A8)
+    /** Light silver/white inset title panel (mockup): dark text on it. */
+    val titlePanel = Color(0xFFE9EBEE)
+    val titleTextDark = Color(0xFF1A1C1E)
+    val artistTextDark = Color(0xFF5A5E64)
+    val stereoLabel = Color(0xFF6B7076)
     val brandText = Color(0xFFEDEFF2)
     val brandSub = Color(0xFF8B95A1)
     val keycap = Color(0xFFD8DCE0)
@@ -94,14 +102,15 @@ private object Chrome {
 /**
  * Foldman's deck on the home screen, in the Walkman idiom (Garrett's mockup):
  *
- * - Top: dark slate panel — left has the dark title box (track + artist) over
- *   the chrome FOLDMAN wordmark; right has the horizontal cassette window
- *   with twin reels, over the mechanical counter + RESET key.
- * - Bottom: five square metallic transport keys (PREV / PLAY / NEXT / PAUSE /
- *   STOP-EJECT) with small labels above each, plus the VOLUME/TONE slider
- *   cluster rendered as a visual indicator (taps open the app).
+ * - Left: light silver/white inset title panel with dark text (two lines)
+ *   and a small "— STEREO —" caps label at the top-right; below it, four
+ *   silver transport keys (PREV / PLAY / NEXT / PAUSE) with the in-app
+ *   DeckKey pressed language (PLAY latched shows the orange underline,
+ *   PAUSE latched sits recessed); mechanical counter + RESET under the title.
+ * - Right: enamel-blue panel with the vertical cassette (the app's actual
+ *   tape artwork) and a white FOLDMAN wordmark at the bottom.
  *
- * Everything the updater writes (titles, tape/slider files) is read
+ * Everything the updater writes (titles, tape/key files) is read
  * defensively: the widget must never throw, because Glance shows
  * "Can't show content" for any exception out of provideContent.
  */
@@ -158,15 +167,17 @@ private fun WalkmanContent() {
     val reelAngleLeft = prefs?.get(WidgetKeys.REEL_ANGLE_LEFT) ?: 0f
     @Suppress("UNUSED_VARIABLE")
     val reelAngleRight = prefs?.get(WidgetKeys.REEL_ANGLE_RIGHT) ?: 0f
-    // Transport key icons (vector-drawn, no emoji): paths joined by "|".
-    val keyBitmaps: Map<String, android.graphics.Bitmap?> =
-        prefs?.get(WidgetKeys.KEY_PATHS)?.split("|")?.let { paths ->
+    // Transport key bitmaps: up (idle) and down (latched/pressed) variants,
+    // rendered with the in-app DeckKey pressed language. Paths joined by "|".
+    // Decoded fresh each composition — the updater writes them once, and a
+    // torn read decodes to null and falls back gracefully, never a crash.
+    fun decodeKeyMap(joined: String?): Map<String, android.graphics.Bitmap?> =
+        joined?.split("|")?.let { paths ->
             mapOf(
                 "prev" to paths.getOrNull(0),
                 "play" to paths.getOrNull(1),
                 "next" to paths.getOrNull(2),
                 "pause" to paths.getOrNull(3),
-                "stop" to paths.getOrNull(4),
             ).mapValues { (_, p) ->
                 p?.let {
                     runCatching {
@@ -175,17 +186,18 @@ private fun WalkmanContent() {
                 }
             }
         } ?: emptyMap()
+    val keysUp = decodeKeyMap(prefs?.get(WidgetKeys.KEY_PATHS_UP))
+    val keysDown = decodeKeyMap(prefs?.get(WidgetKeys.KEY_PATHS_DOWN))
+    // Back-compat: fall back to the legacy single-set paths if the updater
+    // hasn't written the up/down variants yet.
+    val keysLegacy = decodeKeyMap(prefs?.get(WidgetKeys.KEY_PATHS))
+    fun keyUp(sym: String) = keysUp[sym] ?: keysLegacy[sym]
+    fun keyDown(sym: String) = keysDown[sym] ?: keysLegacy[sym]
     val pressedKey = prefs?.get(WidgetKeys.PRESSED_KEY)
     // Latched transport state: PLAY stays recessed while playing, PAUSE stays
     // recessed while paused — driven by the actual playback state in Glance
     // state, not just the momentary tap. Null (never reported) latches neither.
     val isPlaying = prefs?.get(WidgetKeys.IS_PLAYING)
-    // Album artwork for the dimmed backdrop layer.
-    val artwork = prefs?.get(WidgetKeys.ARTWORK_PATH)?.let { path ->
-        runCatching {
-            BitmapFactory.decodeFile(path)?.takeIf { it.width > 0 && it.height > 0 }
-        }.getOrNull()
-    }
     // Brushed-chrome root background, rendered once by the updater in the
     // deck's material language. Falls back to the flat metal tone.
     val chromeBg = prefs?.get(WidgetKeys.CHROME_PATH)?.let { path ->
@@ -241,53 +253,51 @@ private fun WalkmanContent() {
         ) {
         // Left: main content.
         Column(modifier = GlanceModifier.defaultWeight()) {
-            // Dark top container: 50% of height (cut by 50% per spec).
-            // Left half: square track-info (top) + counter/RESET (below).
-            // Right half: cassette at 200% scale.
+            // Light inset title panel (mockup): dark text, STEREO label top-right.
             Column(
                 modifier = GlanceModifier.fillMaxWidth()
                     .defaultWeight()
-                    .cornerRadius(sd(20))
-                    .background(ColorProvider(Chrome.panel))
+                    .cornerRadius(sd(16))
+                    .background(ColorProvider(Chrome.titlePanel))
                     .padding(sd(10)),
             ) {
-                    // Title box: expanded to fill the width (tape is vertical now).
-                    // Expanded vertically for uniform margins.
-                    Column(modifier = GlanceModifier.fillMaxWidth()) {
-                        Box(
-                            modifier = GlanceModifier.fillMaxWidth()
-                                .cornerRadius(sd(14))
-                                .background(ColorProvider(Chrome.titleBox))
-                                .padding(horizontal = sd(10), vertical = sd(14))
-                                .clickable(openApp),
-                        ) {
-                            Column {
-                                Text(
-                                    title,
-                                    style = TextStyle(
-                                        color = ColorProvider(Chrome.titleText),
-                                        fontSize = ss(16),
-                                        fontWeight = FontWeight.Medium,
-                                        
-                                    ),
-                                    maxLines = 2,
-                                )
-                                Spacer(GlanceModifier.height(sd(2)))
-                                Text(
-                                    artist,
-                                    style = TextStyle(
-                                        color = ColorProvider(Chrome.artistText),
-                                        fontSize = ss(12)
-                                    ),
-                                    maxLines = 1,
-                                )
-                            }
-                        }
-                        Spacer(GlanceModifier.height(sd(6)))
-                    }
-                    // Counter + RESET (below title).
-                    Spacer(GlanceModifier.height(sd(6)))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                // Small "— STEREO —" caps label at the top-right of the panel.
+                Box(
+                    modifier = GlanceModifier.fillMaxWidth(),
+                    contentAlignment = Alignment.TopEnd,
+                ) {
+                    Text(
+                        "— STEREO —",
+                        style = TextStyle(
+                            color = ColorProvider(Chrome.stereoLabel),
+                            fontSize = ss(8),
+                            fontWeight = FontWeight.Bold,
+                        ),
+                        maxLines = 1,
+                    )
+                }
+                Spacer(GlanceModifier.height(sd(2)))
+                Text(
+                    title,
+                    style = TextStyle(
+                        color = ColorProvider(Chrome.titleTextDark),
+                        fontSize = ss(16),
+                        fontWeight = FontWeight.Medium,
+                    ),
+                    maxLines = 2,
+                )
+                Spacer(GlanceModifier.height(sd(2)))
+                Text(
+                    artist,
+                    style = TextStyle(
+                        color = ColorProvider(Chrome.artistTextDark),
+                        fontSize = ss(12)
+                    ),
+                    maxLines = 1,
+                )
+                Spacer(GlanceModifier.defaultWeight())
+                // Counter + RESET (below title).
+                Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = GlanceModifier
                                 .cornerRadius(sd(10))
@@ -326,39 +336,45 @@ private fun WalkmanContent() {
                         }
                     }
             }
-            // Bottom: transport keys + slider cluster, flush against the dark
-            // container (zero gap per spec).
+            // Transport keys: full deck keys (slot + cap + symbol) rendered with
+            // the in-app DeckKey pressed language. PLAY latches recessed with
+            // the orange underline while playing; PAUSE latches while paused.
             Row(
                 modifier = GlanceModifier.fillMaxWidth().defaultWeight(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TransportKey(
-                    GlanceModifier.defaultWeight(), "PREV", keyBitmaps["prev"], scale,
+                    GlanceModifier.defaultWeight(), "PREV",
+                    keyUp("prev"), keyDown("prev"), scale,
                     actionRunCallback<WidgetPrevAction>(params),
                     isPressed = pressedKey == "prev",
                 )
                 TransportKey(
-                    GlanceModifier.defaultWeight(), "PLAY", keyBitmaps["play"], scale,
+                    GlanceModifier.defaultWeight(), "PLAY",
+                    keyUp("play"), keyDown("play"), scale,
                     actionRunCallback<WidgetPlayAction>(params),
                     isPressed = pressedKey == "play" || isPlaying == true,
                 )
                 TransportKey(
-                    GlanceModifier.defaultWeight(), "NEXT", keyBitmaps["next"], scale,
+                    GlanceModifier.defaultWeight(), "NEXT",
+                    keyUp("next"), keyDown("next"), scale,
                     actionRunCallback<WidgetNextAction>(params),
                     isPressed = pressedKey == "next",
                 )
                 TransportKey(
-                    GlanceModifier.defaultWeight(), "PAUSE", keyBitmaps["pause"], scale,
+                    GlanceModifier.defaultWeight(), "PAUSE",
+                    keyUp("pause"), keyDown("pause"), scale,
                     actionRunCallback<WidgetPauseAction>(params),
                     isPressed = pressedKey == "pause" || isPlaying == false,
                 )
             }
         }  // Left column ends.
         Spacer(GlanceModifier.width(sd(6)))
-        // Right: vertical cassette spanning the full height.
+        // Right: enamel-blue panel with the vertical cassette (the app's
+        // actual tape artwork) and the white FOLDMAN wordmark at the bottom.
         // (Glance Box in a Row stretches vertically to fill the Row's height.)
         // The tape bitmap is rendered at the inner box's aspect (112:188), so
-        // Fit fills the width and the 8dp padding is a uniform navy border.
+        // Fit fills the width and the 8dp padding is a uniform blue border.
         Box(
             modifier = GlanceModifier.width(sd(128))
                 .cornerRadius(sd(14))
@@ -367,21 +383,34 @@ private fun WalkmanContent() {
                 .clickable(openApp),
             contentAlignment = Alignment.Center,
         ) {
-            if (tape != null) {
-                Image(
-                    provider = BitmapImageProvider(tape),
-                    contentDescription = "Cassette",
-                    modifier = GlanceModifier.fillMaxSize(),
-                    contentScale = ContentScale.Fit,
-                )
-            } else {
-                // Empty dark window until the updater renders the tape.
+            Column(
+                modifier = GlanceModifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 Box(
-                    modifier = GlanceModifier.width(sd(60))
-                        .cornerRadius(sd(10))
-                        .background(ColorProvider(Chrome.titleBox)),
+                    modifier = GlanceModifier.defaultWeight()
+                        .fillMaxWidth(),
                     contentAlignment = Alignment.Center,
-                ) {}
+                ) {
+                    if (tape != null) {
+                        Image(
+                            provider = BitmapImageProvider(tape),
+                            contentDescription = "Cassette",
+                            modifier = GlanceModifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit,
+                        )
+                    }
+                }
+                Spacer(GlanceModifier.height(sd(6)))
+                Text(
+                    "FOLDMAN",
+                    style = TextStyle(
+                        color = ColorProvider(Color.White),
+                        fontSize = ss(13),
+                        fontWeight = FontWeight.Bold,
+                    ),
+                    maxLines = 1,
+                )
             }
         }
     }  // Outer Row ends.
@@ -389,21 +418,25 @@ private fun WalkmanContent() {
 }
 
 /**
- * One square metallic transport key with its small label above: a dark
- * border box holding the silver cap, glyph centered. All sizes derive from
- * the face [scale] so the keys shrink and grow with the widget.
+ * One deck transport key with its small caps label above. The bitmap carries
+ * the full key — slot, silver cap, grip ribbing, engraved symbol — rendered
+ * with the in-app DeckKey pressed language; Glance just picks the up or
+ * down (latched) variant. All sizes derive from the face [scale] so the keys
+ * shrink and grow with the widget.
  */
 @Composable
 private fun TransportKey(
     modifier: GlanceModifier,
     label: String,
-    icon: Bitmap?,
+    iconUp: Bitmap?,
+    iconDown: Bitmap?,
     scale: Float,
     action: Action,
     isPressed: Boolean = false,
 ) {
     fun sd(v: Number) = (v.toFloat() * scale).dp
     fun ss(v: Number) = (v.toFloat() * scale).sp
+    val icon = if (isPressed) iconDown ?: iconUp else iconUp
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -420,28 +453,17 @@ private fun TransportKey(
         Spacer(GlanceModifier.height(sd(3)))
         Box(
             modifier = GlanceModifier
-                .cornerRadius(sd(12))
-                .background(
-                    ColorProvider(if (isPressed) Chrome.keyPressed else Chrome.keyBorder)
-                )
-                .padding(sd(if (isPressed) 4 else 2))
+                .size(sd(60))
                 .clickable(action),
             contentAlignment = Alignment.Center,
         ) {
-            Box(
-                modifier = GlanceModifier
-                    .size(sd(52))
-                    .cornerRadius(sd(10))
-                    .background(ColorProvider(Chrome.keycap)),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (icon != null) {
-                    Image(
-                        provider = BitmapImageProvider(icon),
-                        contentDescription = label,
-                        modifier = GlanceModifier.size(sd(52)),
-                    )
-                }
+            if (icon != null) {
+                Image(
+                    provider = BitmapImageProvider(icon),
+                    contentDescription = label,
+                    modifier = GlanceModifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit,
+                )
             }
         }
     }
