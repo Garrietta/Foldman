@@ -9,6 +9,7 @@ import android.os.SystemClock
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
@@ -31,6 +32,9 @@ import dev.foldman.playback.ArtworkCache
 import dev.foldman.playback.LocalBackend
 import dev.foldman.playback.LocalLibrary
 import dev.foldman.playback.YouTubeMusicBackend
+import dev.foldman.theme.FallbackEnamel
+import dev.foldman.theme.ThemeMode
+import dev.foldman.theme.ThemePrefs
 import dev.foldman.ui.widget.FoldmanWidgetUpdater
 import dev.foldman.ui.widget.WidgetSnapshot
 import dev.foldman.ui.widget.WidgetSource
@@ -80,6 +84,12 @@ data class DeckUi(
     val shuffleOn: Boolean = false,
     val podcasts: PodcastsUi = PodcastsUi(),
     val youtubeMusic: YouTubeMusicUi = YouTubeMusicUi(),
+    /**
+     * The theme primary, extracted from the playing album art (re-extracted on
+     * every track change); the fixed enamel blue when there is no artwork.
+     * The UI animates toward it; dark mode takes its dark role.
+     */
+    val primaryAccent: Color = FallbackEnamel,
 ) {
     /** How far through the tape we are: the left reel empties into the right one as this grows. */
     val progress: Float get() = if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
@@ -261,6 +271,8 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
 
     private var paletteKey: Any? = null
     private var label = LabelPalette.Default
+    /** Dynamic primary extracted from the playing art; the fixed enamel blue with no art. */
+    private var primaryAccent: Color = FallbackEnamel
     private var artBitmap: ImageBitmap? = null
     private var artSource: Any? = null
     private var lastWidgetKey: Any? = null
@@ -891,6 +903,21 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         tick()
     }
 
+    // region Theme
+
+    private val _themeMode = MutableStateFlow(ThemePrefs.read(app))
+    /** The persisted theme override (System / Light / Dark); the UI resolves it against the system setting. */
+    val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
+
+    fun setThemeMode(mode: ThemeMode) {
+        if (_themeMode.value == mode) return
+        _themeMode.value = mode
+        ThemePrefs.write(getApplication(), mode)
+        tick()
+    }
+
+    // endregion
+
     // region Podcasts (RSS)
 
     fun setPodcastAddUrl(url: String) {
@@ -1014,6 +1041,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             shuffleOn = _shuffleOn.value,
             podcasts = _podcasts.value,
             youtubeMusic = _youtubeMusic.value,
+            primaryAccent = primaryAccent,
         )
         // Warm the art cache for what's coming next, so hitting NEXT finds the cover
         // already cached instead of flashing the default background while it loads.
@@ -1043,7 +1071,12 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         }
         // Push now-playing state to the home-screen widget. Gated on track /
         // transport / artwork / shuffle / volume changes — never on position ticks.
-        val widgetKey = listOf(np.title, np.artist, transport, source, _shuffleOn.value, np.artwork, volume, state.currentQueueId)
+        // The theme mode and the extracted primary ride along so the widget
+        // re-renders its chrome and enamel when either changes.
+        val widgetKey = listOf(
+            np.title, np.artist, transport, source, _shuffleOn.value, np.artwork, volume,
+            state.currentQueueId, _themeMode.value, primaryAccent,
+        )
         if (widgetKey != lastWidgetKey) {
             lastWidgetKey = widgetKey
             val app = getApplication<Application>()
@@ -1062,6 +1095,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
                     volume = volume,
                     queueIndex = qIndex,
                     trackId = state.currentQueueId,
+                    primaryArgb = primaryAccent.toArgb(),
                 ))
             }
         }
@@ -1159,6 +1193,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             artSource = null
             paletteKey = null
             label = LabelPalette.Default
+            primaryAccent = FallbackEnamel
             return
         }
         if (artSource !== bitmap) {
@@ -1172,6 +1207,10 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             val palette = withContext(Dispatchers.Default) { Palette.from(bitmap).maximumColorCount(16).generate() }
             if (paletteKey != key) return@launch
             val d = LabelPalette.Default
+            // Dynamic primary: the theme's primary role follows the album art,
+            // re-extracted on every track change; the fixed enamel blue with no art.
+            primaryAccent = (palette.vibrantSwatch ?: palette.dominantSwatch)?.rgb?.let { Color(it) }
+                ?: FallbackEnamel
             label = LabelPalette(
                 paper = palette.lightMutedSwatch?.rgb?.let { blend(Color(it), d.paper, 0.75f) } ?: d.paper,
                 stripe = (palette.vibrantSwatch ?: palette.dominantSwatch)?.rgb?.let(::Color) ?: d.stripe,

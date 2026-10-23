@@ -68,7 +68,7 @@ import dev.foldman.playback.Artwork
 /** Smoked dark glass the library and now-playing sit behind on the unfolded screen. */
 fun Modifier.glassPanel(corner: Dp = 18.dp): Modifier = drawWithCache {
     val r = CornerRadius(corner.toPx())
-    val fill = Brush.verticalGradient(listOf(Color(0xFF2E2622), Color(0xFF1E1916)))
+    val fill = Brush.verticalGradient(listOf(DeckColors.GlassHi, DeckColors.GlassLo))
     onDrawBehind {
         drawRoundRect(Color.Black.copy(alpha = 0.5f), topLeft = Offset(0f, 3f), cornerRadius = r)
         drawRoundRect(fill, cornerRadius = r)

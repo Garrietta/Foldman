@@ -111,11 +111,27 @@ class PodcastActions(
  * the tab switcher and visible on both tabs: what's playing plus play/pause,
  * next, previous, a shuffle toggle, and a seekbar. Cream/brown sheet
  * language, default font.
+ *
+ * In dark mode the cream panel becomes a dark umber; the bar and its text
+ * re-tone with it (the bar stays darker than the panel, the text stays light).
  */
+/** Light ink-on-paper text tone for the sheet; stays light in dark mode (the bar is dark in both). */
+private val sheetCream: Color get() = if (DeckColors.dark) Color(0xFFE8D9C4) else Color(0xFFE8DCC8)
+/** The sheet's dark brown: the now-playing bar and the outer sheet background. */
+private val sheetBrown: Color get() = if (DeckColors.dark) Color(0xFF141110) else Color(0xFF2A1F17)
+private val sheetBrownDeep: Color get() = if (DeckColors.dark) Color(0xFF0C0A08) else Color(0xFF1C1510)
+/** Muted brown for unselected labels on the paper. */
+private val sheetMuted: Color get() = if (DeckColors.dark) Color(0xFF9A8878) else Color(0xFF6B5A4A)
+/** Transport button wells in the now-playing bar. */
+private val sheetWell: Color get() = if (DeckColors.dark) Color(0xFF1B1512) else Color(0xFF3A2C20)
+private val sheetWellActive: Color get() = if (DeckColors.dark) Color(0xFF2E2118) else Color(0xFF5A422C)
+/** Selected tab pill on the paper. */
+private val sheetTabSelected: Color get() = if (DeckColors.dark) Color(0xFF0F0C0A) else Color(0xFF2A1F17)
+
 @Composable
 private fun NowPlayingBar(ui: DeckUi, actions: ShelfActions) {
-    val cream = Color(0xFFE8DCC8)
-    val darkBrown = Color(0xFF2A1F17)
+    val cream = sheetCream
+    val darkBrown = sheetBrown
     Column(
         Modifier
             .fillMaxWidth()
@@ -199,12 +215,12 @@ private fun NowPlayingBar(ui: DeckUi, actions: ShelfActions) {
 /** A small round transport button in the sheet's cream/brown language. */
 @Composable
 private fun SheetTransportButton(symbol: KeySymbol, onClick: () -> Unit, active: Boolean = false) {
-    val cream = Color(0xFFE8DCC8)
+    val cream = sheetCream
     Box(
         Modifier
             .size(44.dp)
             .clip(CircleShape)
-            .background(if (active) Color(0xFF5A422C) else Color(0xFF3A2C20))
+            .background(if (active) sheetWellActive else sheetWell)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -288,7 +304,7 @@ fun TapeShelf(
     // Outer: dark brown sheet background (drag handle zone stays dark).
     Column(
         modifier
-            .background(Brush.verticalGradient(listOf(Color(0xFF2A1F17), Color(0xFF1C1510)))),
+            .background(Brush.verticalGradient(listOf(sheetBrown, sheetBrownDeep))),
     ) {
         // Breathing room below the drag handle, then the inset cream panel.
         Spacer(Modifier.height(12.dp))
@@ -330,7 +346,7 @@ fun TapeShelf(
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(10.dp))
-                .background(Color.Black.copy(alpha = 0.12f))
+                .background(Color.Black.copy(alpha = if (DeckColors.dark) 0.35f else 0.12f))
                 .padding(4.dp),
         ) {
             listOf("Tapes", "Queue").forEachIndexed { i, label ->
@@ -339,15 +355,15 @@ fun TapeShelf(
                     Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(7.dp))
-                        .background(if (selected) Color(0xFF2A1F17) else Color.Transparent)
+                        .background(if (selected) sheetTabSelected else Color.Transparent)
                         .clickable { tab = i }
                         .padding(vertical = 8.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         label,
-                        style = TextStyle(fontFamily = FontFamily.Default, 
-                            color = if (selected) Color(0xFFE8DCC8) else Color(0xFF6B5A4A),
+                        style = TextStyle(fontFamily = FontFamily.Default,
+                            color = if (selected) sheetCream else sheetMuted,
                             fontSize = 11.sp,
                             letterSpacing = 2.sp,
                         ),
@@ -441,14 +457,14 @@ private fun TapeDropdownHeader(
             ) {
                 Text(
                     selected.label,
-                    style = TextStyle(fontFamily = FontFamily.Default, fontSize = 20.sp),
+                    style = TextStyle(fontFamily = FontFamily.Default, fontSize = 20.sp, color = DeckColors.Ink),
                     maxLines = 1,
                 )
                 Spacer(Modifier.width(8.dp))
                 // Chevron indicates dropdown state.
                 Text(
                     if (open) "▲" else "▼",
-                    style = TextStyle(fontFamily = FontFamily.Default, fontSize = 10.sp, color = Color(0xFF6B5A4A)),
+                    style = TextStyle(fontFamily = FontFamily.Default, fontSize = 10.sp, color = sheetMuted),
                 )
             }
         }
@@ -460,14 +476,14 @@ private fun TapeDropdownHeader(
                     Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color.White.copy(alpha = 0.6f))
+                        .background(Color.White.copy(alpha = if (DeckColors.dark) 0.08f else 0.6f))
                         .clickable { onSelect(s) }
                         .padding(vertical = 10.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         s.label,
-                        style = TextStyle(fontFamily = FontFamily.Default, fontSize = 18.sp, color = Color(0xFF4A3F35)),
+                        style = TextStyle(fontFamily = FontFamily.Default, fontSize = 18.sp, color = DeckColors.Ink),
                         maxLines = 1,
                     )
                 }

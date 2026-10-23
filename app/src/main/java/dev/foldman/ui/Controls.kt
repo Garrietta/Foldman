@@ -186,7 +186,7 @@ fun SlideSwitch(
     val pos by animateFloatAsState(if (on) 0f else 1f, spring(dampingRatio = 0.7f, stiffness = 1600f), label = "slide")
     val measurer = rememberTextMeasurer()
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(caption, style = EngravedCaps.copy(fontSize = 8.sp, color = Color(0xFF2E3034)))
+        Text(caption, style = EngravedCaps.copy(fontSize = 8.sp))
         Canvas(
             Modifier
                 .size(46.dp, height)
@@ -203,7 +203,7 @@ fun SlideSwitch(
                     }
                 },
         ) {
-            val small = TextStyle(fontSize = 7.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E3034))
+            val small = TextStyle(fontSize = 7.sp, fontWeight = FontWeight.Bold, color = EngravedCaps.color)
             val trackW = size.width * 0.38f
             val x = size.width - trackW - 2f
             val top = 4f

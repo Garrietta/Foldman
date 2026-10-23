@@ -25,23 +25,58 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import dev.foldman.deck.Source
 import kotlin.random.Random
 
 object DeckColors {
-    val Backdrop = Color(0xFF141210)
-    val MetalHi = Color(0xFFE4E5E7)
-    val Metal = Color(0xFFC3C5C9)
-    val MetalLo = Color(0xFF8F9297)
-    val Recess = Color(0xFF1C1C1F)
+    /**
+     * Theme inversion switch, driven by FoldmanScreen from the persisted theme
+     * mode. Every color below that inverts is a state-tracked getter, so the
+     * whole UI re-tones on flip with no call-site changes. Physical objects
+     * (tape, key caps, screws, accents) never invert.
+     */
+    var dark by mutableStateOf(false)
+
+    /** App backdrop: near-black in light mode, deeper black in dark mode. */
+    val Backdrop: Color get() = if (dark) Color(0xFF0A0908) else Color(0xFF141210)
+    /** Warm halo at the center of the app background gradient. */
+    val BackdropHi: Color get() = if (dark) Color(0xFF171310) else Color(0xFF2A2420)
+
+    /**
+     * Brushed metal: light aluminium in light mode, dark gunmetal in dark
+     * mode. The chassis, the end strips and the widget chrome all read these.
+     */
+    val MetalHi: Color get() = if (dark) Color(0xFF43464D) else Color(0xFFE4E5E7)
+    val Metal: Color get() = if (dark) Color(0xFF26282D) else Color(0xFFC3C5C9)
+    val MetalMid: Color get() = if (dark) Color(0xFF1B1D21) else Color(0xFFB6B8BC)
+    val MetalLo: Color get() = if (dark) Color(0xFF0E0F12) else Color(0xFF8F9297)
+
+    /** Recessed dark panel (gauges, key wells): deepened in dark mode. */
+    val Recess: Color get() = if (dark) Color(0xFF060607) else Color(0xFF1C1C1F)
+
+    /**
+     * J-card paper: cream in light mode, dark warm umber in dark mode. Ink
+     * follows it so the TAPES sheet stays legible.
+     */
+    val Paper: Color get() = if (dark) Color(0xFF28211A) else Color(0xFFF2EBDC)
+    val PaperLine: Color get() = if (dark) Color(0xFF4A4238) else Color(0xFFB9CFE0)
+    val Ink: Color get() = if (dark) Color(0xFFEADFCB) else Color(0xFF2A2522)
+
+    /** Smoked-glass library panels: already dark, deepened further in dark mode. */
+    val GlassHi: Color get() = if (dark) Color(0xFF1C1512) else Color(0xFF2E2622)
+    val GlassLo: Color get() = if (dark) Color(0xFF0F0C0A) else Color(0xFF1E1916)
+
+    // Fixed: physical engraving, accents and the tape itself never invert.
+    /** Engraved lettering cut into silver key caps: always dark. */
     val Engrave = Color(0xFF3A3C41)
     val EngraveLight = Color(0xFF6B6E74)
     val Accent = Color(0xFFF0722B)
     val AccentDeep = Color(0xFFC4501A)
     val Led = Color(0xFFFF4A26)
-    val Paper = Color(0xFFF2EBDC)
-    val PaperLine = Color(0xFFB9CFE0)
-    val Ink = Color(0xFF2A2522)
+    /** The tape itself: physical, never inverted. */
     val Tape = Color(0xFF3D2618)
 
     fun shell(source: Source) = when (source) {
@@ -69,7 +104,7 @@ fun Modifier.chassis(corner: Dp = 30.dp, screws: Boolean = true): Modifier = dra
         y += 0.6f + rnd.nextFloat() * 1.4f
     }
     val body = Brush.verticalGradient(
-        0f to DeckColors.MetalHi, 0.18f to DeckColors.Metal, 0.75f to Color(0xFFB6B8BC), 1f to DeckColors.MetalLo,
+        0f to DeckColors.MetalHi, 0.18f to DeckColors.Metal, 0.75f to DeckColors.MetalMid, 1f to DeckColors.MetalLo,
     )
     val sheen = Brush.linearGradient(
         0f to Color.Transparent, 0.45f to Color.White.copy(alpha = 0.16f), 0.55f to Color.Transparent,
@@ -116,7 +151,13 @@ fun DrawScope.drawScrew(center: Offset, radius: Float, slotAngle: Float) {
 /** A dark recessed panel set into the metal, for gauges and keys. */
 fun Modifier.recess(corner: Dp = 14.dp): Modifier = drawWithCache {
     val r = CornerRadius(corner.toPx())
-    val inner = Brush.verticalGradient(listOf(Color(0xFF0F0F11), DeckColors.Recess, Color(0xFF29292D)))
+    val inner = Brush.verticalGradient(
+        listOf(
+            if (DeckColors.dark) Color(0xFF000000) else Color(0xFF0F0F11),
+            DeckColors.Recess,
+            if (DeckColors.dark) Color(0xFF131316) else Color(0xFF29292D),
+        ),
+    )
     onDrawBehind {
         drawRoundRect(Color.White.copy(alpha = 0.55f), topLeft = Offset(0f, 1.5f), cornerRadius = r)
         drawRoundRect(inner, size = Size(size.width, size.height - 1.5f), cornerRadius = r)
@@ -124,10 +165,16 @@ fun Modifier.recess(corner: Dp = 14.dp): Modifier = drawWithCache {
     }
 }
 
-val EngravedCaps = TextStyle(
-    fontFamily = FontFamily.SansSerif,
-    fontWeight = FontWeight.Bold,
-    fontSize = 9.sp,
-    letterSpacing = 1.6.sp,
-    color = DeckColors.Engrave,
-)
+/**
+ * Engraved small-caps lettering. It sits on the chassis metal and the enamel
+ * deck alike: a dark cut in light mode, a light cut in dark mode — readable
+ * on both the light and the dark brushed metal, and on both enamel roles.
+ */
+val EngravedCaps: TextStyle
+    get() = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Bold,
+        fontSize = 9.sp,
+        letterSpacing = 1.6.sp,
+        color = if (DeckColors.dark) Color(0xFFC6CBD2) else Color(0xFF3A3C41),
+    )

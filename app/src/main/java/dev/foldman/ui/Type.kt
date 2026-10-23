@@ -20,5 +20,9 @@ internal val Title = TextStyle(color = Color(0xFFF4EFE9), fontSize = 15.sp, font
 internal val Sub = TextStyle(color = Color(0xFFA79C92), fontSize = 12.sp)
 internal val Header = TextStyle(color = Color(0xFFF4EFE9), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
 
-internal val Hand = TextStyle(fontFamily = FontFamily.Cursive, color = DeckColors.Ink, fontSize = 20.sp)
-internal val Typed = TextStyle(fontFamily = FontFamily.Monospace, color = DeckColors.Ink, fontSize = 12.sp)
+// On-paper inks: getters, so they follow DeckColors.Ink through the theme inversion.
+/** Dark ink for the J-card paper in light mode, light ink on the dark umber in dark mode. */
+internal val Hand: TextStyle
+    get() = TextStyle(fontFamily = FontFamily.Cursive, color = DeckColors.Ink, fontSize = 20.sp)
+internal val Typed: TextStyle
+    get() = TextStyle(fontFamily = FontFamily.Monospace, color = DeckColors.Ink, fontSize = 12.sp)

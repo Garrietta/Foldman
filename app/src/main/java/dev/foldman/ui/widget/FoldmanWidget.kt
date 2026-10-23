@@ -45,6 +45,8 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import dev.foldman.MainActivity
+import dev.foldman.theme.ThemePrefs
+import dev.foldman.theme.darkenArgb
 
 /** Glance state keys. The tape + sliders are rendered files; text rides as strings. */
 internal object WidgetKeys {
@@ -72,47 +74,59 @@ internal object WidgetKeys {
     val SOURCE = stringPreferencesKey("source")
     val QUEUE_INDEX = intPreferencesKey("queue_index")
     val PRESSED_KEY = stringPreferencesKey("pressed_key")
+    /** The theme primary extracted from the album art (ARGB); drives the enamel fallback. */
+    val PRIMARY = intPreferencesKey("primary_argb")
 }
 
-/** Fixed palette in the app deck's material language (never album-art derived). */
-private object Chrome {
-    // Brushed chrome root is a rendered bitmap (see CHROME_PATH); this is the fallback.
-    val root = Color(0xFFC3C5C9)
-    /** Deck enamel blue — the right tape panel (fallback; the rendered bitmap is richer). */
-    val panel = Color(0xFF2A66B8)
-    val titleBox = Color(0xFF101216)
-    val titleText = Color(0xFFFFFFFF)
-    val artistText = Color(0xFF9AA0A8)
-    /** Light silver/white inset title panel (mockup): dark text on it. */
-    val titlePanel = Color(0xFFE9EBEE)
-    val titleTextDark = Color(0xFF141618)
-    val artistTextDark = Color(0xFF4A4E54)
-    val stereoLabel = Color(0xFF6B7076)
-    val brandText = Color(0xFFEDEFF2)
-    val brandSub = Color(0xFF8B95A1)
-    val keycap = Color(0xFFD8DCE0)
-    val keyBorder = Color(0xFF54575C)
-    val keyPressed = Color(0xFF3A3F45)
-    val glyph = Color(0xFF2B2F34)
-    val playGreen = Color(0xFF35A852)
-    val pauseOrange = Color(0xFFE8821A)
+/**
+ * The widget face's material language, in the app deck's tones. The physical
+ * objects (keys, tape) never invert; the chrome, title panel and captions
+ * re-tone in dark mode. The enamel panel is dynamic (album-art primary) with
+ * a fixed fallback per theme.
+ */
+private open class WidgetChrome(
+    /** Brushed chrome root fallback (the rendered bitmap is richer). */
+    open val root: Color = Color(0xFFC3C5C9),
+    /** Inset title panel fallback (rendered bitmap). */
+    open val titlePanel: Color = Color(0xFFE9EBEE),
+    open val titleText: Color = Color(0xFF141618),
+    open val artistText: Color = Color(0xFF4A4E54),
+    open val stereoLabel: Color = Color(0xFF6B7076),
+    open val brandText: Color = Color(0xFFEDEFF2),
+    open val brandSub: Color = Color(0xFF8B95A1),
     /** Engraved small-caps labels, like the deck's silver strip. */
-    val label = Color(0xFF3A3C41)
-    val counterBg = Color(0xFF0B0C0E)
-    val resetBg = Color(0xFF2A2E34)
-    val resetText = Color(0xFFC9CDD2)
-}
+    open val label: Color = Color(0xFF3A3C41),
+    open val counterBg: Color = Color(0xFF0B0C0E),
+    open val resetBg: Color = Color(0xFF2A2E34),
+    open val resetText: Color = Color(0xFFC9CDD2),
+)
+
+private object LightChrome : WidgetChrome()
+
+private object DarkChrome : WidgetChrome(
+    root = Color(0xFF1B1D21),
+    titlePanel = Color(0xFF232529),
+    titleText = Color(0xFFF2F4F7),
+    artistText = Color(0xFF9AA0A8),
+    stereoLabel = Color(0xFF9AA0A8),
+    brandSub = Color(0xFFB9C4D4),
+    label = Color(0xFFB9BDC4),
+    resetBg = Color(0xFF3A3F45),
+    resetText = Color(0xFFF2F4F7),
+)
 
 /**
  * Foldman's deck on the home screen, in the Walkman idiom (Garrett's mockup):
  *
- * - Left: light silver/white inset title panel with dark text (two lines)
- *   and a small "— STEREO —" caps label at the top-right; below it, four
- *   silver transport keys (PREV / PLAY / NEXT / PAUSE) with the in-app
- *   DeckKey pressed language (PLAY latched shows the orange underline,
- *   PAUSE latched sits recessed); mechanical counter + RESET under the title.
- * - Right: enamel-blue panel with the vertical cassette (the app's actual
- *   tape artwork) and a white FOLDMAN wordmark at the bottom.
+ * - Left: inset title panel (brushed silver in light mode, dark gunmetal in
+ *   dark mode) with two lines of text and a small "— STEREO —" caps label at
+ *   the top-right; below it, four silver transport keys (PREV / PLAY / NEXT /
+ *   PAUSE) with the in-app DeckKey pressed language (PLAY latched shows the
+ *   orange underline, PAUSE latched sits recessed); mechanical counter + RESET
+ *   under the title.
+ * - Right: enamel panel (the theme primary, extracted from the album art)
+ *   with the vertical cassette (the app's actual tape artwork) and a white
+ *   FOLDMAN wordmark at the bottom.
  *
  * Everything the updater writes (titles, tape/key files) is read
  * defensively: the widget must never throw, because Glance shows
@@ -129,8 +143,11 @@ class FoldmanWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        // The widget follows the same persisted theme as the app: the
+        // override from Settings, else the system dark-theme setting.
+        val dark = ThemePrefs.isDark(context)
         provideContent {
-            WalkmanContent()
+            WalkmanContent(dark = dark)
         }
     }
 }
@@ -146,7 +163,8 @@ private const val DESIGN_W = 440f
 private const val DESIGN_H = 200f
 
 @Composable
-private fun WalkmanContent() {
+private fun WalkmanContent(dark: Boolean) {
+    val chrome: WidgetChrome = if (dark) DarkChrome else LightChrome
     // The widget must never throw: Glance shows "Can't show content" for any
     // exception out of provideContent, so every risky read below degrades to
     // the idle rendering. (try/catch and runCatching are illegal around
@@ -219,6 +237,10 @@ private fun WalkmanContent() {
         }
     val titlePanelBg = decodePanel(WidgetKeys.TITLE_PANEL_PATH)
     val bluePanelBg = decodePanel(WidgetKeys.BLUE_PANEL_PATH)
+    // The theme primary for the enamel fallback: extracted from the album art
+    // by the updater (fixed enamel blue when absent), dark role in dark mode.
+    val primaryArgb = prefs?.get(WidgetKeys.PRIMARY) ?: 0xFF2A66B8
+    val panelFallback = Color(if (dark) darkenArgb(primaryArgb) else primaryArgb)
     val openApp = actionStartActivity<MainActivity>()
     val params = actionParametersOf(SourceParam to sourceName)
 
@@ -258,7 +280,7 @@ private fun WalkmanContent() {
             Box(
                 modifier = GlanceModifier.fillMaxSize()
                     .cornerRadius(sd(26))
-                    .background(ColorProvider(Chrome.root)),
+                    .background(ColorProvider(chrome.root)),
             ) {}
         }
         Row(
@@ -285,7 +307,7 @@ private fun WalkmanContent() {
                     Box(
                         modifier = GlanceModifier.fillMaxSize()
                             .cornerRadius(sd(16))
-                            .background(ColorProvider(Chrome.titlePanel)),
+                            .background(ColorProvider(chrome.titlePanel)),
                     ) {}
                 }
                 Column(
@@ -300,7 +322,7 @@ private fun WalkmanContent() {
                     Text(
                         "— STEREO —",
                         style = TextStyle(
-                            color = ColorProvider(Chrome.stereoLabel),
+                            color = ColorProvider(chrome.stereoLabel),
                             fontSize = ss(8),
                             fontWeight = FontWeight.Bold,
                         ),
@@ -311,7 +333,7 @@ private fun WalkmanContent() {
                 Text(
                     title.uppercase(),
                     style = TextStyle(
-                        color = ColorProvider(Chrome.titleTextDark),
+                        color = ColorProvider(chrome.titleText),
                         fontSize = ss(19),
                         fontWeight = FontWeight.Bold,
                     ),
@@ -321,7 +343,7 @@ private fun WalkmanContent() {
                 Text(
                     artist.uppercase(),
                     style = TextStyle(
-                        color = ColorProvider(Chrome.artistTextDark),
+                        color = ColorProvider(chrome.artistText),
                         fontSize = ss(12),
                         fontWeight = FontWeight.Medium,
                     ),
@@ -333,7 +355,7 @@ private fun WalkmanContent() {
                         Box(
                             modifier = GlanceModifier
                                 .cornerRadius(sd(10))
-                                .background(ColorProvider(Chrome.counterBg))
+                                .background(ColorProvider(chrome.counterBg))
                                 .padding(horizontal = sd(8), vertical = sd(4)),
                             contentAlignment = Alignment.Center,
                         ) {
@@ -353,7 +375,7 @@ private fun WalkmanContent() {
                         Box(
                             modifier = GlanceModifier
                                 .cornerRadius(sd(10))
-                                .background(ColorProvider(Chrome.resetBg))
+                                .background(ColorProvider(chrome.resetBg))
                                 .padding(horizontal = sd(10), vertical = sd(6))
                                 .clickable(openApp),
                             contentAlignment = Alignment.Center,
@@ -361,7 +383,7 @@ private fun WalkmanContent() {
                             Text(
                                 "RESET",
                                 style = TextStyle(
-                                    color = ColorProvider(Chrome.resetText),
+                                    color = ColorProvider(chrome.resetText),
                                     fontSize = ss(10),
                                 ),
                             )
@@ -380,24 +402,28 @@ private fun WalkmanContent() {
                     GlanceModifier.defaultWeight(), "PREV",
                     keyUp("prev"), keyDown("prev"), scale,
                     actionRunCallback<WidgetPrevAction>(params),
+                    chrome.label,
                     isPressed = pressedKey == "prev",
                 )
                 TransportKey(
                     GlanceModifier.defaultWeight(), "PLAY",
                     keyUp("play"), keyDown("play"), scale,
                     actionRunCallback<WidgetPlayAction>(params),
+                    chrome.label,
                     isPressed = pressedKey == "play" || isPlaying == true,
                 )
                 TransportKey(
                     GlanceModifier.defaultWeight(), "NEXT",
                     keyUp("next"), keyDown("next"), scale,
                     actionRunCallback<WidgetNextAction>(params),
+                    chrome.label,
                     isPressed = pressedKey == "next",
                 )
                 TransportKey(
                     GlanceModifier.defaultWeight(), "PAUSE",
                     keyUp("pause"), keyDown("pause"), scale,
                     actionRunCallback<WidgetPauseAction>(params),
+                    chrome.label,
                     isPressed = pressedKey == "pause" || isPlaying == false,
                 )
             }
@@ -426,7 +452,7 @@ private fun WalkmanContent() {
                 Box(
                     modifier = GlanceModifier.fillMaxSize()
                         .cornerRadius(sd(14))
-                        .background(ColorProvider(Chrome.panel)),
+                        .background(ColorProvider(panelFallback)),
                 ) {}
             }
             Column(
@@ -479,6 +505,7 @@ private fun TransportKey(
     iconDown: Bitmap?,
     scale: Float,
     action: Action,
+    labelColor: Color,
     isPressed: Boolean = false,
 ) {
     fun sd(v: Number) = (v.toFloat() * scale).dp
@@ -491,7 +518,7 @@ private fun TransportKey(
         Text(
             label,
             style = TextStyle(
-                color = ColorProvider(Chrome.label),
+                color = ColorProvider(labelColor),
                 fontSize = ss(9),
                 fontWeight = FontWeight.Bold,
             ),

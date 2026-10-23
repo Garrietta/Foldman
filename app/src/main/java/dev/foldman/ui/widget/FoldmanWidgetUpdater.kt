@@ -6,6 +6,9 @@ import android.graphics.Bitmap
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.updateAppWidgetState
 import dev.foldman.deck.Transport
+import dev.foldman.theme.FALLBACK_ENAMEL_ARGB
+import dev.foldman.theme.ThemePrefs
+import dev.foldman.theme.darkenArgb
 import dev.foldman.ui.ReelMotion
 import java.io.File
 import java.io.FileOutputStream
@@ -43,6 +46,11 @@ data class WidgetSnapshot(
      * pause/resume keeps the frozen angles.
      */
     val trackId: Long = -1,
+    /**
+     * The theme primary extracted from the playing album art (ARGB), driving
+     * the widget's enamel panel; the fixed enamel blue when there is no art.
+     */
+    val primaryArgb: Int = FALLBACK_ENAMEL_ARGB,
 )
 
 /**
@@ -112,14 +120,18 @@ object FoldmanWidgetUpdater {
         }
         // The tape is the only per-tick render, and it's written atomically
         // (temp file + rename) so the widget never reads a half-written PNG —
-        // that's what made it flash while playing. Keys and chrome are static
-        // and written once. (The separate artwork file was decoded but never
-        // displayed; the cassette renderer takes the artwork bitmap directly.)
+        // that's what made it flash while playing. Keys are static and written
+        // once. The chrome, title panel and enamel panel follow the persisted
+        // theme (read here, the single source of truth) and the enamel follows
+        // the album art via the snapshot's primary. (The separate artwork file
+        // was decoded but never displayed; the cassette renderer takes the
+        // artwork bitmap directly.)
+        val dark = ThemePrefs.isDark(appContext)
         val tapePath = writeTape(appContext, snapshot)
         val (keyPathsUp, keyPathsDown) = writeKeys(appContext)
-        val chromePath = writeChrome(appContext)
-        val titlePanelPath = writeTitlePanel(appContext)
-        val bluePanelPath = writeBluePanel(appContext)
+        val chromePath = writeChrome(appContext, dark)
+        val titlePanelPath = writeTitlePanel(appContext, dark)
+        val bluePanelPath = writeBluePanel(appContext, snapshot.primaryArgb, dark)
         val widget = FoldmanWidget()
         val manager = GlanceAppWidgetManager(appContext)
         for (appWidgetId in ids) {
@@ -143,6 +155,9 @@ object FoldmanWidgetUpdater {
                 state[WidgetKeys.IS_PLAYING] = snapshot.isPlaying
                 state[WidgetKeys.SOURCE] = snapshot.activeSource.name
                 state[WidgetKeys.QUEUE_INDEX] = snapshot.queueIndex
+                // The extracted primary, for the Glance-side enamel fallback and
+                // any future art-driven tinting.
+                state[WidgetKeys.PRIMARY] = snapshot.primaryArgb
                 // Recompose triggers; the rotation itself is baked into the tape PNG.
                 state[WidgetKeys.REEL_ANGLE_LEFT] = reels.leftAngle
                 state[WidgetKeys.REEL_ANGLE_RIGHT] = reels.rightAngle
@@ -232,6 +247,7 @@ object FoldmanWidgetUpdater {
             rightDeltaDeg = reels.rightDelta,
             widthPx = 336,
             heightPx = 564,
+            primaryArgb = snapshot.primaryArgb,
         )
         val file = File(context.filesDir, "foldman_widget_tape.png")
         val ok = writePngAtomic(file, tape)
@@ -240,14 +256,15 @@ object FoldmanWidgetUpdater {
     }.getOrNull()
 
     /**
-     * Renders the brushed-chrome root background once (versioned filename so
-     * design changes are picked up). Static — never re-rendered per tick.
+     * Renders the brushed-chrome root background once per theme (versioned
+     * filename so a theme flip re-renders). Static — never re-rendered per tick.
      */
-    private fun writeChrome(context: Context): String? = runCatching {
-        val file = File(context.filesDir, "foldman_widget_chrome_v1.png")
+    private fun writeChrome(context: Context, dark: Boolean): String? = runCatching {
+        // v2: light brushed aluminium + dark gunmetal variants.
+        val file = File(context.filesDir, "foldman_widget_chrome_v2_${if (dark) "dark" else "light"}.png")
         if (!file.exists()) {
             // 2x the 440x200 design size; 26dp corner radius -> 52px.
-            val chrome = CassetteRenderer.renderBrushedPanel(880, 400, 52f)
+            val chrome = CassetteRenderer.renderBrushedPanel(880, 400, 52f, dark)
             FileOutputStream(file).use { out ->
                 chrome.compress(Bitmap.CompressFormat.PNG, 90, out)
             }
@@ -257,13 +274,14 @@ object FoldmanWidgetUpdater {
     }.getOrNull()
 
     /**
-     * Renders the inset title panel (brushed silver + inner shadow) once.
-     * Design size: ~294dp x ~94dp at 2x; 16dp corner radius -> 32px.
+     * Renders the inset title panel (brushed silver + inner shadow) once per
+     * theme. Design size: ~294dp x ~94dp at 2x; 16dp corner radius -> 32px.
      */
-    private fun writeTitlePanel(context: Context): String? = runCatching {
-        val file = File(context.filesDir, "foldman_widget_title_panel_v1.png")
+    private fun writeTitlePanel(context: Context, dark: Boolean): String? = runCatching {
+        // v2: light + dark variants.
+        val file = File(context.filesDir, "foldman_widget_title_panel_v2_${if (dark) "dark" else "light"}.png")
         if (!file.exists()) {
-            val panel = CassetteRenderer.renderTitlePanel(588, 188, 32f)
+            val panel = CassetteRenderer.renderTitlePanel(588, 188, 32f, dark)
             val ok = writePngAtomic(file, panel)
             if (!panel.isRecycled) panel.recycle()
             if (!ok) return@runCatching null
@@ -272,13 +290,18 @@ object FoldmanWidgetUpdater {
     }.getOrNull()
 
     /**
-     * Renders the enamel-blue tape panel (richer gradient + edge shadow)
-     * once. Design size: 128dp x 188dp at 2x; 14dp corner radius -> 28px.
+     * Renders the enamel tape panel (richer gradient + edge shadow) once per
+     * distinct primary color. The enamel follows the album art — the light
+     * primary role in light mode, the dark role in dark mode — and falls back
+     * to the fixed enamel blue with no art. Design size: 128dp x 188dp at 2x;
+     * 14dp corner radius -> 28px.
      */
-    private fun writeBluePanel(context: Context): String? = runCatching {
-        val file = File(context.filesDir, "foldman_widget_blue_panel_v1.png")
+    private fun writeBluePanel(context: Context, primaryArgb: Int, dark: Boolean): String? = runCatching {
+        // v3: one cached render per distinct themed color.
+        val themed = if (dark) darkenArgb(primaryArgb) else primaryArgb
+        val file = File(context.filesDir, "foldman_widget_blue_panel_v3_%08X.png".format(themed))
         if (!file.exists()) {
-            val panel = CassetteRenderer.renderBluePanel(256, 376, 28f)
+            val panel = CassetteRenderer.renderBluePanel(256, 376, 28f, themed)
             val ok = writePngAtomic(file, panel)
             if (!panel.isRecycled) panel.recycle()
             if (!ok) return@runCatching null

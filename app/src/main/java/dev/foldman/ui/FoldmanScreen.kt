@@ -2,9 +2,11 @@ package dev.foldman.ui
 
 import android.content.Context
 import android.view.HapticFeedbackConstants
+import androidx.compose.animation.core.animateColorAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -77,6 +79,9 @@ import dev.foldman.deck.DeckUi
 import dev.foldman.deck.DeckViewModel
 import dev.foldman.deck.Source
 import dev.foldman.deck.Transport
+import dev.foldman.theme.ThemeMode
+import dev.foldman.theme.resolveDark
+import dev.foldman.theme.toDarkPrimary
 import com.ivor.ivormusic.ui.player.PlayerViewModel
 import kotlinx.coroutines.launch
 
@@ -98,9 +103,6 @@ private fun QueuePanel(ui: DeckUi, actions: ShelfActions, onPlayQueue: (Long) ->
 
 private enum class Posture { Cover, Unfolded, UnfoldedPortrait, Tabletop }
 
-/** Body enamel: the blue of the first portable cassette players. */
-private val Enamel = Color(0xFF2F6FB5)
-
 /**
  * Picks a layout from the hinge:
  *  - folded (cover screen): the portable player stood upright, tape on end behind its window,
@@ -117,6 +119,15 @@ fun FoldmanScreen(
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val applicationContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    // Theme: the persisted override (System / Light / Dark) resolved against
+    // the system setting. DeckColors.dark is the single switch the whole UI
+    // re-tones on; the enamel is the dynamic theme primary, animated so a new
+    // extraction cross-fades instead of flashing.
+    val themeMode by vm.themeMode.collectAsStateWithLifecycle()
+    val dark = resolveDark(themeMode, isSystemInDarkTheme())
+    LaunchedEffect(dark) { DeckColors.dark = dark }
+    val enamelTarget = if (dark) ui.primaryAccent.toDarkPrimary() else ui.primaryAccent
+    val enamel by animateColorAsState(enamelTarget, label = "enamel")
     val youtubePlayer = if (ui.source == Source.YT_MUSIC || ui.source == Source.PODCASTS) {
         viewModel<PlayerViewModel>(factory = remember(applicationContext) { YouTubePlayerViewModelFactory(applicationContext) })
     } else {
@@ -133,6 +144,8 @@ fun FoldmanScreen(
     var shelfOpen by rememberSaveable { mutableStateOf(false) }
     // Hidden diagnostics screen: five taps on the FOLDMAN wordmark.
     var showDiagnostics by rememberSaveable { mutableStateOf(false) }
+    // Settings (theme override): the gear on the deck.
+    var showSettings by rememberSaveable { mutableStateOf(false) }
     val feel by rememberUpdatedState(ui)
 
     // A new tape drops into the deck on every track change (and when the app opens):
@@ -238,7 +251,7 @@ fun FoldmanScreen(
         BoxWithConstraints(
             Modifier
                 .fillMaxSize()
-                .background(Brush.radialGradient(listOf(Color(0xFF2A2420), DeckColors.Backdrop), radius = 1800f)),
+                .background(Brush.radialGradient(listOf(DeckColors.BackdropHi, DeckColors.Backdrop), radius = 1800f)),
         ) {
             val density = LocalDensity.current
             // Posture: UNFOLDED phone (any orientation) always gets the
@@ -284,7 +297,14 @@ fun FoldmanScreen(
             when (posture) {
                 // The cover screen is the player itself: edge to edge, system bars shown
                 // as transparent overlays.
-                Posture.Cover -> CoverWalkman(ui, anim, deck, onTapes = { shelfOpen = true }, onShowDiagnostics = { showDiagnostics = true }, modifier = Modifier.fillMaxSize())
+                Posture.Cover -> CoverWalkman(
+                    ui, anim, deck,
+                    onTapes = { shelfOpen = true },
+                    onShowDiagnostics = { showDiagnostics = true },
+                    enamel = enamel,
+                    onShowSettings = { showSettings = true },
+                    modifier = Modifier.fillMaxSize(),
+                )
                 // Unfolded: the left two-thirds hold the source row, deck and liner
                 // notes; the right third is the dual-tab library panel (Up Next /
                 // Your Library) with its own search.
@@ -294,7 +314,13 @@ fun FoldmanScreen(
                 ) {
                     Column(Modifier.weight(2f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         SourceRow(ui, shelfActions, Modifier.fillMaxWidth().height(78.dp))
-                        DeckBand(ui, anim, deck, vm, onShowDiagnostics = { showDiagnostics = true }, Modifier.fillMaxWidth().weight(0.58f))
+                        DeckBand(
+                            ui, anim, deck, vm,
+                            onShowDiagnostics = { showDiagnostics = true },
+                            enamel = enamel,
+                            onShowSettings = { showSettings = true },
+                            Modifier.fillMaxWidth().weight(0.58f),
+                        )
                         LinerNotesBand(ui, Modifier.fillMaxWidth().weight(0.42f))
                     }
                     LibraryPanel(ui, shelfActions, vm::playQueueItem, Modifier.weight(1f).fillMaxHeight())
@@ -310,6 +336,8 @@ fun FoldmanScreen(
                     DeckBand(
                         ui, anim, deck, vm,
                         onShowDiagnostics = { showDiagnostics = true },
+                        enamel = enamel,
+                        onShowSettings = { showSettings = true },
                         Modifier.fillMaxWidth().weight(0.55f),
                     )
                     QueuePanel(ui, shelfActions, vm::playQueueItem, Modifier.fillMaxWidth().weight(0.45f))
@@ -322,6 +350,8 @@ fun FoldmanScreen(
                         DeckBand(
                             ui, anim, deck, vm,
                             onShowDiagnostics = { showDiagnostics = true },
+                            enamel = enamel,
+                            onShowSettings = { showSettings = true },
                             Modifier
                                 .height(topH)
                                 .fillMaxWidth()
@@ -354,7 +384,7 @@ fun FoldmanScreen(
                     sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
                     // Unified with the sheet's own top: the drag-handle zone shares
                     // the brown tone the sheet background starts with.
-                    containerColor = Color(0xFF2A1F17),
+                    containerColor = if (dark) Color(0xFF100D0B) else Color(0xFF2A1F17),
                     // We own inset handling: M3's default contentWindowInsets (safeDrawing
                     // top+bottom) pads the sheet chrome, which would push the surface
                     // behind the status bar at full expansion. The nav bar keeps its
@@ -432,6 +462,24 @@ fun FoldmanScreen(
                     DiagnosticsScreen()
                 }
             }
+            // Settings: the theme override (System / Light / Dark), opened from
+            // the gear on the deck.
+            if (showSettings) {
+                ModalBottomSheet(
+                    onDismissRequest = { showSettings = false },
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                    containerColor = if (dark) Color(0xFF141110) else Color(0xFF2A1F17),
+                    contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
+                ) {
+                    SettingsSheet(
+                        themeMode = themeMode,
+                        onThemeChange = { vm.setThemeMode(it) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)),
+                    )
+                }
+            }
         }
     }
 }
@@ -482,14 +530,25 @@ private class DeckControls(vm: DeckViewModel) {
 }
 
 private val Serif = TextStyle(fontFamily = FontFamily.Serif, fontWeight = FontWeight.Black, color = Color(0xFFF1F3F6), letterSpacing = 2.sp)
-private val OnEnamel = EngravedCaps.copy(color = Color(0xFFDCE6F2))
+/** Light engraved lettering for the enamel deck; readable on both enamel roles. */
+private val OnEnamel: TextStyle
+    get() = EngravedCaps.copy(color = Color(0xFFDCE6F2))
 
 /** The folded phone: an upright portable player. */
 @Composable
-private fun CoverWalkman(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, onTapes: () -> Unit, onShowDiagnostics: () -> Unit, modifier: Modifier) {
+private fun CoverWalkman(
+    ui: DeckUi,
+    anim: DeckAnimations,
+    deck: DeckControls,
+    onTapes: () -> Unit,
+    onShowDiagnostics: () -> Unit,
+    enamel: Color,
+    onShowSettings: () -> Unit,
+    modifier: Modifier,
+) {
     BoxWithConstraints(modifier) {
         val capH = maxHeight * 0.12f
-        Row(Modifier.fillMaxSize().paintedBody(Enamel, capHeight = capH, corner = 0.dp, framed = false)) {
+        Row(Modifier.fillMaxSize().paintedBody(enamel, capHeight = capH, corner = 0.dp, framed = false)) {
             Column(
                 Modifier
                     .weight(0.73f)
@@ -526,6 +585,8 @@ private fun CoverWalkman(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, o
                     // Inset from the corner so the display's rounded corner doesn't clip it.
                     HotlineButton(onTapes, Modifier.align(Alignment.TopStart).padding(top = 22.dp, start = 8.dp).size(44.dp, 22.dp))
                     Text("TAPES", style = OnEnamel.copy(fontSize = 7.sp), modifier = Modifier.align(Alignment.TopStart).padding(top = 48.dp, start = 14.dp))
+                    // Settings gear, top-end of the cap.
+                    SettingsGearButton(onShowSettings, Modifier.align(Alignment.TopEnd).padding(top = 22.dp, end = 10.dp).size(30.dp))
                 }
                 Spacer(Modifier.height(18.dp))
                 Text("STEREO", style = Serif.copy(fontSize = 30.sp))
@@ -635,8 +696,17 @@ private fun SideStrip(ui: DeckUi, deck: DeckControls, modifier: Modifier) {
 
 /** The unfolded phone: the player laid down as a deck. */
 @Composable
-private fun DeckBand(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, vm: DeckViewModel, onShowDiagnostics: () -> Unit, modifier: Modifier) {
-    Row(modifier.paintedBody(Enamel, corner = 22.dp)) {
+private fun DeckBand(
+    ui: DeckUi,
+    anim: DeckAnimations,
+    deck: DeckControls,
+    vm: DeckViewModel,
+    onShowDiagnostics: () -> Unit,
+    enamel: Color,
+    onShowSettings: () -> Unit,
+    modifier: Modifier,
+) {
+    Row(modifier.paintedBody(enamel, corner = 22.dp)) {
         // De-cramped: the blue deck takes a wider share from the silver end strip
         // so the dials and the cassette window can breathe. Top padding reduced
         // to lift the STEREO / FOLDMAN header slightly higher.
@@ -645,6 +715,8 @@ private fun DeckBand(ui: DeckUi, anim: DeckAnimations, deck: DeckControls, vm: D
                 Text("STEREO", style = Serif.copy(fontSize = 24.sp))
                 Spacer(Modifier.weight(1f))
                 DiagnosticsWordmark("FOLDMAN", 26.sp, onFiveTap = onShowDiagnostics)
+                Spacer(Modifier.width(8.dp))
+                SettingsGearButton(onShowSettings, Modifier.size(28.dp))
             }
             Spacer(Modifier.height(8.dp))
             Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

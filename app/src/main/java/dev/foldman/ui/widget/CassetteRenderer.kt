@@ -29,9 +29,11 @@ import kotlin.math.min
  *   orange underline accent.
  * - [renderSliders]: the VOLUME/TONE indicator cluster (legacy).
  *
- * Fixed brushed-chrome palette (not dynamic), matching Garrett's widget
- * mockup. All inputs are sanitized: bad sizes, NaN angles, or out-of-range
- * volumes degrade to a blank-but-valid bitmap, never throw into the updater.
+ * Brushed-chrome palette in the app deck's material language, with a dark
+ * gunmetal variant for dark mode; the enamel panel follows the theme primary
+ * extracted from the album art. All inputs are sanitized: bad sizes, NaN
+ * angles, or out-of-range volumes degrade to a blank-but-valid bitmap, never
+ * throw into the updater.
  */
 object CassetteRenderer {
 
@@ -75,8 +77,11 @@ object CassetteRenderer {
      * (DeckColors.Metal tones + hairline brushing + diagonal sheen), with
      * rounded corners and transparent outside so no Glance clipping is needed.
      * Used as the widget's root chrome background.
+     *
+     * [dark] selects the dark gunmetal variant (dark mode); the light brushed
+     * aluminium otherwise.
      */
-    fun renderBrushedPanel(widthPx: Int, heightPx: Int, cornerPx: Float): Bitmap {
+    fun renderBrushedPanel(widthPx: Int, heightPx: Int, cornerPx: Float, dark: Boolean = false): Bitmap {
         val w = widthPx.coerceAtLeast(1)
         val h = heightPx.coerceAtLeast(1)
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
@@ -84,11 +89,16 @@ object CassetteRenderer {
         val wf = w.toFloat()
         val hf = h.toFloat()
         val r = cornerPx.coerceIn(0f, minOf(wf, hf) / 2f)
-        // Base vertical gradient, like the deck chassis.
+        // Base vertical gradient, like the deck chassis — dark gunmetal in dark mode.
+        val tones = if (dark) {
+            intArrayOf(0xFF43464D.toInt(), 0xFF26282D.toInt(), 0xFF1B1D21.toInt(), 0xFF0E0F12.toInt())
+        } else {
+            intArrayOf(METAL_HI, METAL_MID, METAL_MIDLO, METAL_LO)
+        }
         val body = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(
                 0f, 0f, 0f, hf,
-                intArrayOf(METAL_HI, METAL_MID, METAL_MIDLO, METAL_LO),
+                tones,
                 floatArrayOf(0f, 0.18f, 0.75f, 1f),
                 Shader.TileMode.CLAMP,
             )
@@ -144,12 +154,12 @@ object CassetteRenderer {
     }
 
     /**
-     * The light inset title panel: brushed silver with the subtle inner
-     * shadow that sells the "inset" look. Deterministic brushing (fixed
-     * seed) so it never shimmers between redraws. Rendered once and cached
-     * by the updater; the widget draws its text on top.
+     * The inset title panel: brushed metal with the subtle inner shadow that
+     * sells the "inset" look. Deterministic brushing (fixed seed) so it never
+     * shimmers between redraws. Rendered once and cached by the updater; the
+     * widget draws its text on top. [dark] selects the dark variant.
      */
-    fun renderTitlePanel(widthPx: Int, heightPx: Int, cornerPx: Float): Bitmap {
+    fun renderTitlePanel(widthPx: Int, heightPx: Int, cornerPx: Float, dark: Boolean = false): Bitmap {
         val w = widthPx.coerceAtLeast(1)
         val h = heightPx.coerceAtLeast(1)
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
@@ -158,15 +168,16 @@ object CassetteRenderer {
         val hf = h.toFloat()
         val r = cornerPx.coerceIn(0f, minOf(wf, hf) / 2f)
         val panel = RectF(0f, 0f, wf, hf)
-        // Bright brushed-silver base, lighter at the top.
+        // Brushed-metal base, lighter at the top — dark gunmetal in dark mode.
+        val baseTones = if (dark) {
+            intArrayOf(0xFF33363C.toInt(), 0xFF222429.toInt(), 0xFF141518.toInt())
+        } else {
+            intArrayOf(0xFFF7F8FA.toInt(), 0xFFE8EAEE.toInt(), 0xFFD5D8DE.toInt())
+        }
         val base = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(
                 0f, 0f, 0f, hf,
-                intArrayOf(
-                    0xFFF7F8FA.toInt(),
-                    0xFFE8EAEE.toInt(),
-                    0xFFD5D8DE.toInt(),
-                ),
+                baseTones,
                 floatArrayOf(0f, 0.55f, 1f),
                 Shader.TileMode.CLAMP,
             )
@@ -229,7 +240,7 @@ object CassetteRenderer {
         val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = 1.5f
-            color = 0xFF8F949B.toInt()
+            color = if (dark) 0xFF0C0D0F.toInt() else 0xFF8F949B.toInt()
         }
         canvas.drawRoundRect(RectF(1f, 1f, wf - 1f, hf - 1f), r, r, edge)
         // Punch the rounded corners transparent.
@@ -246,12 +257,16 @@ object CassetteRenderer {
     }
 
     /**
-     * The enamel-blue tape panel: richer cobalt gradient with a subtle edge
-     * shadow on all four sides for depth, plus a faint top highlight lip.
-     * Rendered once and cached by the updater; the widget draws the tape
+     * The enamel tape panel: a richer gradient with a subtle edge shadow on
+     * all four sides for depth, plus a faint top highlight lip. Rendered once
+     * per distinct color and cached by the updater; the widget draws the tape
      * and wordmark on top.
+     *
+     * [primaryArgb] is the theme primary extracted from the playing album art
+     * (the dark role already applied in dark mode); the fixed enamel blue
+     * when there is no art.
      */
-    fun renderBluePanel(widthPx: Int, heightPx: Int, cornerPx: Float): Bitmap {
+    fun renderBluePanel(widthPx: Int, heightPx: Int, cornerPx: Float, primaryArgb: Int): Bitmap {
         val w = widthPx.coerceAtLeast(1)
         val h = heightPx.coerceAtLeast(1)
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
@@ -260,14 +275,15 @@ object CassetteRenderer {
         val hf = h.toFloat()
         val r = cornerPx.coerceIn(0f, minOf(wf, hf) / 2f)
         val panel = RectF(0f, 0f, wf, hf)
-        // Richer enamel blue: brighter crown, deep foot.
+        // Enamel gradient in the app's painted-body language: a light crown,
+        // the primary through the middle, a dark foot.
         val base = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(
                 0f, 0f, 0f, hf,
                 intArrayOf(
-                    0xFF3E82CC.toInt(),
-                    0xFF2F6CB8.toInt(),
-                    0xFF23549E.toInt(),
+                    lerpColor(primaryArgb, 0xFFFFFFFF.toInt(), 0.18f),
+                    primaryArgb,
+                    lerpColor(primaryArgb, 0xFF000000.toInt(), 0.20f),
                 ),
                 floatArrayOf(0f, 0.55f, 1f),
                 Shader.TileMode.CLAMP,
@@ -354,6 +370,8 @@ object CassetteRenderer {
         rightDeltaDeg: Float,
         widthPx: Int,
         heightPx: Int,
+        /** The theme primary: the fallback paper label's stripe follows the album art. */
+        primaryArgb: Int = 0xFF2F6FB5.toInt(),
     ): Bitmap {
         val w = widthPx.coerceAtLeast(1)
         val h = heightPx.coerceAtLeast(1)
@@ -369,6 +387,7 @@ object CassetteRenderer {
                 leftAngleDeg, rightAngleDeg,
                 leftRadiusMm.coerceIn(R_EMPTY, 21f), rightRadiusMm.coerceIn(R_EMPTY, 21f),
                 leftDeltaDeg, rightDeltaDeg,
+                stripeArgb = primaryArgb,
             )
             bmp
         } catch (_: Exception) {
@@ -396,12 +415,15 @@ object CassetteRenderer {
         rightDeltaDeg: Float,
         widthPx: Int,
         heightPx: Int,
+        /** The theme primary: the fallback paper label's stripe follows the album art. */
+        primaryArgb: Int = 0xFF2F6FB5.toInt(),
     ): Bitmap {
         val horizontal = renderTapeFace(
             title, artist, artwork, source,
             leftAngleDeg, rightAngleDeg, leftRadiusMm, rightRadiusMm,
             leftDeltaDeg, rightDeltaDeg,
             heightPx, widthPx,
+            primaryArgb = primaryArgb,
         )
         val matrix = Matrix().apply { postRotate(270f) }
         val rotated = Bitmap.createBitmap(
@@ -424,6 +446,8 @@ object CassetteRenderer {
         rightRadius: Float,
         leftDelta: Float,
         rightDelta: Float,
+        /** The theme primary, for the fallback paper label's stripe. */
+        stripeArgb: Int = 0xFF2F6FB5.toInt(),
     ) {
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
 
@@ -529,10 +553,11 @@ object CassetteRenderer {
             )
             canvas.drawBitmap(artwork, src, LABEL_RECT, p)
         } else {
-            // Paper label with stripes, like the app's LabelPalette fallback.
+            // Paper label with stripes, like the app's LabelPalette fallback —
+            // the first stripe follows the theme primary (the album art).
             p.color = DECK_PAPER
             canvas.drawRect(LABEL_RECT, p)
-            p.color = 0xFF2F6FB5.toInt()
+            p.color = stripeArgb
             canvas.drawRect(RectF(LABEL_RECT.left, 30f, LABEL_RECT.right, 33.5f), p)
             p.color = 0xFFB8322A.toInt()
             canvas.drawRect(RectF(LABEL_RECT.left, 34.5f, LABEL_RECT.right, 36f), p)
