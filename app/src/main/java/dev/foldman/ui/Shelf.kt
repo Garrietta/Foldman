@@ -53,7 +53,6 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -265,54 +264,18 @@ fun TapeShelf(
     // so only touch scrolling collapses it — programmatic list jumps (track
     // tap auto-scroll, source switches) never do.
     var tab by remember { mutableStateOf(0) }
-    // Staged collapse: upward touch scrolling hides chrome in three stages —
-    // 1: now-playing bar, 2: tab switcher + source dropdown, 3: search field.
-    // The Tracks header sticks. Downward scroll reverses the stages. Only
-    // UserInput scrolling drives it — programmatic list jumps (track-tap
-    // auto-scroll, source switches) never collapse.
-    var collapseStage by remember { mutableStateOf(0) }
-    var accDy by remember { mutableStateOf(0f) }
-    val density = LocalDensity.current
-    val collapseConnection = remember(density) {
-        // Sustained scroll needed per stage beyond the first (~120dp).
-        val stepPx = with(density) { 120.dp.toPx() }
+    var barVisible by remember { mutableStateOf(true) }
+    val collapseConnection = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (source != NestedScrollSource.UserInput) return Offset.Zero
-                if (available.y < -0.5f) {
-                    if (collapseStage == 0) {
-                        // Stage 1 hides immediately, as before.
-                        collapseStage = 1
-                        accDy = 0f
-                    } else {
-                        accDy += available.y
-                        while (collapseStage < 3 && accDy <= -stepPx) {
-                            collapseStage++
-                            accDy += stepPx
-                        }
-                        accDy = accDy.coerceAtLeast(-stepPx)
-                    }
-                } else if (available.y > 0.5f) {
-                    if (collapseStage == 1) {
-                        collapseStage = 0
-                        accDy = 0f
-                    } else if (collapseStage > 1) {
-                        accDy += available.y
-                        while (collapseStage > 1 && accDy >= stepPx) {
-                            collapseStage--
-                            accDy -= stepPx
-                        }
-                        accDy = accDy.coerceAtMost(stepPx)
-                    } else {
-                        accDy = 0f
-                    }
-                }
+                if (available.y < -0.5f) barVisible = false
+                else if (available.y > 0.5f) barVisible = true
                 return Offset.Zero
             }
         }
     }
-    // Switching tabs is a fresh context: bring all chrome back.
-    LaunchedEffect(tab) { collapseStage = 0; accDy = 0f }
+    // Switching tabs is a fresh context: bring the bar back.
+    LaunchedEffect(tab) { barVisible = true }
     LaunchedEffect(ui.source, ui.trackIndex) {
         val switched = ui.source != lastSource
         lastSource = ui.source
@@ -361,9 +324,9 @@ fun TapeShelf(
                 .nestedScroll(collapseConnection),
         ) {
         // Now-playing bar: below the drag handle, above the tab switcher —
-        // visible on both tabs; stage 1 of the collapse hides it on upward scroll.
+        // visible on both tabs; collapses away on upward scroll.
         AnimatedVisibility(
-            visible = collapseStage < 1,
+            visible = barVisible,
             enter = expandVertically(
                 animationSpec = spring(dampingRatio = 0.75f, stiffness = 450f),
                 expandFrom = Alignment.Top,
@@ -379,18 +342,6 @@ fun TapeShelf(
             }
         }
         // Fixed tab switcher: Tapes (sources + browser) or Queue (live queue).
-        // Stage 2 of the collapse hides it on sustained upward scroll.
-        AnimatedVisibility(
-            visible = collapseStage < 2,
-            enter = expandVertically(
-                animationSpec = spring(dampingRatio = 0.75f, stiffness = 450f),
-                expandFrom = Alignment.Top,
-            ) + fadeIn(animationSpec = tween(180)),
-            exit = shrinkVertically(
-                animationSpec = spring(dampingRatio = 0.75f, stiffness = 450f),
-                shrinkTowards = Alignment.Top,
-            ) + fadeOut(animationSpec = tween(150)),
-        ) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -421,26 +372,12 @@ fun TapeShelf(
                 }
             }
         }
-        }
         Spacer(Modifier.height(10.dp))
         if (tab == 0) {
             // Tape dropdown header: shows the selected tape, no shadow, no buttons.
             // Tap to cascade the other options; tap an option to select it.
             var dropdownOpen by remember { mutableStateOf(false) }
             Column(Modifier.weight(1f).fillMaxWidth()) {
-                // Stage 2 of the collapse hides the source dropdown on
-                // sustained upward scroll, with the tab switcher.
-                AnimatedVisibility(
-                    visible = collapseStage < 2,
-                    enter = expandVertically(
-                        animationSpec = spring(dampingRatio = 0.75f, stiffness = 450f),
-                        expandFrom = Alignment.Top,
-                    ) + fadeIn(animationSpec = tween(180)),
-                    exit = shrinkVertically(
-                        animationSpec = spring(dampingRatio = 0.75f, stiffness = 450f),
-                        shrinkTowards = Alignment.Top,
-                    ) + fadeOut(animationSpec = tween(150)),
-                ) {
                 TapeDropdownHeader(
                     selected = ui.source,
                     open = dropdownOpen,
@@ -450,7 +387,6 @@ fun TapeShelf(
                         dropdownOpen = false
                     },
                 )
-                }
                 if (dropdownOpen) {
                     Spacer(Modifier.height(4.dp))
                 }
@@ -462,11 +398,7 @@ fun TapeShelf(
                 ) {
                     when (ui.source) {
                         Source.LOCAL -> localItems(ui, actions, paperWrap)
-                        Source.YT_MUSIC -> youtubeMusicItems(
-                            ui.youtubeMusic, actions.youtubeMusic,
-                            onPaper = true, wrap = paperWrap,
-                            searchCollapsed = collapseStage >= 3,
-                        )
+                        Source.YT_MUSIC -> youtubeMusicItems(ui.youtubeMusic, actions.youtubeMusic, onPaper = true, wrap = paperWrap)
                         Source.PODCASTS -> podcastItems(ui.podcasts, actions.podcasts, onPaper = true, wrap = paperWrap)
                     }
                     // Rounded foot of the paper card.

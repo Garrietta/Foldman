@@ -1,12 +1,5 @@
 package dev.foldman.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,11 +11,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.stickyHeader
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -88,8 +79,6 @@ fun LazyListScope.youtubeMusicItems(
     actions: YouTubeMusicActions,
     onPaper: Boolean = false,
     hideSearch: Boolean = false,
-    /** Stage-3 collapse: the search field folds away, leaving the sticky Tracks header. */
-    searchCollapsed: Boolean = false,
     wrap: @Composable (@Composable () -> Unit) -> Unit = { content -> content() },
 ) {
     val openPlaylist = ui.openPlaylist
@@ -178,17 +167,6 @@ fun LazyListScope.youtubeMusicItems(
         if (!hideSearch) {
             item(key = "yt-search") {
             wrap {
-                AnimatedVisibility(
-                    visible = !searchCollapsed,
-                    enter = expandVertically(
-                        animationSpec = spring(dampingRatio = 0.75f, stiffness = 450f),
-                        expandFrom = Alignment.Top,
-                    ) + fadeIn(animationSpec = tween(180)),
-                    exit = shrinkVertically(
-                        animationSpec = spring(dampingRatio = 0.75f, stiffness = 450f),
-                        shrinkTowards = Alignment.Top,
-                    ) + fadeOut(animationSpec = tween(150)),
-                ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = ui.query,
@@ -221,7 +199,6 @@ fun LazyListScope.youtubeMusicItems(
                     ) {
                         Text("Search", style = linkStyle)
                     }
-                }
                 }
             }
         }
@@ -280,16 +257,9 @@ fun LazyListScope.youtubeMusicItems(
                 }
             }
         } else if (openPlaylist != null) {
-            // Sticky: the Tracks header (Shuffle play all) pins while the track
-            // list scrolls beneath it.
-            stickyHeader(key = "yt-tracks-header") {
+            item(key = "yt-tracks-header") {
                 wrap {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.background(
-                            if (onPaper) DeckColors.Paper else Color.Transparent,
-                        ),
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Tracks", modifier = Modifier.weight(1f), style = sectionStyle)
                         if (ui.playlistTracks.isNotEmpty()) {
                             ShuffleButton(onClick = { openPlaylist?.let(actions.shufflePlaylist) }, onPaper = onPaper)
