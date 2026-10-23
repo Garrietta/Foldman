@@ -539,6 +539,18 @@ object CassetteRenderer {
         }
         canvas.restore()
 
+        if (artwork != null && !artwork.isRecycled) {
+            // SOLID label strip behind the script title: opaque paper across
+            // the full label width — the title never touches the artwork.
+            p.color = DECK_PAPER
+            canvas.drawRect(RectF(5.5f, 7.5f, 94.5f, 17.5f), p)
+            p.color = 0x592A2522 // deck ink at 35%
+            p.style = Paint.Style.STROKE
+            p.strokeWidth = 0.25f
+            canvas.drawLine(5.5f, 17.5f, 94.5f, 17.5f, p)
+            p.style = Paint.Style.FILL
+        }
+
         // Script title.
         val scriptTypeface = try {
             Typeface.create("cursive", Typeface.BOLD)
@@ -574,10 +586,16 @@ object CassetteRenderer {
         }
         canvas.drawText("A", 86f, 12.8f, aPaint)
 
-        // Bottom labels.
+        // Bottom labels: solid opaque band when over artwork, so they never
+        // sit on busy art.
+        val overArt = artwork != null && !artwork.isRecycled
+        if (overArt) {
+            p.color = 0xFF000000.toInt()
+            canvas.drawRoundRect(RectF(5.5f, 44.5f, 94.5f, 53.5f), 1.5f, 1.5f, p)
+        }
         val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
-            color = DECK_INK
+            color = if (overArt) 0xFFFFFFFF.toInt() else DECK_INK
             textSize = 3f
             textAlign = Paint.Align.LEFT
         }

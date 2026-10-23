@@ -69,9 +69,6 @@ const val TAPE_WINDOW_ASPECT = 84f / 46f
 fun TapeWindow(ui: DeckUi, anim: DeckAnimations, modifier: Modifier = Modifier, vertical: Boolean = false) {
     val measurer = rememberTextMeasurer()
     val shell by androidx.compose.animation.animateColorAsState(DeckColors.shell(ui.source), tween(600), label = "shell")
-    // Bright covers need dark over-art text; dark covers need white. Sampled
-    // once per artwork so the label always reads on busy art.
-    val artBright = remember(ui.artwork) { ui.artwork?.let { averageLuminance(it) > 0.55f } ?: false }
     Canvas(
         modifier
             .quarterTurn(vertical)
@@ -104,7 +101,7 @@ fun TapeWindow(ui: DeckUi, anim: DeckAnimations, modifier: Modifier = Modifier, 
                     translate(-CROP.left * u, -CROP.top * u)
                     scale(u, u, Offset.Zero)
                 }) {
-                    drawCassette(ui, anim.reels, shell, measurer, u, artBright)
+                    drawCassette(ui, anim.reels, shell, measurer, u)
                 }
             }
             // Smoked glass: tint, a long diagonal reflection and a soft top glare.
@@ -128,7 +125,7 @@ fun TapeWindow(ui: DeckUi, anim: DeckAnimations, modifier: Modifier = Modifier, 
 }
 
 /** Draws the cassette in its own millimetre space; [u] only scales stroke widths of text. */
-private fun DrawScope.drawCassette(ui: DeckUi, reels: ReelMotion, shell: Color, measurer: TextMeasurer, u: Float, artBright: Boolean) {
+private fun DrawScope.drawCassette(ui: DeckUi, reels: ReelMotion, shell: Color, measurer: TextMeasurer, u: Float) {
     val light = shell.luminance() > 0.5f
     val shellRR = RoundRect(0f, 0f, 100f, 64f, CornerRadius(3.4f))
     val shellPath = Path().apply { addRoundRect(shellRR) }
@@ -172,7 +169,7 @@ private fun DrawScope.drawCassette(ui: DeckUi, reels: ReelMotion, shell: Color, 
     }
     drawPath(windowPath, Color.Black.copy(alpha = 0.55f), style = Stroke(0.5f))
 
-    drawLabel(ui, ui.label, measurer, windowRR, u, artBright)
+    drawLabel(ui, ui.label, measurer, windowRR, u)
     drawBottomBridge(shell, light)
 
     listOf(Offset(4.4f, 4.4f), Offset(95.6f, 4.4f), Offset(4.4f, 59.6f), Offset(95.6f, 59.6f), Offset(50f, 55.5f))
@@ -240,7 +237,7 @@ private fun DrawScope.drawHub(center: Offset, angle: Float, delta: Float) {
     drawCircle(Color(0xFF2B2C2F), 0.5f, center)
 }
 
-private fun DrawScope.drawLabel(ui: DeckUi, palette: LabelPalette, measurer: TextMeasurer, window: RoundRect, u: Float, artBright: Boolean) {
+private fun DrawScope.drawLabel(ui: DeckUi, palette: LabelPalette, measurer: TextMeasurer, window: RoundRect, u: Float) {
     // The label (and its artwork) fills the expanded window crop, so the newly
     // revealed area above and below the cassette shows more art, not shell.
     val labelRect = RoundRect(5.5f, 4f, 94.5f, 54f, CornerRadius(2f))
@@ -264,11 +261,9 @@ private fun DrawScope.drawLabel(ui: DeckUi, palette: LabelPalette, measurer: Tex
     drawPath(labelPath, Color.Black.copy(alpha = 0.18f), style = Stroke(0.2f))
 
     val ink = palette.ink
-    // Over-art text follows the cover's luminance — dark ink on bright art,
-    // white on dark — so the label reads on any cover, busy or not. The
-    // stroke is always the opposite tone, and both sit on a scrim.
-    val overArtInk = if (artBright) Color(0xFF141414) else Color.White
-    val overArtStroke = if (artBright) Color.White.copy(alpha = 0.85f) else Color.Black.copy(alpha = 0.75f)
+    // Text on the tape face never sits on artwork: it lives on solid opaque
+    // strips — paper for the title, black for the bottom labels — so it
+    // reads on any cover, busy or not.
     // Text is laid out in pixels and scaled down into millimetre space with the rest.
     fun measure(s: String, sizeMm: Float, maxWidthMm: Float, style: TextStyle) =
         measurer.measure(
@@ -281,7 +276,7 @@ private fun DrawScope.drawLabel(ui: DeckUi, palette: LabelPalette, measurer: Tex
         val layout = measure(s, sizeMm, maxWidthMm, style)
         withTransform({ translate(x, y); scale(1f / u, 1f / u, Offset.Zero) }) { drawText(layout) }
     }
-    val handColor = if (art != null) overArtInk else ink
+    val handColor = ink
     val hand = TextStyle(fontFamily = FontFamily.Cursive, color = handColor, fontWeight = FontWeight.Bold)
     val print = TextStyle(fontFamily = FontFamily.SansSerif, color = handColor, fontWeight = FontWeight.Bold, letterSpacing = (0.3f * u).toSp())
     // The handwritten title straddles the top edge of the visible label, horizontally
@@ -297,57 +292,33 @@ private fun DrawScope.drawLabel(ui: DeckUi, palette: LabelPalette, measurer: Tex
         val gap = 2f
         val startX = 50f - (aR * 2 + gap + lineW) / 2f
         if (art != null) {
-            // Scrim behind the title for legibility over busy art — strong
-            // enough to read on bright covers too.
-            val scrimW = aR * 2 + gap + lineW + 4f
-            drawRoundRect(
-                color = Color.Black.copy(alpha = 0.55f),
-                topLeft = Offset(50f - scrimW / 2f, edgeY - lineH / 2f - 1f),
-                size = Size(scrimW, lineH + 2f),
-                cornerRadius = CornerRadius(1f, 1f),
-            )
+            // SOLID label strip behind the title: opaque paper across the
+            // full label width. The title never touches the artwork.
+            drawRect(palette.paper, Offset(5.5f, 7.5f), Size(89f, 10f))
+            drawLine(ink.copy(alpha = 0.35f), Offset(5.5f, 17.5f), Offset(94.5f, 17.5f), 0.25f)
         }
-        // Circled side-A marker, part of the centered unit. It sits on the
-        // dark title scrim, so it stays light with a dark outline on art.
-        val markerColor = if (art != null) Color.White else handColor
-        val markerPrint = print.copy(color = markerColor)
-        val markerStroke = if (art != null) {
-            print.copy(color = Color.Black.copy(alpha = 0.8f), drawStyle = Stroke(width = 0.7f))
-        } else markerPrint
-        drawCircle(markerColor, aR, Offset(startX + aR, edgeY), style = Stroke(0.35f))
+        // Circled side-A marker, part of the centered unit, in ink on the
+        // paper strip (or the paper label when there is no art).
+        val markerPrint = print.copy(color = handColor)
+        drawCircle(handColor, aR, Offset(startX + aR, edgeY), style = Stroke(0.35f))
         val aLayout = measure("A", 3.4f, 5f, markerPrint)
-        val aStrokeLayout = measure("A", 3.4f, 5f, markerStroke)
         withTransform({
             translate(startX + aR - aLayout.size.width / u / 2f, edgeY - aLayout.size.height / u / 2f)
             scale(1f / u, 1f / u, Offset.Zero)
-        }) {
-            if (art != null) drawText(aStrokeLayout)
-            drawText(aLayout)
-        }
-        // Script, vertically centered on the edge.
-        // Opposite-tone stroke underlay for legibility when over art.
-        if (art != null) {
-            val strokeHand = hand.copy(
-                color = overArtStroke,
-                drawStyle = Stroke(width = 0.85f),
-            )
-            val strokeLayout = measure(line, 4.6f, 64f, strokeHand)
-            withTransform({
-                translate(startX + aR * 2 + gap, edgeY - lineH / 2f)
-                scale(1f / u, 1f / u, Offset.Zero)
-            }) { drawText(strokeLayout) }
-        }
+        }) { drawText(aLayout) }
+        // Script, vertically centered on the edge, in ink on the solid
+        // paper strip — no stroke underlay needed.
         withTransform({
             translate(startX + aR * 2 + gap, edgeY - lineH / 2f)
             scale(1f / u, 1f / u, Offset.Zero)
         }) { drawText(layout) }
     }
 
-    // Bottom labels: scrim + opposite-tone stroke guarantee legibility over any art.
+    // Bottom labels: heavy opaque band guarantees legibility over any art.
     if (art != null) {
-        // Dark scrim band behind the bottom label row.
+        // Solid black band behind the bottom label row.
         drawRoundRect(
-            color = Color.Black.copy(alpha = 0.6f),
+            color = Color.Black,
             topLeft = Offset(8f, 41.5f),
             size = Size(84f, 5.5f),
             cornerRadius = CornerRadius(1.5f, 1.5f),
@@ -417,25 +388,3 @@ private fun DrawScope.drawBottomBridge(shell: Color, light: Boolean) {
 
 private fun Color.luminance(): Float = 0.2126f * red + 0.7152f * green + 0.0722f * blue
 
-/**
- * Average luminance of [image] (0 = black, 1 = white), sampled on a coarse
- * 8x8 grid. Used to pick over-art text colors that read on any cover.
- */
-private fun averageLuminance(image: ImageBitmap): Float {
-    val bmp = runCatching { image.asAndroidBitmap() }.getOrNull() ?: return 0f
-    val w = bmp.width
-    val h = bmp.height
-    if (w <= 0 || h <= 0) return 0f
-    var sum = 0f
-    var n = 0
-    for (ix in 0 until 8) {
-        for (iy in 0 until 8) {
-            val px = ((ix + 0.5f) / 8f * w).toInt().coerceIn(0, w - 1)
-            val py = ((iy + 0.5f) / 8f * h).toInt().coerceIn(0, h - 1)
-            val c = bmp.getPixel(px, py)
-            sum += (0.2126f * ((c shr 16) and 0xFF) + 0.7152f * ((c shr 8) and 0xFF) + 0.0722f * (c and 0xFF)) / 255f
-            n++
-        }
-    }
-    return if (n == 0) 0f else sum / n
-}
