@@ -597,13 +597,58 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Tapping an artist result re-runs the current search — the typed query
-     * is left exactly as the user typed it, never rewritten to the artist's
-     * name.
+     * Tapping an artist result opens their page — top songs plus albums —
+     * without touching the typed query. Back returns to the results (or
+     * library) underneath.
      */
-    fun searchArtist(artist: com.ivor.ivormusic.data.ArtistItem) {
-        searchDebounceJob?.cancel()
-        runYouTubeSearch()
+    fun openYouTubeArtist(artist: com.ivor.ivormusic.data.ArtistItem) {
+        youtubeJob?.cancel()
+        youtubeJob = viewModelScope.launch {
+            _youtubeMusic.value = _youtubeMusic.value.copy(
+                openArtist = artist,
+                artistSongs = emptyList(),
+                artistAlbums = emptyList(),
+                loading = true,
+                message = null,
+            )
+            tick()
+            try {
+                // Bounded like search: a hung artist fetch must not wedge
+                // loading=true with the spinner off-screen.
+                val (songs, albums) = withTimeoutOrNull(20_000) {
+                    youtubeRepository.getArtistDetails(artist.id)
+                } ?: Pair(emptyList(), emptyList())
+                _youtubeMusic.value = _youtubeMusic.value.copy(
+                    artistSongs = songs,
+                    artistAlbums = albums,
+                    message = if (songs.isEmpty() && albums.isEmpty()) {
+                        "Couldn't load ${artist.name}."
+                    } else {
+                        null
+                    },
+                )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _youtubeMusic.value = _youtubeMusic.value.copy(
+                    message = e.message ?: "Couldn't load ${artist.name}.",
+                )
+            } finally {
+                _youtubeMusic.value = _youtubeMusic.value.copy(loading = false)
+            }
+            tick()
+        }
+    }
+
+    /** Back out of the artist page. */
+    fun closeYouTubeArtist() {
+        _youtubeMusic.value = _youtubeMusic.value.copy(
+            openArtist = null,
+            artistSongs = emptyList(),
+            artistAlbums = emptyList(),
+            message = null,
+        )
+        tick()
     }
 
     private fun runYouTubeSearch() {
@@ -619,6 +664,9 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
                 searchArtists = emptyList(),
                 openPlaylist = null,
                 playlistTracks = emptyList(),
+                openArtist = null,
+                artistSongs = emptyList(),
+                artistAlbums = emptyList(),
                 message = null,
             )
             tick()

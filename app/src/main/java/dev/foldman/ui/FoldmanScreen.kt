@@ -178,7 +178,8 @@ fun FoldmanScreen(
         YouTubeMusicActions(
             queryChanged = vm::setYouTubeMusicQuery,
             search = vm::searchYouTubeMusic,
-            searchArtist = vm::searchArtist,
+            openArtist = vm::openYouTubeArtist,
+            closeArtist = vm::closeYouTubeArtist,
             openPlaylist = vm::openYouTubePlaylist,
             closePlaylist = vm::closeYouTubePlaylist,
             playSongs = { songs, index ->

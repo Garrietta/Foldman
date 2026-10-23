@@ -272,13 +272,68 @@ fun LazyListScope.youtubeMusicItems(
             }
         }
 
-        if (ui.searched && openPlaylist == null) {
+        val openArtist = ui.openArtist
+        if (openArtist != null && openPlaylist == null) {
+            // Artist page opened from a search result: top songs plus
+            // albums. The typed query above is untouched; back returns to
+            // the results (or library) underneath.
+            item(key = "yt-artist-back") {
+                wrap {
+                    Text(
+                        "← Back",
+                        style = linkStyle,
+                        modifier = Modifier.clickable(onClick = actions.closeArtist).padding(vertical = 4.dp),
+                    )
+                }
+            }
+            item(key = "yt-artist-header") {
+                wrap {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        UrlThumb(openArtist.thumbnailUrl, Modifier.size(48.dp))
+                        Column(Modifier.padding(start = 10.dp)) {
+                            Text(
+                                openArtist.name,
+                                style = titleStyle,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            openArtist.subscriberCount?.takeIf { it.isNotBlank() }?.let { subs ->
+                                Text(subs, style = accountStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
+            }
+            if (ui.artistSongs.isNotEmpty()) {
+                item(key = "yt-artist-songs-header") {
+                    wrap { Text("Songs", style = sectionStyle) }
+                }
+                itemsIndexed(ui.artistSongs, key = { index, song -> "artist-${song.id}-$index" }) { index, song ->
+                    wrap { SongRow(song, onPaper = onPaper, onPlay = { actions.playSongs(ui.artistSongs, index) }) }
+                }
+            }
+            if (ui.artistAlbums.isNotEmpty()) {
+                item(key = "yt-artist-albums-header") {
+                    wrap { Text("Albums", style = sectionStyle) }
+                }
+                itemsIndexed(ui.artistAlbums, key = { _, album -> "artist-album-${album.id}" }) { _, album ->
+                    wrap {
+                        PlaylistRow(
+                            album,
+                            onPaper = onPaper,
+                            onOpen = { actions.openPlaylist(album) },
+                            onShuffle = { actions.shufflePlaylist(album) },
+                        )
+                    }
+                }
+            }
+        } else if (ui.searched && openPlaylist == null) {
             if (ui.searchArtists.isNotEmpty()) {
                 item(key = "yt-results-artists-header") {
                     wrap { Text("Artists", style = sectionStyle) }
                 }
                 itemsIndexed(ui.searchArtists, key = { _, artist -> artist.id }) { _, artist ->
-                    wrap { ArtistRow(artist, onPaper = onPaper, onOpen = { actions.searchArtist(artist) }) }
+                    wrap { ArtistRow(artist, onPaper = onPaper, onOpen = { actions.openArtist(artist) }) }
                 }
             }
             if (ui.searchAlbums.isNotEmpty()) {

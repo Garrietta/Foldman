@@ -50,6 +50,10 @@ data class YouTubeMusicUi(
     val playlists: List<com.ivor.ivormusic.data.PlaylistDisplayItem> = emptyList(),
     val openPlaylist: com.ivor.ivormusic.data.PlaylistDisplayItem? = null,
     val playlistTracks: List<com.ivor.ivormusic.data.Song> = emptyList(),
+    /** Artist page opened from a search result: top songs plus albums. */
+    val openArtist: com.ivor.ivormusic.data.ArtistItem? = null,
+    val artistSongs: List<com.ivor.ivormusic.data.Song> = emptyList(),
+    val artistAlbums: List<com.ivor.ivormusic.data.PlaylistDisplayItem> = emptyList(),
     val loading: Boolean = false,
     val message: String? = null,
 )
