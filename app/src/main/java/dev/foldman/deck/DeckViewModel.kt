@@ -517,6 +517,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setYouTubeMusicQuery(query: String) {
         _youtubeMusic.value = _youtubeMusic.value.copy(query = query)
+        tick()
     }
 
     fun searchYouTubeMusic() {
@@ -532,11 +533,21 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
                 playlistTracks = emptyList(),
                 message = null,
             )
+            tick()
             try {
-                val songs = youtubeRepository.search(query)
+                // Bounded: a hung network call used to wedge loading=true forever,
+                // which disabled the Search button with the spinner off-screen —
+                // from the device it looked like "nothing happens".
+                val songs = withTimeoutOrNull(20_000) {
+                    youtubeRepository.search(query)
+                }
                 _youtubeMusic.value = _youtubeMusic.value.copy(
-                    searchResults = songs,
-                    message = if (songs.isEmpty()) "No songs found." else null,
+                    searchResults = songs.orEmpty(),
+                    message = when {
+                        songs == null -> "Search timed out. Check your connection and try again."
+                        songs.isEmpty() -> "No songs found."
+                        else -> null
+                    },
                 )
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -547,6 +558,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             } finally {
                 _youtubeMusic.value = _youtubeMusic.value.copy(loading = false)
             }
+            tick()
         }
     }
 
@@ -561,7 +573,11 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             message = null,
         )
         try {
-            val playlists = withContext(Dispatchers.IO) { youtubeRepository.getUserPlaylists() }
+            // Bounded like search: a hung playlist fetch must not wedge
+            // loading=true and disable the Search button.
+            val playlists = withTimeoutOrNull(30_000) {
+                withContext(Dispatchers.IO) { youtubeRepository.getUserPlaylists() }
+            }.orEmpty()
             // Never wipe a good cache with an empty network result: a failed
             // or session-blipped fetch returns empty, and overwriting then
             // "decaches" the whole library until the next good fetch.
@@ -628,7 +644,10 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             message = null,
         )
         try {
-            val songs = withContext(Dispatchers.IO) { youtubeRepository.getPlaylist(playlist.id) }
+            // Bounded like search: a hung fetch must not wedge loading=true.
+            val songs = withTimeoutOrNull(30_000) {
+                withContext(Dispatchers.IO) { youtubeRepository.getPlaylist(playlist.id) }
+            }.orEmpty()
             // Same guard as the library list: don't let an empty/failed fetch
             // wipe the cached tracks.
             if (songs.isNotEmpty()) {
@@ -661,6 +680,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
 
     fun closeYouTubePlaylist() {
         _youtubeMusic.value = _youtubeMusic.value.copy(openPlaylist = null, playlistTracks = emptyList(), message = null)
+        tick()
     }
 
     @androidx.media3.common.util.UnstableApi

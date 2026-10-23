@@ -202,6 +202,26 @@ fun LazyListScope.youtubeMusicItems(
                 }
             }
         }
+            // Search state lives directly under the field — never at the list
+            // end — so a spinner, "no results", or an error is always visible.
+            // (It used to sit off-screen below the playlists, so a failure
+            // looked exactly like "nothing happens".)
+            if (ui.loading) {
+                item(key = "yt-loading") {
+                    wrap {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp, color = accent)
+                            Spacer(Modifier.size(8.dp))
+                            Text("Searching…", style = bodyStyle)
+                        }
+                    }
+                }
+            }
+            ui.message?.let { message ->
+                item(key = "yt-message") {
+                    wrap { Text(message, style = bodyStyle.copy(fontSize = 11.sp)) }
+                }
+            }
         }
 
         if (ui.searched && openPlaylist == null) {
@@ -244,17 +264,6 @@ fun LazyListScope.youtubeMusicItems(
                     )
                 }
             }
-        }
-    }
-
-    if (ui.loading) {
-        item(key = "yt-loading") {
-            wrap { CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp, color = accent) }
-        }
-    }
-    ui.message?.let { message ->
-        item(key = "yt-message") {
-            wrap { Text(message, style = bodyStyle.copy(fontSize = 11.sp)) }
         }
     }
 }
